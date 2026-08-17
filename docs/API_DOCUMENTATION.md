@@ -1,0 +1,449 @@
+# Nebula 首期 API 契约
+
+## 1. 文档范围与状态
+
+本文档定义首期控制面 `/api/v1` 与模型网关 `/v1` 的目标契约。当前任务只交付契约、配置和 Ent 持久化代码，尚未实现 Handler、Service、SSE 或网关运行逻辑。
+
+契约依据参考项目真实 Controller、Schema 与 Gateway 路由重新设计，不兼容旧 `/api/nebula/gateway`、无 `/v1` 路径别名或 internal usage/monitor 路由。
+
+## 2. 通用约定
+
+### 2.1 传输与格式
+
+- 控制面请求和响应使用 HTTPS + UTF-8 JSON；SSE 除外。
+- 控制面时间字段使用 RFC 3339 UTC，例如 `2026-08-18T09:30:00Z`。
+- 资源 ID 为 UUID 字符串；模型的对外 `model_id` 为字符串。
+- 未知 JSON 字段应拒绝并返回 `VALIDATION_ERROR`。
+- 列表默认按稳定字段排序；游标分页参数为 `limit` 和 `cursor`，`limit` 默认 20，最大 100。
+
+### 2.2 控制面鉴权
+
+- 受保护接口使用 `Authorization: Bearer <access_token>`。
+- Access token 为短期 JWT；Refresh token 为不透明随机值，只通过 `Secure; HttpOnly; SameSite=Lax` Cookie 传输。
+- Refresh token 每次刷新都轮换；Redis 中保存 token hash、session family 和 TTL。复用已轮换 token 时撤销整个 family。
+- 禁用用户、退出登录、重置密码后，其相关 refresh session 必须撤销。
+- RBAC 以服务端 JWT 身份和数据库中的最新用户状态为准，客户端不得提交或覆盖角色。
+
+### 2.3 成功响应
+
+控制面统一使用 envelope：
+
+```json
+{
+  "data": {},
+  "meta": {
+    "next_cursor": null
+  },
+  "request_id": "01K2..."
+}
+```
+
+单资源响应可省略 `meta`。创建成功使用 `201 Created`；无响应体的成功操作使用 `204 No Content`。
+
+### 2.4 错误响应
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "request validation failed",
+    "details": [
+      {"field": "email", "reason": "invalid_format"}
+    ]
+  },
+  "request_id": "01K2..."
+}
+```
+
+| HTTP | 错误码 | 场景 |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | JSON、字段或业务输入不合法 |
+| 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `TOKEN_EXPIRED` | 未登录或凭据失效 |
+| 403 | `FORBIDDEN`, `ACCOUNT_DISABLED` | 角色或资源范围不允许 |
+| 404 | `RESOURCE_NOT_FOUND` | 资源不存在或调用者不可见 |
+| 409 | `EMAIL_ALREADY_REGISTERED`, `RESOURCE_NAME_CONFLICT`, `INVALID_STATE_TRANSITION`, `PROJECT_HAS_NO_MENTOR`, `MODEL_NOT_READY`, `KEY_ALREADY_CLAIMED` | 唯一性或状态冲突 |
+| 422 | `VERIFICATION_CODE_INVALID`, `VERIFICATION_CODE_EXPIRED`, `INVITATION_INVALID` | 可解析但无法完成认证流程 |
+| 429 | `RATE_LIMITED`, `VERIFICATION_LOCKED` | 冷却或失败锁定 |
+| 500 | `INTERNAL_ERROR` | 未预期服务端错误，不泄露内部细节 |
+| 503 | `DEPENDENCY_UNAVAILABLE` | PostgreSQL、Redis 或邮件服务不可用 |
+
+### 2.5 核心资源形状
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "name": "Alice",
+    "email": "alice@example.com",
+    "role": "student",
+    "status": "active",
+    "created_at": "2026-08-18T09:30:00Z"
+  },
+  "organization": {
+    "id": "uuid",
+    "name": "AI Lab",
+    "description": null,
+    "status": "active"
+  },
+  "project": {
+    "id": "uuid",
+    "organization_id": "uuid",
+    "name": "Research Assistant",
+    "description": null,
+    "status": "active",
+    "has_mentor": true
+  },
+  "model": {
+    "id": "uuid",
+    "model_id": "gpt-4.1-mini",
+    "display_name": "GPT-4.1 mini",
+    "description": null,
+    "category": "text",
+    "capabilities": ["chat", "tools"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "context_window": 1048576,
+    "max_output_tokens": 32768,
+    "is_common": true,
+    "status": "active"
+  }
+}
+```
+
+## 3. 认证与当前用户
+
+| 方法 | 路由 | 鉴权 | 用途 |
+| --- | --- | --- | --- |
+| POST | `/api/v1/auth/verification-codes` | 无 | 发送学生/导师注册验证码 |
+| POST | `/api/v1/auth/register/student` | 无 | 学生注册 |
+| POST | `/api/v1/auth/register/mentor` | 无 | 导师注册 |
+| POST | `/api/v1/auth/login` | 无 | 三种角色统一登录 |
+| POST | `/api/v1/auth/refresh` | Refresh Cookie | 轮换 refresh token 并签发 access token |
+| POST | `/api/v1/auth/logout` | Refresh Cookie，可带 Access token | 撤销当前 refresh session 并清除 Cookie |
+| POST | `/api/v1/auth/password/forgot` | 无 | 向已注册邮箱发送重置验证码；始终返回同一结果以避免枚举用户 |
+| POST | `/api/v1/auth/password/reset` | 无 | 使用验证码重置密码并撤销全部 refresh session |
+| POST | `/api/v1/auth/teacher-invitations/activate` | 无 | 受邀老师设置姓名和密码并激活账户 |
+| GET | `/api/v1/me` | 任意登录用户 | 获取当前用户资料与角色 |
+
+### 3.1 请求与响应
+
+发送注册验证码：
+
+```json
+{"email":"alice@example.com","purpose":"student_registration"}
+```
+
+`purpose` 只能为 `student_registration` 或 `mentor_registration`。成功返回 `202 Accepted`，响应不包含验证码。
+
+学生/导师注册请求：
+
+```json
+{
+  "name": "Alice",
+  "email": "alice@example.com",
+  "password": "user-provided-password",
+  "verification_code": "123456"
+}
+```
+
+注册成功返回 `201 Created` 和 `user`，不自动改变客户端提交的角色；路由本身决定角色。
+
+统一登录请求：
+
+```json
+{"email":"alice@example.com","password":"user-provided-password"}
+```
+
+登录和 refresh 成功均设置新的 Refresh Cookie，并返回：
+
+```json
+{
+  "data": {
+    "access_token": "jwt",
+    "token_type": "Bearer",
+    "expires_in": 900,
+    "user": {"id":"uuid","name":"Alice","email":"alice@example.com","role":"student","status":"active"}
+  },
+  "request_id": "01K2..."
+}
+```
+
+忘记密码请求只包含 `email`。重置请求包含 `email`、`verification_code`、`new_password`。老师邀请激活请求包含 `token`、`name`、`password`。
+
+## 4. 实时事件
+
+| 方法 | 路由 | 鉴权 | Content-Type |
+| --- | --- | --- | --- |
+| GET | `/api/v1/events` | 任意登录用户 | `text/event-stream` |
+
+客户端使用支持自定义 Header 的 fetch streaming 方式携带 Bearer token。服务端发送心跳注释，并支持标准 `Last-Event-ID`。事件只用于提示刷新，不作为权威状态。
+
+```text
+id: 01K2...
+event: api_key.status_changed
+data: {"api_key_id":"uuid","status":"pending_teacher","updated_at":"2026-08-18T09:30:00Z"}
+
+id: 01K2...
+event: models.common_changed
+data: {"revision":"01K2..."}
+```
+
+`api_key.status_changed` 仅发给该 Key 的学生；`models.common_changed` 发给全部已认证用户。断线重连、事件过期或 revision 变化后，客户端必须重新调用对应 REST 列表接口。
+
+## 5. 学生接口
+
+以下接口要求 `role=student` 且用户为 `active`。
+
+| 方法 | 路由 | 用途 |
+| --- | --- | --- |
+| GET | `/api/v1/student/organizations` | 列出平台全部 ACTIVE 组织 |
+| GET | `/api/v1/student/organizations/{organization_id}/projects` | 列出该组织全部 ACTIVE 项目，并返回 `has_mentor` |
+| GET | `/api/v1/student/models` | 模型广场 |
+| POST | `/api/v1/student/api-keys` | 提交 Key 申请 |
+| GET | `/api/v1/student/api-keys` | 列出自己的申请和 Key |
+| GET | `/api/v1/student/api-keys/{api_key_id}` | 查看自己的审核详情与进度 |
+| POST | `/api/v1/student/api-keys/{api_key_id}/claim` | 一次性领取已批准 Key |
+
+组织和项目列表不要求学生已是成员。项目没有导师时仍返回，但 `has_mentor=false`，提交到该项目返回 `409 PROJECT_HAS_NO_MENTOR`。
+
+模型广场集合为：全局 `is_common=true AND status=active` 模型，与当前学生 `approved/active` Key 关联模型的去重并集。后者即使后来停用仍返回真实状态，便于解释 Key 可用性。
+
+提交申请：
+
+```json
+{
+  "name": "research-key",
+  "organization_id": "uuid",
+  "project_id": "uuid",
+  "model_ids": ["gpt-4.1-mini", "new-lab-model"]
+}
+```
+
+- `model_ids` 为 1 至 100 个去重后的非空模型 ID；学生可以输入平台中不存在的 ID。
+- 服务端校验项目确实属于 `organization_id`，但只持久化 `project_id`，避免组织归属冗余。
+- 新 `model_id` 大小写不敏感幂等创建为 `pending_configuration`。
+- 创建申请、候选模型和 `api_key_models` 必须在一个事务完成。
+- 同一学生进行中或生效 Key 名称大小写不敏感唯一；`rejected/revoked` 后可复用。
+
+创建成功返回 `201 Created`：
+
+```json
+{
+  "data": {
+    "id": "uuid",
+    "name": "research-key",
+    "status": "pending_mentor",
+    "progress": {"current":"mentor_review","completed_steps":["submitted"]},
+    "organization": {"id":"uuid","name":"AI Lab"},
+    "project": {"id":"uuid","name":"Research Assistant"},
+    "models": [{"model_id":"gpt-4.1-mini","status":"active"}],
+    "key_prefix": null,
+    "claimed_at": null,
+    "created_at": "2026-08-18T09:30:00Z"
+  },
+  "request_id": "01K2..."
+}
+```
+
+详情额外返回按时间升序的 `audits`，每项含 `action`、`actor_role`、`comment` 和 `created_at`。不向学生返回审核人邮箱。
+
+领取仅允许 `approved` 状态。成功时原子地切换到 `active`，并且只在本次响应返回完整 secret：
+
+```json
+{
+  "data": {
+    "api_key": "neb_sk_live_once_only",
+    "key_prefix": "neb_sk_live_abc1",
+    "claimed_at": "2026-08-18T09:30:00Z"
+  },
+  "request_id": "01K2..."
+}
+```
+
+重复领取返回 `409 KEY_ALREADY_CLAIMED`，不会再次返回明文。老师批准事务会幂等创建学生的组织和项目成员关系；Key 撤销不移除这些关系。
+
+## 6. 导师接口
+
+以下接口要求 `role=mentor` 且用户为 `active`。
+
+| 方法 | 路由 | 用途 |
+| --- | --- | --- |
+| GET | `/api/v1/mentor/organizations` | 列出导师所属 ACTIVE 组织 |
+| GET | `/api/v1/mentor/organizations/{organization_id}/projects` | 列出该组织全部 ACTIVE 项目并标明负责状态和申请状态 |
+| POST | `/api/v1/mentor/project-applications` | 申请负责项目 |
+| GET | `/api/v1/mentor/project-applications` | 查看自己的项目申请历史 |
+| GET | `/api/v1/mentor/api-key-reviews` | 列出负责项目中待初审申请 |
+| GET | `/api/v1/mentor/api-key-reviews/{api_key_id}` | 查看待初审申请详情 |
+| POST | `/api/v1/mentor/api-key-reviews/{api_key_id}/approve` | 初审通过 |
+| POST | `/api/v1/mentor/api-key-reviews/{api_key_id}/reject` | 初审驳回 |
+| GET | `/api/v1/mentor/projects/{project_id}/api-keys` | 列出负责项目的 ACTIVE Key |
+| POST | `/api/v1/mentor/api-keys/{api_key_id}/revoke` | 撤销负责项目的 ACTIVE Key |
+
+项目申请请求：
+
+```json
+{"project_id":"uuid"}
+```
+
+只能申请导师所属组织中的 ACTIVE 项目；同项目已有负责关系或 pending 申请时返回 `409 INVALID_STATE_TRANSITION`。
+
+初审列表和详情展示申请学生的 `id/name/email`、组织、项目、申请模型及创建时间，不返回 Key hash。任一负责导师可对 `pending_mentor` 申请执行首次有效决策；并发后续请求返回 `409 INVALID_STATE_TRANSITION`。
+
+通过请求可省略 body，或传 `{"comment":"optional"}`。驳回和撤销必须传非空 `{"comment":"reason"}`。撤销不会移除学生组织或项目成员关系。
+
+## 7. 老师接口
+
+以下接口要求 `role=teacher` 且用户为 `active`。老师拥有平台级管理权限，但没有项目成员或 ACTIVE Key 浏览接口。
+
+### 7.1 路由
+
+| 模块 | 方法 | 路由 | 用途 |
+| --- | --- | --- | --- |
+| 邀请 | POST | `/api/v1/teacher/invitations` | 邀请老师 |
+| 组织 | GET | `/api/v1/teacher/organizations` | 组织列表 |
+| 组织 | POST | `/api/v1/teacher/organizations` | 添加组织 |
+| 组织 | PATCH | `/api/v1/teacher/organizations/{organization_id}` | 修改名称、说明或状态 |
+| 组织 | POST | `/api/v1/teacher/organizations/{organization_id}/mentors/{mentor_id}` | 幂等分配导师到组织 |
+| 项目 | GET | `/api/v1/teacher/projects` | 项目列表，可按 `organization_id/status` 筛选 |
+| 项目 | POST | `/api/v1/teacher/projects` | 添加项目 |
+| 项目 | PATCH | `/api/v1/teacher/projects/{project_id}` | 修改名称、说明或状态 |
+| 项目申请 | GET | `/api/v1/teacher/mentor-project-applications` | 导师项目申请列表 |
+| 项目申请 | POST | `/api/v1/teacher/mentor-project-applications/{application_id}/approve` | 批准并幂等加入项目 |
+| 项目申请 | POST | `/api/v1/teacher/mentor-project-applications/{application_id}/reject` | 驳回，原因必填 |
+| 供应商 | GET | `/api/v1/teacher/providers` | 供应商列表 |
+| 供应商 | POST | `/api/v1/teacher/providers` | 添加供应商并加密凭据 |
+| 供应商 | GET | `/api/v1/teacher/providers/{provider_id}` | 供应商详情，不返回凭据密文或明文 |
+| 供应商 | PATCH | `/api/v1/teacher/providers/{provider_id}` | 修改名称、URL、状态；可替换凭据 |
+| 模型 | GET | `/api/v1/teacher/models` | 全部申请模型去重视图和聚合次数 |
+| 模型 | POST | `/api/v1/teacher/models` | 主动添加模型 |
+| 模型 | GET | `/api/v1/teacher/models/{model_id}` | 模型及 binding 详情 |
+| 模型 | PATCH | `/api/v1/teacher/models/{model_id}` | 配置模型元数据、常用标记和状态 |
+| Binding | POST | `/api/v1/teacher/models/{model_id}/bindings` | 添加供应商 binding |
+| Binding | PATCH | `/api/v1/teacher/model-bindings/{binding_id}` | 修改上游名、adapter、priority 或状态 |
+| Key 终审 | GET | `/api/v1/teacher/api-key-reviews` | 只列出 `pending_teacher` 摘要 |
+| Key 终审 | GET | `/api/v1/teacher/api-key-reviews/{api_key_id}` | 待终审摘要详情 |
+| Key 终审 | POST | `/api/v1/teacher/api-key-reviews/{api_key_id}/approve` | 终审通过并自动加入成员关系 |
+| Key 终审 | POST | `/api/v1/teacher/api-key-reviews/{api_key_id}/reject` | 终审驳回，原因必填 |
+
+首期不提供任何 DELETE 接口。资源通过 `status=inactive/disabled` 停用。
+
+### 7.2 管理请求
+
+组织创建/修改字段为 `name`、`description`、`status`；项目创建字段为 `organization_id`、`name`、`description`，修改字段为 `name`、`description`、`status`。
+
+老师邀请请求：
+
+```json
+{"email":"teacher2@example.com"}
+```
+
+供应商创建：
+
+```json
+{
+  "name": "Provider A",
+  "base_url": "https://api.provider.example/v1",
+  "credential": "provider-secret"
+}
+```
+
+`credential` 只作为写入字段；服务端加密后保存，所有读取响应只返回 `credential_configured: true/false`。
+
+模型创建/修改使用核心模型字段。将模型改为 `active` 前必须至少存在一个 ACTIVE binding，且对应 provider 为 ACTIVE。Binding 请求形状：
+
+```json
+{
+  "provider_id": "uuid",
+  "upstream_model_name": "upstream-model",
+  "adapter": "openai_compatible",
+  "priority": 100,
+  "status": "active"
+}
+```
+
+老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型。每项增加 `application_count`，按关联的不同 API Key 计数，不返回申请用户身份。
+
+### 7.3 Key 终审可见范围
+
+老师只能读取 `pending_teacher` 申请。摘要包含申请学生的 `name/email`、组织、项目、模型状态和导师审核记录；不包含项目成员列表、历史 ACTIVE Key 或 Key hash。
+
+终审通过请求可省略 body，或传 `{"comment":"optional"}`。通过前必须再次校验全部模型及 ACTIVE binding；不满足时返回 `409 MODEL_NOT_READY` 和未就绪 `model_ids`。通过事务幂等创建学生的组织与项目成员关系，追加审核记录，并转为 `approved`。
+
+## 8. 网关 API
+
+网关不使用控制面 envelope，成功和失败响应保持对应 OpenAI 或 Anthropic 协议原生格式。所有路由都只存在于标准 `/v1`。
+
+### 8.1 路由
+
+| 协议 | 方法 | 路由 | 请求形态 |
+| --- | --- | --- | --- |
+| OpenAI | GET | `/v1/models` | JSON |
+| OpenAI | POST | `/v1/chat/completions` | JSON，支持 `stream=true` SSE |
+| OpenAI | POST | `/v1/completions` | JSON，支持 `stream=true` SSE |
+| OpenAI | POST | `/v1/responses` | JSON，支持 `stream=true` SSE |
+| OpenAI | POST | `/v1/responses/compact` | JSON |
+| OpenAI | POST | `/v1/embeddings` | JSON |
+| OpenAI | POST | `/v1/images/generations` | JSON |
+| OpenAI | POST | `/v1/images/edits` | multipart/form-data |
+| OpenAI | POST | `/v1/audio/transcriptions` | multipart/form-data |
+| OpenAI | POST | `/v1/audio/translations` | multipart/form-data |
+| OpenAI | POST | `/v1/audio/speech` | JSON，响应音频流 |
+| OpenAI | POST | `/v1/video/generations` | JSON 或 multipart/form-data |
+| OpenAI | GET | `/v1/video/generations/{task_id}` | JSON |
+| Anthropic | POST | `/v1/messages` | JSON，支持 `stream=true` SSE |
+| OpenAI Realtime | WS | `/v1/realtime` | WebSocket 双向事件 |
+
+不提供旧 `/api/nebula/gateway/*`、`/models`、`/chat/completions`、`/messages` 等别名，也不提供 health、usage、monitor 或 provider internal 路由作为公共 API。
+
+### 8.2 鉴权与授权
+
+- OpenAI-compatible HTTP 使用 `Authorization: Bearer <nebula_api_key>`。
+- Anthropic Messages 同时接受协议原生 `x-api-key: <nebula_api_key>`；要求并透传合法 `anthropic-version`。
+- Realtime 使用 `Authorization` Header；浏览器无法设置 Header 时可使用标准 `Sec-WebSocket-Protocol` 承载凭据，不接受查询参数中的 API Key。
+- Key 必须为 `active`，所请求 `model` 必须位于 `api_key_models` 白名单，模型、binding 和 provider 均须为 `active`。
+- `/v1/models` 仅返回当前 Key 白名单中当前可路由的模型。
+
+网关不实现余额、计费、额度、RPM、Token 限制或用量记录。
+
+### 8.3 代理与故障切换
+
+- 保持协议原生 request/response、状态码、SSE 事件、multipart 文件和 WebSocket frame，不使用控制面 envelope。
+- 候选 binding 按 `priority ASC, id ASC` 排序。
+- 仅在连接错误、连接/响应超时、HTTP `429` 或 `5xx` 时尝试下一 binding。
+- `4xx` 参数或鉴权错误除 `429` 外不得跨供应商重试。
+- 流式响应在任何字节已发给客户端后不得切换供应商，以免拼接两个上游响应。
+- 所有候选失败时，以目标协议的原生错误结构返回最后一个可解释错误，并附服务端 `request_id` 响应 Header；不得泄露供应商凭据或内部 URL。
+
+### 8.4 协议错误
+
+OpenAI-compatible 示例：
+
+```json
+{
+  "error": {
+    "message": "The requested model is not allowed for this API key.",
+    "type": "invalid_request_error",
+    "param": "model",
+    "code": "model_not_allowed"
+  }
+}
+```
+
+Anthropic-compatible 示例：
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "permission_error",
+    "message": "The requested model is not allowed for this API key."
+  }
+}
+```
+
+## 9. 明确排除项
+
+- 不实现个人主页、额度设置、计费、余额、用量统计、通知中心或模型价格。
+- 不提供老师浏览项目成员或 ACTIVE Key 的接口。
+- 不提供资源删除接口。
+- 不提供旧路由兼容层、别名、双写、internal usage/monitor 路由或历史数据迁移。
