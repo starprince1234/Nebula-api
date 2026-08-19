@@ -40,6 +40,8 @@ ssh_options=(
   -p "$DEPLOY_SSH_PORT"
   -o BatchMode=no
   -o ConnectTimeout=15
+  -o ServerAliveInterval=30
+  -o ServerAliveCountMax=20
   -o IdentitiesOnly=yes
   -o LogLevel=ERROR
   -o PreferredAuthentications=password
