@@ -55,7 +55,7 @@ sshpass -e rsync \
   --compress \
   --delete \
   --exclude='.git/' \
-  --rsh="ssh ${ssh_options[*]}" \
+  --rsh="sshpass -e ssh ${ssh_options[*]}" \
   ./ "$remote:$remote_root/"
 
 token_b64="$(printf '%s' "$DOPPLER_TOKEN" | base64 -w 0)"
