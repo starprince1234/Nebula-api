@@ -466,7 +466,7 @@ Anthropic-compatible 示例：
 
 ## 10. 官方 Web 控制台消费约定
 
-仓库内 `frontend/` 是上述契约的官方 Vue 客户端。Vercel 生产页面使用 `https://www.lyn91r.cn`，并通过 `VITE_API_BASE_URL=https://api.lyn91r.cn` 调用 API；本地 Vite 仍使用 `/api` 与 `/v1` 代理。生产 API 由 Cloudflare Tunnel 暴露为 `https://api.lyn91r.cn`，Tunnel Service 指向内部 `http://backend:8080`。控制面 CORS 只允许正式前端 Origin，并允许 credentials、Authorization、Content-Type 和 Last-Event-ID；Realtime WebSocket 同样校验正式前端 Origin。
+仓库内 `frontend/` 是上述契约的官方 Vue 客户端。Vercel 项目的 Root Directory 为 `frontend`，生产页面使用 `https://www.lyn91r.cn`，并通过 `VITE_API_BASE_URL=https://api.lyn91r.cn` 调用 API；`frontend/vercel.json` 将 Vue Router history 路由统一回退到 `/index.html`，因此 `/login`、`/teacher/...` 等前端路由支持直接访问和刷新。本地 Vite 仍使用 `/api` 与 `/v1` 代理。生产 API 由 Cloudflare Tunnel 暴露为 `https://api.lyn91r.cn`，Tunnel Service 指向内部 `http://backend:8080`。控制面 CORS 只允许正式前端 Origin，并允许 credentials、Authorization、Content-Type 和 Last-Event-ID；Realtime WebSocket 同样校验正式前端 Origin。
 
 - access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
 - refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。

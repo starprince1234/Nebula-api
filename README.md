@@ -40,8 +40,8 @@ Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷
 | --- | --- | --- | --- |
 | `postgres` | `docker.m.daocloud.io/library/postgres:17.11-alpine3.24` | PostgreSQL 与 `citext` 持久化 | 不暴露 |
 | `redis` | `docker.m.daocloud.io/library/redis:8.2.8-alpine3.22` | 验证码、会话、邀请、SSE 与视频路由 | 不暴露 |
-| `migrate` | `nebula-api-backend:0.3.1` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
-| `backend` | `nebula-api-backend:0.3.1` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
+| `migrate` | `nebula-api-backend:0.3.2` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
+| `backend` | `nebula-api-backend:0.3.2` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
 | `cloudflared` | `cloudflare/cloudflared:2025.8.1` | Cloudflare Tunnel 到后端内部端口 | 不暴露宿主机端口 |
 
 PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。
@@ -155,7 +155,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 部署顺序固定为：校验 SSH 变量与主机公钥、通过 SSH 管道将当前 commit 精确同步到 `/opt/nebula-api`、在远端进程内注入 Doppler 配置、构建 backend 镜像、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。
 
-生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 不映射宿主机端口，Cloudflare Tunnel 通过内部网络访问 `http://backend:8080`。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`。Vercel 的 `VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。
+生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 不映射宿主机端口，Cloudflare Tunnel 通过内部网络访问 `http://backend:8080`。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。
 
 ```powershell
 & "D:\PuTTY\plink.exe" -ssh -P 22 -L 8081:127.0.0.1:8081 root@<server-host>

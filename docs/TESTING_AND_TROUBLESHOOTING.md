@@ -85,6 +85,15 @@ curl --fail http://127.0.0.1:8081/
 
 期望源码位于 `/opt/nebula-api` 且目录权限为 `755`，`postgres`、`redis`、`backend`、`cloudflared` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
 
+Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成后，直接请求 history 路由应返回控制台 HTML，而不是 Vercel 404：
+
+```powershell
+(Invoke-WebRequest -UseBasicParsing https://www.lyn91r.cn/login).StatusCode
+(Invoke-WebRequest -UseBasicParsing https://www.lyn91r.cn/teacher/key-reviews).StatusCode
+```
+
+两项均应返回 `200`，随后由 Vue Router 和认证守卫决定页面内容及登录跳转。
+
 ### 2.6 首期业务验收
 
 1. 学生和导师分别完成验证码注册，老师由 bootstrap 或邀请激活。
@@ -164,6 +173,7 @@ curl --fail http://127.0.0.1:8081/
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |
 | 云服务器 8080/8081 从公网不可达 | Compose 按安全契约只绑定 loopback | 使用 SSH tunnel；配置域名、TLS 和反向代理应作为独立部署变更 | 服务器执行 `ss -lntp '( sport = :8080 or sport = :8081 )'`，应只看到 `127.0.0.1` |
 | 前端打开后白屏 | 前端生产构建失败、静态资源未进入镜像或路由脚本异常 | 先完成 typecheck/build，再重建 frontend 镜像 | `cd frontend; npm run typecheck; npm run build`，浏览器查看 Console 与 Network，不粘贴 token |
+| 直接打开或刷新 `/login`、`/teacher/...` 返回 Vercel `404: NOT_FOUND` | Vercel 未读取 `frontend/vercel.json`，通常是 Root Directory 不是 `frontend` 或新配置尚未部署 | 将 Vercel Root Directory 设置为 `frontend` 并重新部署当前版本 | 直接请求 `/login` 和 `/teacher/key-reviews`，确认 HTTP 200 且响应为 `index.html`；不要改用 hash 路由或增加后端旧路由 |
 | 页面刷新后回到登录页 | refresh Cookie 不存在、Path/Secure/SameSite 不匹配，或 Redis session 已失效 | 修正 Cookie 与同源部署配置后重新登录 | 检查 `/api/v1/auth/refresh` 状态和 Set-Cookie 属性；前端不会从 JS 读取 refresh token |
 | 多个请求同时 401 导致反复刷新 | API client 未共享 refresh 请求，或 refresh token 被并发轮换重用 | 使用前端内置 single-flight client，禁止页面直接调用 fetch | Network 中应只有一个并发 refresh；若 session family 被撤销则重新登录 |
 | 前端提示接口 404 | 未通过 Vite/Nginx 代理访问、路径写成旧路由或 backend 未启动 | 使用相对 `/api/v1` 路径并恢复 backend | 检查浏览器请求 URL、`frontend/nginx.conf` 和 Compose 网络，不增加旧路由别名 |
