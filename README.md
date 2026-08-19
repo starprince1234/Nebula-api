@@ -1,129 +1,178 @@
-# Nebula AI Gateway NextGen
+# Nebula
 
-## 1. 项目简介与重构迁移背景
+Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI/Anthropic 兼容代理。
 
-本项目是对原中转站系统（只读参考源：`D:\VScodeProjects\NebulaCloud\nebula-ai`）的从零现代化重构版本。
+只读参考项目位于 `D:\VScodeProjects\NebulaCloud\nebula-ai`。本仓库重新实现业务，不兼容参考项目旧表、旧路由或历史数据。
 
-- **核心目标**：继承参考项目已验证的业务能力与控制台交互，采用数据面与控制面分离的高性能整洁架构，移除旧实现中的服务内部分层耦合。
-- **架构选择**：采用方案 A，即 Go + Gin + Ent + Redis + PostgreSQL 作为后端，Vue 3 + Vite + TypeScript + Tailwind CSS + Pinia + Vue Router 作为前端。
-- **边界约束**：参考项目仅用于核对业务规则与 UI；不得修改、复制其代码，或将其历史架构直接迁入本仓库。
+## 首期能力
 
-### 核心业务模块
+- 学生和导师邮箱验证码注册，三种角色统一登录，JWT access token 与 Redis refresh token 轮换。
+- 老师 bootstrap、邀请与邀请激活。
+- 学生选择组织、项目和模型白名单提交 Key 申请。
+- 项目任一负责导师完成首次初审；老师完成终审。
+- 老师终审通过后，学生自动加入目标组织和项目。
+- 学生首次领取时生成 API Key，明文只返回一次。
+- 导师可撤销负责项目中的 ACTIVE Key。
+- 老师管理组织、项目、导师项目申请、供应商、模型和模型 binding。
+- 认证 SSE 推送 Key 状态与全局常用模型变化。
+- 标准 `/v1` OpenAI-compatible、Anthropic Messages 和 Realtime WebSocket 网关。
 
-- **身份与租户**：用户认证、组织、项目、成员关系与 RBAC。
-- **令牌与鉴权**：API Key 创建、轮换、吊销、配额、过期时间、IP 白名单、模型白名单与分组权限。
-- **智能路由与负载均衡**：供应商、渠道、模型映射、权重轮询、健康检查、熔断和故障切换。
-- **高性能模型代理**：OpenAI 与 Anthropic 兼容接口、SSE 流式转发、请求归因、实时 Token 计费与配额扣减。
-- **财务与用量**：充值/兑换、成本核算、消费明细、账单与聚合统计。
-- **治理与运营**：控制台看板、调用日志、审计与风控、通知、渠道健康监控。
+首期不包含计费、余额、额度、RPM、Token 限制、用量记录、通知中心、模型价格、智能路由、资源删除 API 或旧路由兼容层。
 
----
+## 技术栈
 
-## 2. 技术栈选型
+| 领域 | 实现 |
+| --- | --- |
+| 语言 | Go 1.23+ |
+| HTTP | Gin |
+| ORM | Ent |
+| 数据库 | PostgreSQL，UUIDv7，`citext` |
+| Redis | 验证码、refresh session、老师邀请、SSE stream、视频任务路由 |
+| 安全 | bcrypt、HMAC-SHA256、AES-256-GCM、JWT HS256 |
+| 网关 | `net/http` 流式转发、multipart 重放、WebSocket 双向代理 |
+| 本地编排 | Docker Compose、Doppler `nebula-api/dev_personal` 运行时注入 |
 
-### 后端
+## Docker 本地架构
 
-| 领域 | 选型 | 用途 |
-| --- | --- | --- |
-| 语言与 HTTP 框架 | Go 1.22+ / Gin | 独立部署的数据面和控制面 HTTP 服务 |
-| ORM 与迁移 | Ent | PostgreSQL 业务实体、类型安全查询与 schema migration |
-| 缓存与协调 | Redis | L2 缓存、分布式限流、配额原子扣减、并发锁与事件流 |
-| 主数据存储 | PostgreSQL | 配置、用户、订单、账单及控制面业务数据 |
-| 观测性 | Zap + OpenTelemetry | 结构化日志、TraceID、指标和链路追踪 |
+Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷的逻辑分组，不是“一个容器包含多个镜像”。前端是独立的 Vue 静态应用，由 Nginx 提供同源入口并反向代理控制面与网关。
 
-### 前端
+| Service | Image | 作用 | 宿主机暴露 |
+| --- | --- | --- | --- |
+| `postgres` | `docker.m.daocloud.io/library/postgres:17.11-alpine3.24` | PostgreSQL 与 `citext` 持久化 | 不暴露 |
+| `redis` | `docker.m.daocloud.io/library/redis:8.2.8-alpine3.22` | 验证码、会话、邀请、SSE 与视频路由 | 不暴露 |
+| `migrate` | `nebula-api-backend:0.3.1` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
+| `backend` | `nebula-api-backend:0.3.1` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
+| `frontend` | `nebula-api-frontend:0.3.1` | Vue 控制台与同源反向代理 | `127.0.0.1:8081` |
 
-| 领域 | 选型 | 用途 |
-| --- | --- | --- |
-| 框架与构建 | Vue 3 / Vite / TypeScript | 独立管理控制台 |
-| UI 与样式 | Tailwind CSS + Naive UI | 高密度运营后台与可复用组件 |
-| 状态与路由 | Pinia + Vue Router | 用户会话、权限状态和动态路由 |
+PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。
 
----
+项目 Docker 构建使用 `docker.m.daocloud.io/library` 与 `dockerproxy.net/library` 国内镜像前缀（前端 Node/Nginx 使用后者，已验证大层下载速度）；Go 依赖使用 `goproxy.cn`，前端 npm 依赖使用 `registry.npmmirror.com`。前端构建上下文通过 `frontend/.dockerignore` 排除本地 `node_modules` 与 `dist`。如需更换镜像，只修改两个 Dockerfile 与 Compose 中的镜像地址，不需要修改 Docker Desktop 全局 daemon 配置。
 
-## 3. 架构规约
+应用镜像版本由仓库根目录 `VERSION` 唯一维护，必须为完整 SemVer `X.X.X`；Compose 禁止 `latest`。第三方镜像保持上游精确 patch tag，不重新包装成无意义的本地镜像。
 
-### 控制面与数据面分离
-
-- **数据面 (`internal/dataplane`)** 负责对外模型请求。它只能依赖内存缓存、Redis、上游 HTTP 客户端及抽象端口；代理热路径禁止同步读取 PostgreSQL。
-- **控制面 (`internal/controlplane`)** 负责身份、组织、项目、Key、渠道、充值、统计、审计和通知等管理业务，并通过事件或缓存失效机制向数据面发布配置变更。
-- **领域层 (`internal/domain`)** 只定义实体、值对象、业务规则和仓储端口，不依赖 Gin、Ent、Redis 或供应商 SDK。
-- **基础设施层 (`internal/infrastructure`)** 实现领域端口，集中接入 PostgreSQL、Redis、日志、观测与外部服务。
-- **接口层 (`internal/api`)** 只处理 HTTP 路由、DTO 校验、认证上下文和统一错误响应，禁止承载业务编排与存储访问。
-
-### 三层缓存
-
-1. **L1 本地内存 LRU**：缓存热点 API Key 校验结果、渠道运行状态与模型路由快照，避免每个请求访问网络缓存。
-2. **L2 Redis**：承载跨实例限流、实时并发控制、配额扣减原子操作、分布式锁及数据面缓存一致性。
-3. **L3 PostgreSQL**：只持久化配置、用户、组织、项目、充值、账单与异步落盘日志；不进入代理热路径。
-
-### 数据面约束
-
-- 流式响应使用 `io.Reader`/`io.Writer` 管道转发，避免聚合完整响应后再写出。
-- 供应商协议转换必须由 `dataplane/adapter` 实现；代理主流程不得针对具体供应商写条件分支。
-- 路由策略只从缓存读取渠道与模型快照；故障切换、熔断与健康状态由 `dataplane/router` 管理。
-- 每个请求必须携带 TraceID，并可追溯至 API Key、用户、组织、项目、模型与渠道。
-
-### 前端约束
-
-- `frontend/src/views` 禁止直接调用 `fetch`、`axios` 或其他 HTTP 客户端；所有请求必须经由 `frontend/src/api` 的类型化函数。
-- 前端权限、会话和应用级状态仅由 Pinia store 管理；页面不得维护可跨页面复用的全局状态副本。
-- 路由守卫集中于 `frontend/src/router`，页面组件不得自行实现权限绕过逻辑。
-
----
-
-## 4. 目录结构
+## 目录
 
 ```text
-Nebula-api/
-├── cmd/
-│   ├── server/                 # HTTP/API Gateway 主服务入口
-│   └── cron/                   # 异步定时任务入口：额度同步、日志清理、健康检查
-├── internal/
-│   ├── dataplane/              # 高性能 AI API 代理引擎
-│   │   ├── proxy/              # SSE、Chunked HTTP 流式转发
-│   │   ├── router/             # 选渠、权重策略、熔断与故障切换
-│   │   ├── quota/              # 实时计费、额度与并发控制
-│   │   └── adapter/            # OpenAI、Anthropic、Gemini 等协议适配器
-│   ├── controlplane/           # 管理后台与用户业务用例
-│   │   ├── auth/               # 登录、JWT/OAuth2 和身份管理
-│   │   ├── user/               # 用户资料与额度查询
-│   │   ├── key/                # API Key 生命周期与权限
-│   │   ├── channel/            # 供应商渠道、密钥池与健康探针
-│   │   └── redemption/         # 兑换码、充值与订单
-│   ├── domain/
-│   │   ├── model/              # 领域实体与值对象
-│   │   └── repository/         # 持久化与外部资源端口
-│   ├── infrastructure/
-│   │   ├── db/                 # Ent 客户端、PostgreSQL 与迁移
-│   │   ├── redis/              # Redis 缓存、限流与分布式锁
-│   │   └── logger/             # 结构化日志与观测实现
-│   └── api/
-│       ├── http/               # REST Controller、DTO 与路由注册
-│       └── middleware/         # CORS、RateLimit、TraceID、统一错误处理
-├── frontend/
-│   └── src/
-│       ├── api/                # 类型化 REST 客户端
-│       ├── assets/             # 图标、图片与全局样式
-│       ├── components/         # 通用、无业务耦合 UI 组件
-│       ├── views/
-│       │   ├── auth/           # 登录、注册、重置密码
-│       │   ├── dashboard/      # 总览与统计看板
-│       │   ├── keys/           # API Key 管理
-│       │   ├── channels/       # 管理员渠道配置
-│       │   └── logs/           # 用量与调用明细
-│       ├── store/              # Pinia 状态
-│       ├── router/             # 路由与权限守卫
-│       └── utils/              # 格式化、时间与 SSE 工具
-├── config/                     # YAML 与环境变量模板
-├── docs/                       # 架构、OpenAPI 与设计文档
-├── scripts/                    # Docker、数据库初始化与运维脚本
-├── AGENTS.md                   # Agent 研发约束
-└── README.md                   # 当前文档
+cmd/
+  migrate/                         显式创建 citext extension 与 Ent schema
+  server/                          服务入口、依赖装配、bootstrap、优雅停机
+docs/
+  API_DOCUMENTATION.md            控制面与网关契约
+  DATABASE.md                     表结构与事务规则
+  TESTING_AND_TROUBLESHOOTING.md  测试策略与支持排障
+frontend/
+  src/api/                        类型化控制面 API client
+  src/store/                      Pinia 内存会话状态
+  src/views/                      双栏认证、学生分步申请/模型广场、导师与老师队列和管理页面
+  Dockerfile                      Vue 构建与非 root Nginx 镜像
+  nginx.conf                      SPA 与同源 API 反向代理
+scripts/
+  ci-deploy.sh                    GitHub runner 的主机校验、源码同步和远端 Doppler 注入
+  compose.ps1                     固定 Doppler config、改写容器内 DSN 并调用 Compose
+  deploy.sh                       服务器端生产配置校验、镜像构建、迁移和健康检查
+internal/
+  api/http/                        Gin 路由、DTO、middleware、响应映射
+  controlplane/                    认证及学生/导师/老师业务用例
+  dataplane/                       Key 鉴权、binding 选择和协议代理
+  domain/                          领域错误与状态规则
+  infrastructure/
+    cache/                         Redis 状态与事件
+    crypto/                        密码、JWT、HMAC、凭据加密
+    db/                            Ent Schema、生成代码与 driver
+    mail/                          SMTP
+Dockerfile                        Go 多阶段构建与非 root 运行镜像
+compose.yaml                      本地 PostgreSQL、Redis、迁移、backend 和 frontend 编排
+VERSION                           应用镜像 SemVer
 ```
 
----
+## 配置
 
-## 5. 开发与快速开始
+以 `.env.example` 为变量清单，通过 shell、IDE 或部署平台注入运行环境。本项目不会自动读取 `.env`。至少替换以下值：
 
-代码骨架、依赖清单、容器编排和启动指令将在对应实现完成后补充。未落地的命令不得作为可执行命令记录在本文档中。
+- `DATABASE_URL`、`REDIS_URL`
+- `JWT_SIGNING_KEY`、`AUTH_STATE_HASH_PEPPER`
+- `API_KEY_HASH_PEPPER`
+- `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`
+- 首个老师信息和 SMTP 配置
+
+禁止把真实 `.env` 或任何凭据提交到仓库。
+
+Docker 启动固定从 Doppler 项目 `nebula-api` 的 `dev_personal` config 注入真实配置。`scripts/compose.ps1` 只在当前进程内将 Doppler 的本地 `DATABASE_URL`/`REDIS_URL` 主机改为 `postgres`/`redis` Compose DNS，并从数据库 URL 派生 PostgreSQL 初始化参数；其余应用配置原样注入。它不创建 `.env`，也不输出 secret。为防止误连外部数据库，脚本拒绝非 loopback/Compose service host，并要求 `HTTP_ADDRESS=:8080` 与本地端口契约一致。
+
+## 初始化与运行
+
+首次使用需要显式创建数据库结构。迁移命令会修改 `DATABASE_URL` 指向的数据库，执行前必须确认目标环境：
+
+```powershell
+go run ./cmd/migrate
+go run ./cmd/server
+```
+
+服务启动不会自动迁移数据库。默认监听 `:8080`。
+
+前端本地开发使用 Node.js 22 与 npm：
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Vite 将 `/api` 和 `/v1` 代理到 `127.0.0.1:8080`。access token 只保存在 Pinia 内存中，页面刷新通过 HttpOnly refresh Cookie 恢复会话。
+
+## Docker 启动与运维
+
+前置条件：Docker Desktop 正在运行，Doppler CLI 已登录，并可访问 `nebula-api/dev_personal`。在仓库根目录执行：
+
+```powershell
+# 构建镜像、初始化本地数据库并后台启动全部服务
+.\scripts\compose.ps1 up -d --build
+
+# 查看状态、日志与最终解析后的镜像名称（命令不会回显 secret）
+.\scripts\compose.ps1 ps
+.\scripts\compose.ps1 logs --tail 100 backend
+.\scripts\compose.ps1 images
+
+# 停止并删除容器/网络，保留数据库和 Redis 数据卷
+.\scripts\compose.ps1 down
+```
+
+启动顺序由健康条件约束：PostgreSQL、Redis 就绪后运行 `migrate`；迁移退出码为 0 后启动 backend。服务探针：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/health/live
+Invoke-RestMethod http://127.0.0.1:8080/health/ready
+```
+
+浏览器控制台入口为 `http://127.0.0.1:8081`。
+
+`docker compose down -v` 会永久删除本地 PostgreSQL 和 Redis 命名卷，仅在用户明确要求完全重置本地数据时执行。
+
+## 生产自动部署
+
+`.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
+
+部署顺序固定为：校验 SSH 变量与主机公钥、通过 rsync 将当前 commit 精确同步到 `/opt/nebula-api`、在远端进程内注入 Doppler 配置、依次构建 backend/frontend 镜像、启动 PostgreSQL/Redis、显式执行 migrate、重建应用容器并检查 backend readiness 和前端首页。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。
+
+生产 Compose 继续只监听服务器 loopback 的 `127.0.0.1:8080` 和 `127.0.0.1:8081`。在域名、证书和正式反向代理落地前，可以通过 SSH tunnel 做首页和健康检查 smoke test：
+
+```powershell
+& "D:\PuTTY\plink.exe" -ssh -P 22 -L 8081:127.0.0.1:8081 root@<server-host>
+```
+
+随后可打开 `http://localhost:8081` 检查页面；生产登录和 API Key 传输必须经过 HTTPS 反向代理，因为 production refresh Cookie 强制使用 `Secure`。不得直接开放 8080/8081，也不得在没有 TLS 的公网入口上进行登录或传输 API Key。服务器变更时同时更新 Doppler 中的 `DEPLOY_SSH_HOST`、`DEPLOY_SSH_PORT`、`DEPLOY_SSH_USER`、`DEPLOY_SSH_PASSWORD` 和 `DEPLOY_SSH_KNOWN_HOSTS`；workflow 无需修改。
+
+## 生成与验证
+
+```powershell
+go generate ./internal/infrastructure/db/ent
+go test ./...
+go vet ./...
+cd frontend
+npm run typecheck
+npm run test
+npm run build
+.\scripts\compose.ps1 config --quiet
+```
+
+API、数据库、目录、配置或功能发生变化时，必须在同一 Task 同步更新本 README、`docs/API_DOCUMENTATION.md`、`docs/DATABASE.md` 和 `docs/TESTING_AND_TROUBLESHOOTING.md`。

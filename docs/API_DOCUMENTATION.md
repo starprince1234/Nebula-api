@@ -2,11 +2,20 @@
 
 ## 1. 文档范围与状态
 
-本文档定义首期控制面 `/api/v1` 与模型网关 `/v1` 的目标契约。当前任务只交付契约、配置和 Ent 持久化代码，尚未实现 Handler、Service、SSE 或网关运行逻辑。
+本文档定义首期控制面 `/api/v1` 与模型网关 `/v1` 的已实现契约。Gin Handler、控制面 Service、Redis SSE、审批事务和网关运行逻辑均已落盘；实际运行依赖已初始化的 PostgreSQL、Redis 和有效环境配置。
 
 契约依据参考项目真实 Controller、Schema 与 Gateway 路由重新设计，不兼容旧 `/api/nebula/gateway`、无 `/v1` 路径别名或 internal usage/monitor 路由。
 
 ## 2. 通用约定
+
+### 2.0 运维健康检查
+
+| 方法 | 路由 | 鉴权 | 成功 | 用途 |
+| --- | --- | --- | --- | --- |
+| GET | `/health/live` | 无 | `200` | 进程存活探针，不访问依赖 |
+| GET | `/health/ready` | 无 | `200` | PostgreSQL 与 Redis 均可用时就绪 |
+
+`/health/ready` 依赖不可用时返回 `503`。健康响应不使用控制面 envelope，且只暴露 `ok/unavailable`，不得返回 DSN、host、账号、异常栈或其他内部连接细节。
 
 ### 2.1 传输与格式
 
@@ -14,7 +23,7 @@
 - 控制面时间字段使用 RFC 3339 UTC，例如 `2026-08-18T09:30:00Z`。
 - 资源 ID 为 UUID 字符串；模型的对外 `model_id` 为字符串。
 - 未知 JSON 字段应拒绝并返回 `VALIDATION_ERROR`。
-- 列表默认按稳定字段排序；游标分页参数为 `limit` 和 `cursor`，`limit` 默认 20，最大 100。
+- 首期列表按文档指定的稳定字段排序并全量返回，`meta.next_cursor` 固定为 `null`；引入分页时必须同时更新 Handler、Service、本文档和测试。
 
 ### 2.2 控制面鉴权
 
@@ -197,14 +206,15 @@ data: {"revision":"01K2..."}
 | 方法 | 路由 | 用途 |
 | --- | --- | --- |
 | GET | `/api/v1/student/organizations` | 列出平台全部 ACTIVE 组织 |
-| GET | `/api/v1/student/organizations/{organization_id}/projects` | 列出该组织全部 ACTIVE 项目，并返回 `has_mentor` |
+| GET | `/api/v1/student/organizations/{organization_id}/projects` | 列出该 ACTIVE 组织全部项目，并返回真实状态与 `has_mentor` |
 | GET | `/api/v1/student/models` | 模型广场 |
+| GET | `/api/v1/student/models/resolve` | 按 `model_id` 检查平台权威模型 |
 | POST | `/api/v1/student/api-keys` | 提交 Key 申请 |
 | GET | `/api/v1/student/api-keys` | 列出自己的申请和 Key |
 | GET | `/api/v1/student/api-keys/{api_key_id}` | 查看自己的审核详情与进度 |
 | POST | `/api/v1/student/api-keys/{api_key_id}/claim` | 一次性领取已批准 Key |
 
-组织和项目列表不要求学生已是成员。项目没有导师时仍返回，但 `has_mentor=false`，提交到该项目返回 `409 PROJECT_HAS_NO_MENTOR`。
+组织和项目列表不要求学生已是成员。项目没有导师或已停用时仍返回并由界面禁选；无导师项目提交返回 `409 PROJECT_HAS_NO_MENTOR`，停用项目提交返回资源不存在。
 
 模型广场集合为：全局 `is_common=true AND status=active` 模型，与当前学生 `approved/active` Key 关联模型的去重并集。后者即使后来停用仍返回真实状态，便于解释 Key 可用性。
 
@@ -215,11 +225,12 @@ data: {"revision":"01K2..."}
   "name": "research-key",
   "organization_id": "uuid",
   "project_id": "uuid",
-  "model_ids": ["gpt-4.1-mini", "new-lab-model"]
+  "model_ids": ["gpt-4.1-mini"],
+  "requested_models": [{"model_id":"new-lab-model","display_name":"Lab Model","description":null,"category":"text","capabilities":["chat"],"input_modalities":["text"],"output_modalities":["text"],"context_window":null,"max_output_tokens":null}]
 }
 ```
 
-- `model_ids` 为 1 至 100 个去重后的非空模型 ID；学生可以输入平台中不存在的 ID。
+- `model_ids` 与 `requested_models` 合计为 1 至 100 个大小写不敏感去重后的模型 ID。新模型必须在 `requested_models` 中提交完整模型卡片字段。
 - 服务端校验项目确实属于 `organization_id`，但只持久化 `project_id`，避免组织归属冗余。
 - 新 `model_id` 大小写不敏感幂等创建为 `pending_configuration`。
 - 创建申请、候选模型和 `api_key_models` 必须在一个事务完成。
@@ -303,6 +314,7 @@ data: {"revision":"01K2..."}
 | 组织 | GET | `/api/v1/teacher/organizations` | 组织列表 |
 | 组织 | POST | `/api/v1/teacher/organizations` | 添加组织 |
 | 组织 | PATCH | `/api/v1/teacher/organizations/{organization_id}` | 修改名称、说明或状态 |
+| 组织 | GET | `/api/v1/teacher/organizations/{organization_id}/mentor-candidates` | 搜索 ACTIVE 导师候选 |
 | 组织 | POST | `/api/v1/teacher/organizations/{organization_id}/mentors/{mentor_id}` | 幂等分配导师到组织 |
 | 项目 | GET | `/api/v1/teacher/projects` | 项目列表，可按 `organization_id/status` 筛选 |
 | 项目 | POST | `/api/v1/teacher/projects` | 添加项目 |
@@ -314,7 +326,7 @@ data: {"revision":"01K2..."}
 | 供应商 | POST | `/api/v1/teacher/providers` | 添加供应商并加密凭据 |
 | 供应商 | GET | `/api/v1/teacher/providers/{provider_id}` | 供应商详情，不返回凭据密文或明文 |
 | 供应商 | PATCH | `/api/v1/teacher/providers/{provider_id}` | 修改名称、URL、状态；可替换凭据 |
-| 模型 | GET | `/api/v1/teacher/models` | 全部申请模型去重视图和聚合次数 |
+| 模型 | GET | `/api/v1/teacher/models` | 全部模型去重视图与 `route_ready` |
 | 模型 | POST | `/api/v1/teacher/models` | 主动添加模型 |
 | 模型 | GET | `/api/v1/teacher/models/{model_id}` | 模型及 binding 详情 |
 | 模型 | PATCH | `/api/v1/teacher/models/{model_id}` | 配置模型元数据、常用标记和状态 |
@@ -351,6 +363,8 @@ data: {"revision":"01K2..."}
 
 模型创建/修改使用核心模型字段。将模型改为 `active` 前必须至少存在一个 ACTIVE binding，且对应 provider 为 ACTIVE。Binding 请求形状：
 
+`context_window` 和 `max_output_tokens` 在 PATCH 中支持三态：省略保持不变、`null` 清空、正整数更新。`model_id` 创建后只读。激活模型、停用 provider 或停用 binding 会在事务内锁定相关路由记录；若操作会令 ACTIVE 模型失去最后可用路由，返回 `409 MODEL_ROUTING_REQUIRED`，并在 `details.model_ids` 给出受影响模型。
+
 ```json
 {
   "provider_id": "uuid",
@@ -361,7 +375,9 @@ data: {"revision":"01K2..."}
 }
 ```
 
-老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型。每项增加 `application_count`，按关联的不同 API Key 计数，不返回申请用户身份。
+老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型；不返回申请次数或申请用户身份。
+
+学生可调用 `GET /api/v1/student/models/resolve?model_id=...` 检查模型 ID。不存在时返回 `exists=false`；存在时返回平台权威模型卡片。学生提交 Key 时可在 `requested_models` 中携带完整新模型卡片字段（`model_id`、`display_name`、`description`、`category`、`capabilities`、`input_modalities`、`output_modalities`、`context_window`、`max_output_tokens`），模型在同一事务中以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。
 
 ### 7.3 Key 终审可见范围
 
@@ -447,3 +463,14 @@ Anthropic-compatible 示例：
 - 不提供老师浏览项目成员或 ACTIVE Key 的接口。
 - 不提供资源删除接口。
 - 不提供旧路由兼容层、别名、双写、internal usage/monitor 路由或历史数据迁移。
+
+## 10. 官方 Web 控制台消费约定
+
+仓库内 `frontend/` 是上述契约的官方 Vue 客户端。容器环境由 `http://127.0.0.1:8081` 提供同源页面，Nginx 将 `/api` 与 `/v1` 转发到 backend；本地 Vite 使用相同路径代理，因此前端不得硬编码服务端 host。生产 Compose 同样只绑定 loopback；正式登录和公网 API 入口必须由 HTTPS 反向代理提供，SSH tunnel 仅用于未配置 TLS 前的 smoke check。
+
+- access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
+- refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。
+- 当前用户与角色以 `/api/v1/me`/session 响应为准，路由守卫不能替代服务端权限校验。
+- `/api/v1/events` 使用带 `Authorization` Header 的 fetch streaming，不使用原生 EventSource；收到状态事件后重新获取 REST 权威数据。
+- 一次性 API Key 仅在领取弹窗中显示和复制，关闭后不写入浏览器持久存储，也不支持再次展示。
+- 老师控制台不提供项目成员和 ACTIVE Key 浏览入口，前端不得扩大服务端可见范围。

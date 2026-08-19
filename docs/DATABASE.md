@@ -2,7 +2,7 @@
 
 ## 1. 文档范围
 
-本文档定义 Nebula 首期 PostgreSQL 持久化契约，与 `internal/infrastructure/db/ent/schema` 中的 Ent Schema 对应。当前任务只提供 Schema 和生成代码，不连接数据库、不创建迁移、不迁移参考项目历史数据。
+本文档定义 Nebula 首期 PostgreSQL 持久化契约，与 `internal/infrastructure/db/ent/schema` 和控制面事务实现对应。仓库提供显式 `cmd/migrate` 初始化入口，服务启动不自动迁移；Docker 本地环境通过一次性 `migrate` service 执行同一入口，成功退出后 backend 才启动。项目不迁移参考项目历史数据。
 
 设计依据来自参考项目真实 Alembic Migration、SQLAlchemy Model、Controller、Schema 与网关路由。新系统是 greenfield replatforming，不兼容旧表结构。
 
@@ -162,7 +162,7 @@
 
 索引：唯一索引 `model_id`；普通索引 `(status, is_common)`、`(category, status)`。
 
-学生提交申请时可输入尚不存在的 `model_id`。系统按 `model_id` 大小写不敏感去重，并以输入值初始化 `display_name`，状态为 `pending_configuration`。老师配置并启用模型后才能终审相关 Key。
+学生提交申请时可输入尚不存在的 `model_id`，并提交完整模型卡片元数据。系统按 `model_id` 大小写不敏感去重，首个成功创建事务确定权威元数据，状态为 `pending_configuration`；后续并发申请复用既有记录。老师配置并启用模型后才能终审相关 Key。
 
 ### 4.9 `model_bindings`
 
@@ -278,6 +278,8 @@ active --负责导师撤销--> revoked
 
 以下规则不由单个外键表达，必须由应用事务和授权层强制：用户角色与成员表类型匹配、项目组织归属、审核人角色、导师是否负责目标项目、合法状态迁移、模型终审条件、Key 领取的一次性返回。
 
+模型路由一致性检查不改变 Schema，也不执行迁移。将模型设为 ACTIVE、停用 provider 或停用 binding 时，应用在同一事务中锁定受影响模型和路由记录；任何 ACTIVE 模型必须始终保留至少一个 ACTIVE binding 且对应 provider 为 ACTIVE。已有不一致数据不会自动修复，由老师在模型管理中手动配置或停用模型。
+
 ## 7. Redis 外部状态
 
 | Key/Stream 逻辑 | 内容 | 生命周期 |
@@ -287,10 +289,19 @@ active --负责导师撤销--> revoked
 | 老师邀请 | invitation token hash、邀请邮箱、邀请人 | invitation TTL；激活后删除 |
 | 用户 SSE stream | Key 状态事件 | 有界 Redis Stream |
 | 全局模型 SSE stream | 常用模型变更事件 | 有界 Redis Stream |
+| 视频任务路由 | 上游 task ID 对应的 model binding ID | `VIDEO_TASK_ROUTE_TTL_HOURS` |
 
 Redis 不是业务权威数据源。客户端 SSE 断线重连后必须重新调用 REST API 获取权威状态。
 
-## 8. 相比参考项目删除的结构
+## 8. Docker 本地持久化
+
+- PostgreSQL 数据保存在命名卷 `nebula-api_postgres-data`，Redis AOF 保存在 `nebula-api_redis-data`。
+- `scripts/compose.ps1` 从 Doppler `nebula-api/dev_personal` 中的本地 `DATABASE_URL` 派生 PostgreSQL 初始化账号、密码和数据库名，并把容器内 DSN host 改为 Compose service `postgres`；不落盘真实值。
+- 生产部署由 `/opt/nebula-api/scripts/deploy.sh` 从 Doppler `nebula-api/prd` 注入独立的 `DATABASE_URL`，只接受 loopback 或 Compose `postgres` host，改写为容器 DNS 后显式执行一次性 `migrate` service；backend 仍不得隐式迁移。
+- `migrate` service 在 PostgreSQL 健康后执行 `CREATE EXTENSION IF NOT EXISTS citext` 和 Ent schema create；它不负责历史数据迁移或回滚。
+- 普通 `docker compose down` 不删除命名卷；`down -v` 会永久删除本地数据库和 Redis 数据，属于需明确授权的破坏性操作。
+
+## 9. 相比参考项目删除的结构
 
 - 用户：删除第三方 SSO、权限位掩码、额度、余额、计费和软删除字段。
 - 组织：删除 `code`，名称作为唯一的人类可读标识。

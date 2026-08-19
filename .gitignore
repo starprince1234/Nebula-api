@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.log
+coverage.out
+bin/
+tmp/
+.idea/
+.vscode/
+frontend/node_modules/
+frontend/dist/
+.playwright-mcp/

@@ -1,0 +1,157 @@
+name: nebula-api
+
+x-application-environment: &application-environment
+  APP_ENV:
+  HTTP_ADDRESS:
+  PUBLIC_APP_URL:
+  DATABASE_URL:
+  REDIS_URL:
+  JWT_SIGNING_KEY:
+  ACCESS_TOKEN_TTL_MINUTES:
+  REFRESH_TOKEN_TTL_HOURS:
+  AUTH_STATE_HASH_PEPPER:
+  API_KEY_HASH_PEPPER:
+  PROVIDER_CREDENTIAL_ENCRYPTION_KEY:
+  BOOTSTRAP_TEACHER_NAME:
+  BOOTSTRAP_TEACHER_EMAIL:
+  BOOTSTRAP_TEACHER_PASSWORD:
+  SMTP_HOST:
+  SMTP_PORT:
+  SMTP_USER:
+  SMTP_PASS:
+  SMTP_FROM:
+  SMTP_FROM_NAME:
+  SMTP_TLS_MODE:
+  SMTP_TIMEOUT_SECONDS:
+  EMAIL_VERIFICATION_CODE_TTL_MINUTES:
+  EMAIL_VERIFICATION_SEND_COOLDOWN_SECONDS:
+  EMAIL_VERIFICATION_MAX_ATTEMPTS:
+  EMAIL_VERIFICATION_LOCKOUT_MINUTES:
+  TEACHER_INVITATION_TTL_HOURS:
+  SSE_STREAM_MAX_LENGTH:
+  SSE_HEARTBEAT_SECONDS:
+  UPSTREAM_CONNECT_TIMEOUT_SECONDS:
+  UPSTREAM_RESPONSE_HEADER_TIMEOUT_SECONDS:
+  GATEWAY_MAX_REQUEST_BYTES:
+  VIDEO_TASK_ROUTE_TTL_HOURS:
+
+x-application-image: &application-image
+  image: nebula-api-backend:${NEBULA_VERSION:?run through scripts/compose.ps1}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      VERSION: ${NEBULA_VERSION:?run through scripts/compose.ps1}
+
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:17.11-alpine3.24
+    environment:
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+      POSTGRES_DB:
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: docker.m.daocloud.io/library/redis:8.2.8-alpine3.22
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  migrate:
+    <<: *application-image
+    entrypoint: ["/app/nebula-migrate"]
+    environment:
+      DATABASE_URL:
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    restart: "no"
+
+  backend:
+    <<: *application-image
+    environment: *application-environment
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - edge
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    init: true
+    restart: unless-stopped
+
+  frontend:
+    image: nebula-api-frontend:${NEBULA_VERSION:?run through scripts/compose.ps1}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks:
+      - edge
+    depends_on:
+      backend:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=16m,mode=1777
+      - /var/run:size=4m,mode=1777
+    init: true
+    restart: unless-stopped
+
+networks:
+  edge:
+  data:
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
