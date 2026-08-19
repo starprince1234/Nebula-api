@@ -27,7 +27,6 @@ jobs:
 
       - name: Install SSH transfer tools
         run: |
-          command -v rsync >/dev/null || sudo apt-get install --yes --no-install-recommends rsync
           command -v sshpass >/dev/null || sudo apt-get install --yes --no-install-recommends sshpass
 
       - name: Sync source and deploy

@@ -50,13 +50,14 @@ ssh_options=(
 remote="$DEPLOY_SSH_USER@$DEPLOY_SSH_HOST"
 
 sshpass -e ssh "${ssh_options[@]}" "$remote" "mkdir -p '$remote_root'"
-sshpass -e rsync \
-  --archive \
-  --compress \
-  --delete \
-  --exclude='.git/' \
-  --rsh="sshpass -e ssh ${ssh_options[*]}" \
-  ./ "$remote:$remote_root/"
+tar \
+  --exclude='./.git' \
+  --exclude='./frontend/node_modules' \
+  --exclude='./frontend/dist' \
+  --exclude='./.playwright-mcp' \
+  -czf - . | \
+  sshpass -e ssh "${ssh_options[@]}" "$remote" \
+    "mkdir -p '$remote_root' && tar -xzf - -C '$remote_root'"
 
 token_b64="$(printf '%s' "$DOPPLER_TOKEN" | base64 -w 0)"
 printf '%s\n' "$token_b64" | sshpass -e ssh "${ssh_options[@]}" "$remote" \
