@@ -466,7 +466,7 @@ Anthropic-compatible 示例：
 
 ## 10. 官方 Web 控制台消费约定
 
-仓库内 `frontend/` 是上述契约的官方 Vue 客户端。容器环境由 `http://127.0.0.1:8081` 提供同源页面，Nginx 将 `/api` 与 `/v1` 转发到 backend；本地 Vite 使用相同路径代理，因此前端不得硬编码服务端 host。生产 Compose 同样只绑定 loopback；正式登录和公网 API 入口必须由 HTTPS 反向代理提供，SSH tunnel 仅用于未配置 TLS 前的 smoke check。
+仓库内 `frontend/` 是上述契约的官方 Vue 客户端。Vercel 生产页面使用 `https://www.lyn91r.cn`，并通过 `VITE_API_BASE_URL=https://api.lyn91r.cn` 调用 API；本地 Vite 仍使用 `/api` 与 `/v1` 代理。生产 API 由 Cloudflare Tunnel 暴露为 `https://api.lyn91r.cn`，Tunnel Service 指向内部 `http://backend:8080`。控制面 CORS 只允许正式前端 Origin，并允许 credentials、Authorization、Content-Type 和 Last-Event-ID；Realtime WebSocket 同样校验正式前端 Origin。
 
 - access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
 - refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。

@@ -12,9 +12,10 @@ import (
 )
 
 type Config struct {
-	CookieSecure bool
-	RefreshTTL   time.Duration
-	SSEHeartbeat time.Duration
+	CookieSecure  bool
+	RefreshTTL    time.Duration
+	SSEHeartbeat  time.Duration
+	AllowedOrigin string
 }
 
 type Server struct {
@@ -41,7 +42,7 @@ func NewServer(
 		engine: engine, service: service, security: securityManager,
 		cache: cacheStore, health: health, config: cfg,
 	}
-	engine.Use(server.requestContext(), server.recovery(), securityHeaders())
+	engine.Use(server.requestContext(), server.recovery(), securityHeaders(), cors(server.config.AllowedOrigin))
 	engine.GET("/health/live", server.live)
 	engine.GET("/health/ready", server.ready)
 	server.registerControlPlane()

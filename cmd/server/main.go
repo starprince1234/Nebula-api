@@ -93,14 +93,16 @@ func run() error {
 		ResponseHeaderTimeout: cfg.UpstreamResponseHeaderTimeout,
 		MaxRequestBytes:       cfg.GatewayMaxRequestBytes,
 		VideoTaskRouteTTL:     cfg.VideoTaskRouteTTL,
+		AllowedOrigin:         cfg.PublicAppURL,
 	})
 	api := httpapi.NewServer(
 		controlService, securityManager, cacheStore, gateway,
 		httpapi.HealthDependencies{Database: sqlDB, Cache: cacheStore},
 		httpapi.Config{
-			CookieSecure: cfg.CookieSecure(),
-			RefreshTTL:   cfg.RefreshTTL,
-			SSEHeartbeat: cfg.SSEHeartbeat,
+			CookieSecure:  cfg.CookieSecure(),
+			RefreshTTL:    cfg.RefreshTTL,
+			SSEHeartbeat:  cfg.SSEHeartbeat,
+			AllowedOrigin: cfg.PublicAppURL,
 		},
 	)
 	httpServer := &http.Server{

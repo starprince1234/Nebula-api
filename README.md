@@ -42,7 +42,7 @@ Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷
 | `redis` | `docker.m.daocloud.io/library/redis:8.2.8-alpine3.22` | 验证码、会话、邀请、SSE 与视频路由 | 不暴露 |
 | `migrate` | `nebula-api-backend:0.3.1` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
 | `backend` | `nebula-api-backend:0.3.1` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
-| `frontend` | `nebula-api-frontend:0.3.1` | Vue 控制台与同源反向代理 | `127.0.0.1:8081` |
+| `cloudflared` | `cloudflare/cloudflared:2025.8.1` | Cloudflare Tunnel 到后端内部端口 | 不暴露宿主机端口 |
 
 PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。
 
@@ -82,6 +82,7 @@ internal/
     mail/                          SMTP
 Dockerfile                        Go 多阶段构建与非 root 运行镜像
 compose.yaml                      本地 PostgreSQL、Redis、迁移、backend 和 frontend 编排
+compose.production.yaml            生产 PostgreSQL、Redis、迁移、backend 和 Cloudflare Tunnel 编排
 VERSION                           应用镜像 SemVer
 ```
 
@@ -152,9 +153,9 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署顺序固定为：校验 SSH 变量与主机公钥、通过 rsync 将当前 commit 精确同步到 `/opt/nebula-api`、在远端进程内注入 Doppler 配置、依次构建 backend/frontend 镜像、启动 PostgreSQL/Redis、显式执行 migrate、重建应用容器并检查 backend readiness 和前端首页。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。
+部署顺序固定为：校验 SSH 变量与主机公钥、通过 SSH 管道将当前 commit 精确同步到 `/opt/nebula-api`、在远端进程内注入 Doppler 配置、构建 backend 镜像、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。
 
-生产 Compose 继续只监听服务器 loopback 的 `127.0.0.1:8080` 和 `127.0.0.1:8081`。在域名、证书和正式反向代理落地前，可以通过 SSH tunnel 做首页和健康检查 smoke test：
+生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 不映射宿主机端口，Cloudflare Tunnel 通过内部网络访问 `http://backend:8080`。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`。Vercel 的 `VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。
 
 ```powershell
 & "D:\PuTTY\plink.exe" -ssh -P 22 -L 8081:127.0.0.1:8081 root@<server-host>

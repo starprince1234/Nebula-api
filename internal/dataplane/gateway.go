@@ -38,6 +38,7 @@ type Config struct {
 	ResponseHeaderTimeout time.Duration
 	MaxRequestBytes       int64
 	VideoTaskRouteTTL     time.Duration
+	AllowedOrigin         string
 }
 
 type Gateway struct {
@@ -390,6 +391,9 @@ func (g *Gateway) serveRealtime(w http.ResponseWriter, r *http.Request) {
 		CheckOrigin: func(request *http.Request) bool {
 			origin := request.Header.Get("Origin")
 			if origin == "" {
+				return true
+			}
+			if origin == g.config.AllowedOrigin {
 				return true
 			}
 			parsed, err := url.Parse(origin)

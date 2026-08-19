@@ -138,17 +138,21 @@ export POSTGRES_DB="${connection_values[3]}"
 export REDIS_URL="${connection_values[4]}"
 export NEBULA_VERSION="$version"
 
-compose=(docker compose --project-name "$compose_project" --file compose.yaml)
+if [[ -z "${CF_TUNNEL_TOKEN:-}" || "$CF_TUNNEL_TOKEN" == replace_with* ]]; then
+  printf 'CF_TUNNEL_TOKEN is required for production deployment\n' >&2
+  exit 1
+fi
+export TUNNEL_TOKEN="$CF_TUNNEL_TOKEN"
+compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
 "${compose[@]}" config --quiet
 "${compose[@]}" build backend
-"${compose[@]}" build frontend
 "${compose[@]}" up -d postgres redis
 "${compose[@]}" up --no-build --force-recreate migrate
-"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend frontend
+"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend cloudflared
 
 for _ in $(seq 1 60); do
   if curl --fail --silent --show-error http://127.0.0.1:8080/health/ready >/dev/null && \
-    curl --fail --silent --show-error http://127.0.0.1:8081/ >/dev/null; then
+    "${compose[@]}" ps --status running cloudflared | grep -q cloudflared; then
     "${compose[@]}" ps
     printf 'Nebula %s is ready\n' "$version"
     exit 0

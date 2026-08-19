@@ -70,7 +70,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 .\scripts\compose.ps1 logs --tail 100 backend
 ```
 
-期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)，backend/frontend image tag 与 `VERSION` 一致。健康响应不得包含 DSN、secret 或异常文本。控制台入口为 `http://127.0.0.1:8081`。
+本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
 
 ### 2.5 生产部署验证
 
@@ -83,7 +83,7 @@ curl --fail http://127.0.0.1:8080/health/ready
 curl --fail http://127.0.0.1:8081/
 ```
 
-期望源码位于 `/opt/nebula-api` 且目录权限为 `755`，`postgres`、`redis`、`backend` 健康，`frontend` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网 80/443 未配置 TLS 入口时，只允许通过 SSH tunnel 做 smoke check；production 登录和 API Key 传输必须经过 HTTPS。
+期望源码位于 `/opt/nebula-api` 且目录权限为 `755`，`postgres`、`redis`、`backend`、`cloudflared` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
 
 ### 2.6 首期业务验收
 
