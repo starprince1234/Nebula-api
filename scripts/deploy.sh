@@ -158,13 +158,14 @@ docker run --rm \
   dockerproxy.net/metacubex/mihomo:v1.19.30 \
   -t -d /root/.config/mihomo
 
+compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
+"${compose[@]}" config --quiet
+"${compose[@]}" build backend
+
 if docker container inspect mihomo >/dev/null 2>&1; then
   docker container rm --force mihomo >/dev/null
 fi
 
-compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
-"${compose[@]}" config --quiet
-"${compose[@]}" build backend
 "${compose[@]}" up -d postgres redis
 "${compose[@]}" up --no-build --force-recreate migrate
 "${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend mihomo cloudflared
