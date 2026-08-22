@@ -68,6 +68,8 @@ frontend/
   nginx.conf                      SPA 与同源 API 反向代理
 scripts/
   ci-deploy.sh                    GitHub runner 的主机校验、源码同步和远端 Doppler 注入
+  fetch-deploy-credentials.sh     GitHub runner 按名读取 Doppler SSH 部署凭据
+  fetch-production-configuration.sh  云服务器经本机代理按名读取生产配置
   compose.ps1                     固定 Doppler config、改写容器内 DSN 并调用 Compose
   deploy.sh                       服务器端生产配置校验、镜像构建、迁移和健康检查
 internal/
@@ -153,7 +155,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器进程内从 Doppler 注入生产配置，随后在本机构建 `nebula-api-backend:<VERSION>`、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 不安装或调用 Doppler CLI，按名接口也不请求包含 dynamic secrets 的完整配置下载端点；Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
+部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器也通过同一类按名 REST 查询读取生产应用配置；该请求固定使用服务器本机 `127.0.0.1:7890` 的 Mihomo 代理。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器随后在本机构建 `nebula-api-backend:<VERSION>`、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
 
 生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 不映射宿主机端口，Cloudflare Tunnel 通过内部网络访问 `http://backend:8080`。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；生产 Tunnel 固定使用 `http2`，避免部署网络中的 QUIC 连接超时导致公网 API 进入 530。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。
 
