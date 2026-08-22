@@ -172,6 +172,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
 | main push 后没有部署 | workflow 未进入 `production` environment，或 GitHub 缺少 `DOPPLER_TOKEN` | 检查 Actions 运行记录和 environment secret；不要把 token 改写到 workflow | `gh run list --workflow deploy.yml` 和 `gh secret list --env production`，只核对名称 |
+| GitHub runner 下载 Doppler 部署 SSH 配置超时 | Doppler API 到 runner 的短暂网络波动 | workflow 自动进行三次有界重试；三次仍失败后再检查 Doppler 状态与 `DOPPLER_TOKEN` | 查看 `Pull image and deploy` 日志；不要将 `DEPLOY_SSH_*` 复制到 GitHub secret |
 | GHCR anonymous pull 校验失败 | `nebula-api` Container package 仍为 Private，或 GHCR 暂时不可达 | 在 GitHub Packages 将该 package 设为 Public 后重新运行 workflow；检查 GHCR 连通性 | 查看 build job 的 `Verify anonymous image pull`；生产机不应保存 GitHub token |
 | 部署在 SSH 校验阶段失败 | Doppler 主机信息已更新但 `DEPLOY_SSH_KNOWN_HOSTS` 仍是旧主机公钥，或密码认证被禁用 | 在可信通道核对新服务器公钥并同时更新五个 `DEPLOY_SSH_*` 变量 | 不得关闭 `StrictHostKeyChecking`；不要在日志打印密码或完整 Doppler 配置 |
 | 远端镜像未更新 | 部署文件同步失败、GHCR digest 拉取失败、磁盘不足或 Docker 服务异常 | 修正 SSH/Docker/镜像网络问题后重新 push 新 commit | 检查 workflow 的 GHCR build/pull 步骤、`docker image inspect <digest>`、`df -h /opt` 和 `docker system df`；不得删除无关项目镜像或卷 |

@@ -153,7 +153,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署分为两个 job：GitHub Actions 先构建并发布公开 GHCR 镜像，然后使用该构建产物的不可变 digest 部署。部署端只通过 SSH 同步 `compose.production.yaml` 与 `scripts/deploy.sh`，在远端进程内注入 Doppler 配置、匿名拉取已验证 digest、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。生产服务器不再接收完整源码，也不会执行 Docker/Go 构建；workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。
+部署分为两个 job：GitHub Actions 先构建并发布公开 GHCR 镜像，然后使用该构建产物的不可变 digest 部署。部署端只通过 SSH 同步 `compose.production.yaml` 与 `scripts/deploy.sh`，在远端进程内注入 Doppler 配置、匿名拉取已验证 digest、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。生产服务器不再接收完整源码，也不会执行 Docker/Go 构建；workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。GitHub runner 下载 Doppler 的部署 SSH 配置采用三次有界重试，仍只使用 `DOPPLER_TOKEN`，不把 Doppler 值复制为 GitHub secret。
 
 首次 push 创建 GHCR package 后，需要在 GitHub 仓库的 **Packages → nebula-api → Package settings → Change visibility** 中一次性设为 **Public**。workflow 会在 build 后以匿名 `docker pull` 校验这一条件；未设为 Public 时不会继续生产部署。Actions 的 `GITHUB_TOKEN` 是每次运行短期签发的内部凭据，仅用于上传镜像，绝不保存到 Doppler 或服务器。
 
