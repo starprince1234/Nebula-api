@@ -40,15 +40,15 @@ Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷
 | --- | --- | --- | --- |
 | `postgres` | `docker.m.daocloud.io/library/postgres:17.11-alpine3.24` | PostgreSQL 与 `citext` 持久化 | 不暴露 |
 | `redis` | `docker.m.daocloud.io/library/redis:8.2.8-alpine3.22` | 验证码、会话、邀请、SSE 与视频路由 | 不暴露 |
-| `migrate` | `ghcr.io/starprince1234/nebula-api@sha256:<构建产物 digest>` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
-| `backend` | `ghcr.io/starprince1234/nebula-api@sha256:<构建产物 digest>` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
+| `migrate` | `nebula-api-backend:<VERSION>` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
+| `backend` | `nebula-api-backend:<VERSION>` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
 | `cloudflared` | `cloudflare/cloudflared:2025.8.1` | Cloudflare Tunnel 到后端内部端口 | 不暴露宿主机端口 |
 
 PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。
 
-项目 Docker 构建使用 `docker.m.daocloud.io/library` 与 `dockerproxy.net/library` 国内镜像前缀（前端 Node/Nginx 使用后者，已验证大层下载速度）；Go 依赖使用 `goproxy.cn`，前端 npm 依赖使用 `registry.npmmirror.com`。前端构建上下文通过 `frontend/.dockerignore` 排除本地 `node_modules` 与 `dist`。如需更换镜像，只修改两个 Dockerfile 与 Compose 中的镜像地址，不需要修改 Docker Desktop 全局 daemon 配置。
+项目 Docker 构建使用 `docker.m.daocloud.io/library` 与 `dockerproxy.net/library` 国内镜像前缀（前端 Node/Nginx 使用后者，已验证大层下载速度）；Go 依赖使用 `goproxy.cn`，前端 npm 依赖使用 `registry.npmmirror.com`。前端构建上下文通过 `frontend/.dockerignore` 排除本地 `node_modules` 与 `dist`。生产构建在云服务器执行；如需更换镜像，只修改两个 Dockerfile 与 Compose 中的镜像地址，不需要修改 Docker Desktop 全局 daemon 配置。
 
-应用镜像版本由仓库根目录 `VERSION` 唯一维护，必须为完整 SemVer `X.X.X`；生产 Actions 将镜像发布到公开 GHCR 并以 digest 部署，Compose 禁止 `latest` 和可变 tag。第三方镜像保持上游精确 patch tag，不重新包装成无意义的本地镜像。
+应用镜像版本由仓库根目录 `VERSION` 唯一维护，必须为完整 SemVer `X.X.X`；生产服务器按该版本构建 `nebula-api-backend:<version>`，Compose 禁止 `latest`。第三方镜像保持上游精确 patch tag，不重新包装成无意义的本地镜像。
 
 ## 目录
 
@@ -67,9 +67,9 @@ frontend/
   Dockerfile                      Vue 构建与非 root Nginx 镜像
   nginx.conf                      SPA 与同源 API 反向代理
 scripts/
-  ci-deploy.sh                    GitHub runner 的主机校验、部署文件同步和远端 Doppler 注入
+  ci-deploy.sh                    GitHub runner 的主机校验、源码同步和远端 Doppler 注入
   compose.ps1                     固定 Doppler config、改写容器内 DSN 并调用 Compose
-  deploy.sh                       服务器端生产配置校验、镜像拉取、迁移和健康检查
+  deploy.sh                       服务器端生产配置校验、镜像构建、迁移和健康检查
 internal/
   api/http/                        Gin 路由、DTO、middleware、响应映射
   controlplane/                    认证及学生/导师/老师业务用例
@@ -153,9 +153,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署分为两个 job：GitHub Actions 先构建并发布公开 GHCR 镜像，然后使用该构建产物的不可变 digest 部署。部署端只通过 SSH 同步 `compose.production.yaml` 与 `scripts/deploy.sh`，在远端进程内注入 Doppler 配置、匿名拉取已验证 digest、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。生产服务器不再接收完整源码，也不会执行 Docker/Go 构建；workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。GitHub runner 通过 Doppler 的逐项 secret 查询接口读取五个 `DEPLOY_SSH_*` 凭据，避免下载包含 dynamic secrets 的完整生产配置；仍只使用 `DOPPLER_TOKEN`，不把 Doppler 值复制为 GitHub secret。
-
-首次 push 创建 GHCR package 后，需要在 GitHub 仓库的 **Packages → nebula-api → Package settings → Change visibility** 中一次性设为 **Public**。workflow 会在 build 后以匿名 `docker pull` 校验这一条件；未设为 Public 时不会继续生产部署。Actions 的 `GITHUB_TOKEN` 是每次运行短期签发的内部凭据，仅用于上传镜像，绝不保存到 Doppler 或服务器。
+部署只有一个 job：GitHub Actions 通过 SSH 将当前源码同步到 `/opt/nebula-api`，服务器进程内从 Doppler 注入生产配置，随后在本机构建 `nebula-api-backend:<VERSION>`、启动 PostgreSQL/Redis、显式执行 migrate、重建 backend 和 Cloudflare Tunnel，并检查 backend readiness 与 Tunnel 运行状态。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token；该 token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
 
 生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 不映射宿主机端口，Cloudflare Tunnel 通过内部网络访问 `http://backend:8080`。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；生产 Tunnel 固定使用 `http2`，避免部署网络中的 QUIC 连接超时导致公网 API 进入 530。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。
 

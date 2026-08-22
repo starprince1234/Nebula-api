@@ -76,7 +76,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 ### 2.5 生产部署验证
 
-push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确认 GHCR 镜像构建与发布、远端 digest 拉取、显式 migrate 和两个 HTTP 健康检查均成功。服务器端只读检查：
+push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确认源码已同步到服务器、服务器本地镜像构建、显式 migrate 和两个 HTTP 健康检查均成功。服务器端只读检查：
 
 ```bash
 cd /opt/nebula-api
@@ -84,9 +84,7 @@ docker compose --project-name nebula-api --file compose.production.yaml ps
 curl --fail http://127.0.0.1:8080/health/ready
 ```
 
-期望 `/opt/nebula-api` 只保存生产 Compose 与部署脚本，`postgres`、`redis`、`backend`、`cloudflared` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN、应用 secret 或 registry token。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
-
-首次发布前，在 GitHub **Packages → nebula-api → Package settings** 将 package visibility 设为 **Public**。workflow 会先以匿名方式拉取其 digest；未通过时必须修复 package visibility 后重新运行，不能改为把长期 GitHub PAT 写入 Doppler 或服务器。
+期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`cloudflared` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
 
 Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成后，直接请求 history 路由应返回控制台 HTML，而不是 Vercel 404：
 
@@ -172,10 +170,9 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
 | main push 后没有部署 | workflow 未进入 `production` environment，或 GitHub 缺少 `DOPPLER_TOKEN` | 检查 Actions 运行记录和 environment secret；不要把 token 改写到 workflow | `gh run list --workflow deploy.yml` 和 `gh secret list --env production`，只核对名称 |
-| GitHub runner 获取 Doppler 部署 SSH 配置失败 | Doppler API 不可达、`DOPPLER_TOKEN` 缺失，或五个 `DEPLOY_SSH_*` 中存在缺失值 | workflow 使用逐项 secret 查询，不下载含 dynamic secrets 的完整生产配置；先核对 Doppler 状态和 token 可读取 `nebula-api/prd` | 查看 `Pull image and deploy` 日志中的 secret 名称；不要将 `DEPLOY_SSH_*` 复制到 GitHub secret |
-| GHCR anonymous pull 校验失败 | `nebula-api` Container package 仍为 Private，或 GHCR 暂时不可达 | 在 GitHub Packages 将该 package 设为 Public 后重新运行 workflow；检查 GHCR 连通性 | 查看 build job 的 `Verify anonymous image pull`；生产机不应保存 GitHub token |
+| GitHub runner 下载 Doppler 部署 SSH 配置超时 | Doppler API 到 runner 的网络波动 | 检查 Doppler 服务状态和 `DOPPLER_TOKEN` 的访问权限后重新运行 workflow | 查看 `Sync source and deploy` 日志；不要将 `DEPLOY_SSH_*` 复制到 GitHub secret |
 | 部署在 SSH 校验阶段失败 | Doppler 主机信息已更新但 `DEPLOY_SSH_KNOWN_HOSTS` 仍是旧主机公钥，或密码认证被禁用 | 在可信通道核对新服务器公钥并同时更新五个 `DEPLOY_SSH_*` 变量 | 不得关闭 `StrictHostKeyChecking`；不要在日志打印密码或完整 Doppler 配置 |
-| 远端镜像未更新 | 部署文件同步失败、GHCR digest 拉取失败、磁盘不足或 Docker 服务异常 | 修正 SSH/Docker/镜像网络问题后重新 push 新 commit | 检查 workflow 的 GHCR build/pull 步骤、`docker image inspect <digest>`、`df -h /opt` 和 `docker system df`；不得删除无关项目镜像或卷 |
+| 远端镜像未更新 | 源码同步失败、服务器本地构建失败、磁盘不足或 Docker 服务异常 | 修正 SSH/Docker/构建网络问题后重新 push 新 commit | 检查 workflow 的 `Sync source and deploy` 日志、`docker image inspect nebula-api-backend:<version>`、`df -h /opt` 和 `docker system df`；不得删除无关项目镜像或卷 |
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |
 | 云服务器 8080/8081 从公网不可达 | Compose 按安全契约只绑定 loopback | 使用 SSH tunnel；配置域名、TLS 和反向代理应作为独立部署变更 | 服务器执行 `ss -lntp '( sport = :8080 or sport = :8081 )'`，应只看到 `127.0.0.1` |
 | 前端打开后白屏 | 前端生产构建失败、静态资源未进入镜像或路由脚本异常 | 先完成 typecheck/build，再重建 frontend 镜像 | `cd frontend; npm run typecheck; npm run build`，浏览器查看 Console 与 Network，不粘贴 token |

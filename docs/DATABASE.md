@@ -297,7 +297,7 @@ Redis 不是业务权威数据源。客户端 SSE 断线重连后必须重新调
 
 - PostgreSQL 数据保存在命名卷 `nebula-api_postgres-data`，Redis AOF 保存在 `nebula-api_redis-data`。
 - `scripts/compose.ps1` 从 Doppler `nebula-api/dev_personal` 中的本地 `DATABASE_URL` 派生 PostgreSQL 初始化账号、密码和数据库名，并把容器内 DSN host 改为 Compose service `postgres`；不落盘真实值。
-- 生产部署由 `/opt/nebula-api/scripts/deploy.sh` 从 Doppler `nebula-api/prd` 注入独立的 `DATABASE_URL`，只接受 loopback 或 Compose `postgres` host，改写为容器 DNS 后基于 GitHub Actions 已发布的 GHCR image digest 显式执行一次性 `migrate` service；backend 仍不得隐式迁移。生产 Compose 通过 Cloudflare Tunnel 访问 backend，Tunnel 不改变数据库网络边界。
+- 生产部署由 `/opt/nebula-api/scripts/deploy.sh` 从 Doppler `nebula-api/prd` 注入独立的 `DATABASE_URL`，只接受 loopback 或 Compose `postgres` host，改写为容器 DNS 后在服务器本机构建版本化应用镜像并显式执行一次性 `migrate` service；backend 仍不得隐式迁移。生产 Compose 通过 Cloudflare Tunnel 访问 backend，Tunnel 不改变数据库网络边界。
 - `migrate` service 在 PostgreSQL 健康后执行 `CREATE EXTENSION IF NOT EXISTS citext` 和 Ent schema create；它不负责历史数据迁移或回滚。
 - 普通 `docker compose down` 不删除命名卷；`down -v` 会永久删除本地数据库和 Redis 数据，属于需明确授权的破坏性操作。
 
