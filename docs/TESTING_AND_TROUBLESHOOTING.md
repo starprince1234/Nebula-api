@@ -35,7 +35,7 @@ npm run build
 - 供应商 URL 拼接、公开模型 ID 到上游模型名重写；
 - JSON/multipart body 重放、文件内容保真和请求大小限制；
 - 控制面结构化错误码到 HTTP 状态码映射；
-- 安全配置长度、加密主密钥和开发 Cookie 行为。
+- 安全配置长度、加密主密钥、开发 Cookie 行为，以及固定测试账号 Secret 的成套解析和角色校验。
 - 前端类型检查、生产构建和关键 API client 行为。
 - 导师候选游标编解码、学生新模型元数据校验与并发复用规则、nullable 模型字段三态解析、老师驳回进度映射、模型 ID 去重和 1–100 数量校验。
 
@@ -52,7 +52,7 @@ doppler configure get project --plain
 
 PostgreSQL 和 Redis 按设计不映射宿主机端口，不能再用 `Test-NetConnection localhost -Port 5432/6379` 判断它们。使用 `.\scripts\compose.ps1 ps` 查看容器健康状态，并通过 backend readiness 统一判断依赖。
 
-生产测试账号凭据保存在 Doppler `nebula-api/prd`，每个角色各三组：`TEST_STUDENT_1..3_{NAME,EMAIL,PASSWORD}` 和 `TEST_MENTOR_1..3_{NAME,EMAIL,PASSWORD}`。这些值不写入仓库、不注入 backend 容器日志；登录前需确认对应用户已存在于生产数据库。
+生产测试账号凭据保存在 Doppler `nebula-api/prd`，每个角色各三组：`TEST_STUDENT_1..3_{NAME,EMAIL,PASSWORD}` 和 `TEST_MENTOR_1..3_{NAME,EMAIL,PASSWORD}`。生产部署要求六组三元组全部存在，并将其作为 backend 运行时环境注入；服务启动时按邮箱幂等创建缺失用户。这些值不写入仓库或 backend 日志。已有同邮箱、同角色用户不会更新密码或状态；同邮箱角色冲突会导致 backend 启动失败。
 
 ### 2.3 数据库初始化
 
@@ -133,6 +133,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 验证码提示无效或锁定 | code 过期、用途不一致、失败次数超过上限 | 重新发送对应用途验证码，等待锁定过期 | 核对 email 规范化结果、purpose、TTL 和 Redis key TTL |
 | 注册提示邮箱已存在 | `users.email` 使用 citext 唯一，大小写视为相同 | 使用登录/重置密码，不要重复注册 | 用脱敏邮箱查询用户状态；检查是否 `disabled` |
 | 登录一直 401 | 密码错误、账户禁用、JWT 配置变化 | 重置密码或由老师恢复账户；重新登录 | 不区分“邮箱不存在”和“密码错误”；检查服务端 request ID |
+| Doppler 中学生/导师测试账号仍登录 401 | 同邮箱用户在引入 bootstrap 前已经存在，启动初始化按幂等契约不会覆盖其密码或状态 | 使用现有密码登录，或通过正式重置密码流程同步到目标密码；不要直接改 `password_hash` | 只核对用户是否存在、角色和状态，不输出邮箱全文或密码；新邮箱应在首次部署后创建为 `active` |
 | Refresh 突然全部失效 | token 被轮换后重用，session family 被撤销 | 清除 Cookie 后重新登录 | 检查是否多标签页并发 refresh；确认 Redis 未被清空 |
 | 浏览器没有 refresh Cookie | 非 HTTPS 环境却设置 Secure，或跨站 Cookie 被阻止 | 本地环境关闭 Secure；生产使用 HTTPS 同源 | 检查 Set-Cookie、SameSite、Path 和浏览器存储策略 |
 | SSE 连接 401 | 浏览器 EventSource 无法附加 Authorization Header | 使用 fetch streaming 并携带 Bearer token | 检查请求 Header；禁止把 token 放在 URL |
@@ -166,6 +167,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | `redis` 一直 unhealthy | Redis 启动失败、AOF 损坏或 Docker 磁盘异常 | 根据 Redis 日志修复；不要擅自删除数据卷 | `.\scripts\compose.ps1 logs --tail 100 redis` 和 `docker system df` |
 | `migrate` exited (1) | PostgreSQL 未就绪、凭据不匹配、`citext`/Ent schema 创建失败 | 修正本地 DSN或数据库权限后重建一次性 service | `.\scripts\compose.ps1 logs --tail 100 migrate`；确认目标是 Docker 本地卷 |
 | `backend` 不启动 | migrate 未成功、Redis 不健康或 Doppler 必填配置错误 | 先恢复依赖，再重新 `up -d` backend | 按 postgres -> redis -> migrate -> backend 顺序查看 `ps` 和日志 |
+| backend 报测试账号配置或角色冲突 | 某组 `TEST_*_{NAME,EMAIL,PASSWORD}` 未成套填写、格式不合法，或该邮箱已属于另一角色 | 补齐 Doppler 三元组或使用角色正确且唯一的测试邮箱；禁止修改既有用户角色 | 根据错误中的变量前缀或通用角色冲突定位，不打印 Secret；生产必须配置三组学生和三组导师 |
 | `/health/live` 成功但 `/health/ready` 503 | 进程存活但 PostgreSQL 或 Redis ping 失败 | 修复显示为 unavailable 的依赖 | 响应只给依赖类别；进一步查看对应容器日志 |
 | 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的 TCP/7844 长连接不可达，或 Mihomo 持久化选择了已经失效的节点；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 生产 Compose 让 cloudflared 共享 Mihomo 网络命名空间并由 TUN 接管 edge 出站；健康检查固定使用 HTTPS，生产启动选择故障转移组；服务器等待 edge 注册，GitHub Runner 从公网验证 readiness | 检查 `/dev/net/tun`、`docker compose -p nebula-api -f compose.production.yaml logs --tail 100 mihomo cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running 或使用服务器自身的 `.cn -> DIRECT` 公网探针 |
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |

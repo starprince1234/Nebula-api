@@ -28,6 +28,7 @@ type Config struct {
 	BootstrapTeacherName     string
 	BootstrapTeacherEmail    string
 	BootstrapTeacherPassword string
+	BootstrapTestAccounts    []BootstrapAccount
 
 	SMTPHost        string
 	SMTPPort        int
@@ -50,6 +51,13 @@ type Config struct {
 	UpstreamResponseHeaderTimeout time.Duration
 	GatewayMaxRequestBytes        int64
 	VideoTaskRouteTTL             time.Duration
+}
+
+type BootstrapAccount struct {
+	Role     string
+	Name     string
+	Email    string
+	Password string
 }
 
 func LoadDatabaseURL() (string, error) {
@@ -103,6 +111,31 @@ func Load() (Config, error) {
 	}
 	if strings.HasPrefix(cfg.BootstrapTeacherPassword, "replace_with") {
 		return Config{}, fmt.Errorf("BOOTSTRAP_TEACHER_PASSWORD must be replaced")
+	}
+	bootstrapEmails := make(map[string]string, 6)
+	for _, role := range []string{"STUDENT", "MENTOR"} {
+		for index := 1; index <= 3; index++ {
+			prefix := fmt.Sprintf("TEST_%s_%d", role, index)
+			name := strings.TrimSpace(os.Getenv(prefix + "_NAME"))
+			email := normalizeEmail(os.Getenv(prefix + "_EMAIL"))
+			password := os.Getenv(prefix + "_PASSWORD")
+			if !anyNonEmpty(name, email, password) {
+				continue
+			}
+			if !allNonEmpty(name, email, password) {
+				return Config{}, fmt.Errorf("%s name, email and password must be configured together", prefix)
+			}
+			if strings.HasPrefix(password, "replace_with") {
+				return Config{}, fmt.Errorf("%s_PASSWORD must be replaced", prefix)
+			}
+			if existingPrefix, exists := bootstrapEmails[email]; exists {
+				return Config{}, fmt.Errorf("%s_EMAIL duplicates %s_EMAIL", prefix, existingPrefix)
+			}
+			bootstrapEmails[email] = prefix
+			cfg.BootstrapTestAccounts = append(cfg.BootstrapTestAccounts, BootstrapAccount{
+				Role: strings.ToLower(role), Name: name, Email: email, Password: password,
+			})
+		}
 	}
 
 	cfg.SMTPHost = strings.TrimSpace(os.Getenv("SMTP_HOST"))

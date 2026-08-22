@@ -7,7 +7,7 @@ Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、�
 ## 首期能力
 
 - 学生和导师邮箱验证码注册，三种角色统一登录，JWT access token 与 Redis refresh token 轮换。
-- 老师 bootstrap、邀请与邀请激活。
+- 老师 bootstrap、邀请与邀请激活；可从运行时 Secret 幂等初始化固定的学生/导师测试账号。
 - 学生选择组织、项目和模型白名单提交 Key 申请。
 - 项目任一负责导师完成首次初审；老师完成终审。
 - 老师终审通过后，学生自动加入目标组织和项目。
@@ -99,6 +99,8 @@ VERSION                           应用镜像 SemVer
 - `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`
 - 首个老师信息和 SMTP 配置
 
+固定测试账号使用 `TEST_STUDENT_1..3_{NAME,EMAIL,PASSWORD}` 和 `TEST_MENTOR_1..3_{NAME,EMAIL,PASSWORD}`。每组三个字段必须同时配置；服务启动时按规范化邮箱幂等创建 `active` 用户。已有同邮箱、同角色用户保持不变，不覆盖姓名、密码或状态；已有同邮箱但角色不一致时启动失败，防止 Secret 配置静默改变既有身份。生产部署要求六组账号全部配置在 Doppler `nebula-api/prd`，真实值不会写入仓库或日志。
+
 禁止把真实 `.env` 或任何凭据提交到仓库。
 
 Docker 启动固定从 Doppler 项目 `nebula-api` 的 `dev_personal` config 注入真实配置。`scripts/compose.ps1` 只在当前进程内将 Doppler 的本地 `DATABASE_URL`/`REDIS_URL` 主机改为 `postgres`/`redis` Compose DNS，并从数据库 URL 派生 PostgreSQL 初始化参数；其余应用配置原样注入。它不创建 `.env`，也不输出 secret。为防止误连外部数据库，脚本拒绝非 loopback/Compose service host，并要求 `HTTP_ADDRESS=:8080` 与本地端口契约一致。
@@ -156,7 +158,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器也通过同一类按名 REST 查询读取生产应用配置；该请求固定使用服务器本机 `127.0.0.1:7890` 的 Mihomo 代理。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器以 `COMPOSE_PARALLEL_LIMIT=1` 逐个拉取第三方镜像，Go 构建固定单核且 Dockerfile 各阶段不并行；随后按 PostgreSQL、Redis、migrate、backend、Mihomo、Cloudflare Tunnel 的顺序逐个启动，每阶段通过健康检查并等待十秒后才进入下一阶段。Mihomo 的自动选择与故障转移组统一使用 HTTPS 健康检查，生产启动固定选择故障转移组；服务器验证内部 backend readiness 和 Tunnel edge 注册，GitHub Runner 再从公网验证 `https://api.lyn91r.cn/health/ready`。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
+部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器也通过同一类按名 REST 查询读取生产应用配置，其中包括老师 bootstrap 和六组学生/导师测试账号；该请求固定使用服务器本机 `127.0.0.1:7890` 的 Mihomo 代理。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器以 `COMPOSE_PARALLEL_LIMIT=1` 逐个拉取第三方镜像，Go 构建固定单核且 Dockerfile 各阶段不并行；随后按 PostgreSQL、Redis、migrate、backend、Mihomo、Cloudflare Tunnel 的顺序逐个启动，每阶段通过健康检查并等待十秒后才进入下一阶段。Mihomo 的自动选择与故障转移组统一使用 HTTPS 健康检查，生产启动固定选择故障转移组；服务器验证内部 backend readiness 和 Tunnel edge 注册，GitHub Runner 再从公网验证 `https://api.lyn91r.cn/health/ready`。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
 
 生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 只映射宿主机 loopback。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；cloudflared 固定使用 HTTP/2，并共享 Mihomo 网络命名空间，由 TUN 代理其到 Cloudflare edge 的长连接，同时按私网规则直连 backend。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。
 

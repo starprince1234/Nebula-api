@@ -27,6 +27,19 @@ var dummyPasswordHash = func() string {
 	return hash
 }()
 
+type BootstrapAccount struct {
+	Role     string
+	Name     string
+	Email    string
+	Password string
+}
+
+type preparedBootstrapAccount struct {
+	Name     string
+	Email    string
+	Password string
+}
+
 func (s *Service) SendRegistrationCode(ctx context.Context, email, purpose string) error {
 	if purpose != PurposeStudentRegistration && purpose != PurposeMentorRegistration {
 		return domain.NewError(domain.CodeValidation, "invalid verification purpose")
@@ -366,6 +379,78 @@ func (s *Service) BootstrapTeacher(ctx context.Context, name, email, password st
 	}
 	if err != nil {
 		return domain.WrapError(domain.CodeDependencyUnavailable, "create bootstrap teacher", err)
+	}
+	return nil
+}
+
+func (s *Service) BootstrapTestAccounts(ctx context.Context, accounts []BootstrapAccount) error {
+	for _, input := range accounts {
+		account, role, err := prepareBootstrapAccount(input)
+		if err != nil {
+			return err
+		}
+		existing, err := s.db.User.Query().Where(user.EmailEQ(account.Email)).Only(ctx)
+		if err == nil {
+			if err := validateExistingBootstrapAccount(existing, role); err != nil {
+				return err
+			}
+			continue
+		}
+		if !ent.IsNotFound(err) {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "query bootstrap test account", err)
+		}
+		passwordHash, err := security.HashPassword(account.Password)
+		if err != nil {
+			return domain.NewError(domain.CodeValidation, err.Error())
+		}
+		_, err = s.db.User.Create().
+			SetName(account.Name).
+			SetEmail(account.Email).
+			SetPasswordHash(passwordHash).
+			SetRole(role).
+			SetStatus(user.StatusActive).
+			Save(ctx)
+		if ent.IsConstraintError(err) {
+			existing, queryErr := s.db.User.Query().Where(user.EmailEQ(account.Email)).Only(ctx)
+			if queryErr != nil {
+				return domain.WrapError(domain.CodeDependencyUnavailable, "query concurrent bootstrap test account", queryErr)
+			}
+			if err := validateExistingBootstrapAccount(existing, role); err != nil {
+				return err
+			}
+			continue
+		}
+		if err != nil {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "create bootstrap test account", err)
+		}
+	}
+	return nil
+}
+
+func prepareBootstrapAccount(input BootstrapAccount) (preparedBootstrapAccount, user.Role, error) {
+	var role user.Role
+	switch input.Role {
+	case string(user.RoleStudent):
+		role = user.RoleStudent
+	case string(user.RoleMentor):
+		role = user.RoleMentor
+	default:
+		return preparedBootstrapAccount{}, "", domain.NewError(domain.CodeValidation, "invalid bootstrap account role")
+	}
+	name, err := ValidateName(input.Name, 64)
+	if err != nil {
+		return preparedBootstrapAccount{}, "", err
+	}
+	email, err := NormalizeEmail(input.Email)
+	if err != nil {
+		return preparedBootstrapAccount{}, "", err
+	}
+	return preparedBootstrapAccount{Name: name, Email: email, Password: input.Password}, role, nil
+}
+
+func validateExistingBootstrapAccount(account *ent.User, expectedRole user.Role) error {
+	if account.Role != expectedRole {
+		return domain.NewError(domain.CodeValidation, "bootstrap account role conflicts with existing user")
 	}
 	return nil
 }

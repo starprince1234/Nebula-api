@@ -87,6 +87,15 @@ func run() error {
 	); err != nil {
 		return err
 	}
+	bootstrapTestAccounts := make([]controlplane.BootstrapAccount, 0, len(cfg.BootstrapTestAccounts))
+	for _, account := range cfg.BootstrapTestAccounts {
+		bootstrapTestAccounts = append(bootstrapTestAccounts, controlplane.BootstrapAccount{
+			Role: account.Role, Name: account.Name, Email: account.Email, Password: account.Password,
+		})
+	}
+	if err := controlService.BootstrapTestAccounts(startupContext, bootstrapTestAccounts); err != nil {
+		return err
+	}
 
 	gateway := dataplane.NewGateway(dbClient, cacheStore, securityManager, dataplane.Config{
 		ConnectTimeout:        cfg.UpstreamConnectTimeout,
