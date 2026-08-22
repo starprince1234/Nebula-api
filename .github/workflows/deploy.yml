@@ -22,9 +22,6 @@ jobs:
       - name: Check out the pushed revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@4819d808ab99e5cde19a0637a16536a4038fad73
-
       - name: Install SSH transfer tools
         run: |
           command -v sshpass >/dev/null || sudo apt-get install --yes --no-install-recommends sshpass
