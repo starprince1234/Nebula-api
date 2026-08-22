@@ -238,16 +238,12 @@ pause_between_stages
 printf 'Starting Mihomo\n'
 "${compose[@]}" up -d --no-build --no-deps --force-recreate mihomo
 for _ in $(seq 1 30); do
-  if curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
-    --connect-timeout 2 --max-time 5 \
-    -o /dev/null https://api.doppler.com/; then
+  if python3 scripts/select-production-mihomo-group.py >/dev/null 2>&1; then
     break
   fi
   sleep 2
 done
-curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
-  --connect-timeout 2 --max-time 5 \
-  -o /dev/null https://api.doppler.com/
+python3 scripts/select-production-mihomo-group.py
 pause_between_stages
 
 printf 'Starting Cloudflare Tunnel\n'
@@ -257,9 +253,8 @@ for _ in $(seq 1 36); do
   if curl --fail --silent --show-error --noproxy '*' \
     --connect-timeout 2 --max-time 5 \
     http://127.0.0.1:8080/health/ready >/dev/null && \
-    curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
-      --connect-timeout 2 --max-time 5 \
-      https://api.lyn91r.cn/health/ready >/dev/null; then
+    "${compose[@]}" logs --since 30s cloudflared | \
+      grep -q 'Registered tunnel connection'; then
     "${compose[@]}" ps
     printf 'Nebula %s is ready\n' "$version"
     exit 0
@@ -269,5 +264,5 @@ done
 
 "${compose[@]}" ps >&2
 "${compose[@]}" logs --tail 50 mihomo cloudflared >&2
-printf 'Internal or public deployment health checks did not become ready within the staged deployment timeout\n' >&2
+printf 'Internal health or Cloudflare edge registration did not become ready within the staged deployment timeout\n' >&2
 exit 1

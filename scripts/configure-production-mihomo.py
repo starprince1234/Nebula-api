@@ -17,6 +17,7 @@ REQUIRED_LISTENER_CONFIGURATION = {
     "bind-address": "*",
     "external-controller": "0.0.0.0:9090",
 }
+PROXY_HEALTH_CHECK_URL = "https://www.gstatic.com/generate_204"
 
 
 def main() -> None:
@@ -37,6 +38,16 @@ def main() -> None:
     if not isinstance(tun_configuration, dict):
         raise SystemExit("Mihomo tun configuration must be a mapping")
     tun_configuration.update(REQUIRED_TUN_CONFIGURATION)
+
+    proxy_groups = configuration.get("proxy-groups", [])
+    if not isinstance(proxy_groups, list):
+        raise SystemExit("Mihomo proxy-groups configuration must be a list")
+    for group in proxy_groups:
+        if not isinstance(group, dict):
+            raise SystemExit("Each Mihomo proxy group must be a mapping")
+        if group.get("type") in {"fallback", "url-test"}:
+            group["url"] = PROXY_HEALTH_CHECK_URL
+            group["interval"] = 300
 
     temporary_path = CONFIG_PATH.with_suffix(".yaml.tmp")
     with temporary_path.open("w", encoding="utf-8", newline="\n") as config_file:
