@@ -5,6 +5,8 @@ readonly remote_root="/opt/nebula-api"
 
 for name in \
   DOPPLER_TOKEN \
+  NEBULA_IMAGE \
+  NEBULA_VERSION \
   DEPLOY_SSH_HOST \
   DEPLOY_SSH_PORT \
   DEPLOY_SSH_USER \
@@ -26,6 +28,14 @@ if [[ ! "$DEPLOY_SSH_PORT" =~ ^[0-9]+$ ]] || ((DEPLOY_SSH_PORT < 1 || DEPLOY_SSH
 fi
 if [[ ! "$DEPLOY_SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   printf 'DEPLOY_SSH_USER is not a valid Linux username\n' >&2
+  exit 1
+fi
+if [[ ! "$NEBULA_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  printf 'NEBULA_VERSION must contain a complete semantic version\n' >&2
+  exit 1
+fi
+if [[ ! "$NEBULA_IMAGE" =~ ^ghcr\.io/starprince1234/nebula-api@sha256:[a-f0-9]{64}$ ]]; then
+  printf 'NEBULA_IMAGE must be the immutable Nebula production image digest\n' >&2
   exit 1
 fi
 
@@ -52,15 +62,23 @@ ssh_options=(
 remote="$DEPLOY_SSH_USER@$DEPLOY_SSH_HOST"
 
 sshpass -e ssh "${ssh_options[@]}" "$remote" "mkdir -p '$remote_root'"
-tar \
-  --exclude='./.git' \
-  --exclude='./frontend/node_modules' \
-  --exclude='./frontend/dist' \
-  --exclude='./.playwright-mcp' \
-  -czf - . | \
+tar -czf - compose.production.yaml scripts/deploy.sh | \
   sshpass -e ssh "${ssh_options[@]}" "$remote" \
     "mkdir -p '$remote_root' && tar -xzf - -C '$remote_root'"
 
 token_b64="$(printf '%s' "$DOPPLER_TOKEN" | base64 -w 0)"
-printf '%s\n' "$token_b64" | sshpass -e ssh "${ssh_options[@]}" "$remote" \
-  "IFS= read -r DOPPLER_TOKEN_B64 && export DOPPLER_TOKEN=\$(printf '%s' \"\$DOPPLER_TOKEN_B64\" | base64 -d) && exec doppler run --project nebula-api --config prd --no-fallback -- bash '$remote_root/scripts/deploy.sh'"
+image_b64="$(printf '%s' "$NEBULA_IMAGE" | base64 -w 0)"
+version_b64="$(printf '%s' "$NEBULA_VERSION" | base64 -w 0)"
+printf '%s\n%s\n%s\n' \
+  "$token_b64" \
+  "$image_b64" \
+  "$version_b64" | \
+  sshpass -e ssh "${ssh_options[@]}" "$remote" '
+    IFS= read -r DOPPLER_TOKEN_B64
+    IFS= read -r NEBULA_IMAGE_B64
+    IFS= read -r NEBULA_VERSION_B64
+    export DOPPLER_TOKEN="$(printf "%s" "$DOPPLER_TOKEN_B64" | base64 -d)"
+    export NEBULA_IMAGE="$(printf "%s" "$NEBULA_IMAGE_B64" | base64 -d)"
+    export NEBULA_VERSION="$(printf "%s" "$NEBULA_VERSION_B64" | base64 -d)"
+    exec doppler run --project nebula-api --config prd --no-fallback -- bash "'"$remote_root"'/scripts/deploy.sh"
+  '

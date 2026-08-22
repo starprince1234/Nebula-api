@@ -2,19 +2,28 @@
 set -Eeuo pipefail
 umask 077
 
-readonly repository_root="/opt/nebula-api"
 readonly compose_project="nebula-api"
+readonly repository_root="/opt/nebula-api"
+readonly image_pattern='^ghcr\.io/starprince1234/nebula-api@sha256:[a-f0-9]{64}$'
 
-if [[ -d "$repository_root" ]]; then
-  chmod 755 "$repository_root"
-fi
 if [[ "$(pwd -P)" != "$repository_root" ]]; then
   cd "$repository_root"
 fi
 
-version="$(tr -d '\r\n' <VERSION)"
+version="${NEBULA_VERSION:-}"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  printf 'VERSION must contain a complete semantic version\n' >&2
+  printf 'NEBULA_VERSION must contain a complete semantic version\n' >&2
+  exit 1
+fi
+image="${NEBULA_IMAGE:-}"
+if [[ ! "$image" =~ $image_pattern ]]; then
+  printf 'NEBULA_IMAGE must be the immutable Nebula production image digest\n' >&2
+  exit 1
+fi
+docker pull "$image"
+image_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")"
+if [[ "$image_version" != "$version" ]]; then
+  printf 'Pulled image version does not match NEBULA_VERSION\n' >&2
   exit 1
 fi
 
@@ -136,7 +145,7 @@ export POSTGRES_USER="${connection_values[1]}"
 export POSTGRES_PASSWORD="${connection_values[2]}"
 export POSTGRES_DB="${connection_values[3]}"
 export REDIS_URL="${connection_values[4]}"
-export NEBULA_VERSION="$version"
+export NEBULA_IMAGE="$image"
 
 if [[ -z "${CF_TUNNEL_TOKEN:-}" || "$CF_TUNNEL_TOKEN" == replace_with* ]]; then
   printf 'CF_TUNNEL_TOKEN is required for production deployment\n' >&2
@@ -145,10 +154,9 @@ fi
 export TUNNEL_TOKEN="$CF_TUNNEL_TOKEN"
 compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
 "${compose[@]}" config --quiet
-"${compose[@]}" build backend
 "${compose[@]}" up -d postgres redis
-"${compose[@]}" up --no-build --force-recreate migrate
-"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend cloudflared
+"${compose[@]}" up --pull never --force-recreate migrate
+"${compose[@]}" up -d --pull never --force-recreate --remove-orphans backend cloudflared
 
 for _ in $(seq 1 60); do
   if curl --fail --silent --show-error http://127.0.0.1:8080/health/ready >/dev/null && \

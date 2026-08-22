@@ -7,19 +7,79 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
+  build:
+    name: Build production image
+    runs-on: ubuntu-24.04
+    outputs:
+      image: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+      version: ${{ steps.image.outputs.version }}
+    steps:
+      - name: Check out the pushed revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Resolve immutable image reference
+        id: image
+        run: |
+          version="$(tr -d '\r\n' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a complete semantic version" >&2
+            exit 1
+          fi
+          echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish production image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.repository }}:${{ steps.image.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.image.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify anonymous image pull
+        env:
+          NEBULA_IMAGE: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+        run: |
+          docker logout ghcr.io || true
+          if ! docker pull "$NEBULA_IMAGE"; then
+            echo "GHCR image is not publicly pullable. Set the nebula-api package visibility to Public in GitHub Packages, then re-run this workflow." >&2
+            exit 1
+          fi
+
   deploy:
-    name: Sync and deploy on server
+    name: Pull and deploy on server
+    needs: build
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 30
     steps:
-      - name: Check out the pushed revision
+      - name: Check out deployment scripts
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Install Doppler CLI
@@ -29,9 +89,11 @@ jobs:
         run: |
           command -v sshpass >/dev/null || sudo apt-get install --yes --no-install-recommends sshpass
 
-      - name: Sync source and deploy
+      - name: Pull image and deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          NEBULA_IMAGE: ${{ needs.build.outputs.image }}
+          NEBULA_VERSION: ${{ needs.build.outputs.version }}
         run: |
           doppler run \
             --no-fallback \

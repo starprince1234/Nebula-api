@@ -36,12 +36,7 @@ x-application-environment: &application-environment
   VIDEO_TASK_ROUTE_TTL_HOURS:
 
 x-application-image: &application-image
-  image: nebula-api-backend:${NEBULA_VERSION:?run through scripts/compose.ps1}
-  build:
-    context: .
-    dockerfile: Dockerfile
-    args:
-      VERSION: ${NEBULA_VERSION:?run through scripts/compose.ps1}
+  image: ${NEBULA_IMAGE:?set by GitHub Actions deployment}
 
 services:
   postgres:
