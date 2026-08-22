@@ -143,16 +143,36 @@ if [[ -z "${CF_TUNNEL_TOKEN:-}" || "$CF_TUNNEL_TOKEN" == replace_with* ]]; then
   exit 1
 fi
 export TUNNEL_TOKEN="$CF_TUNNEL_TOKEN"
+
+if [[ ! -c /dev/net/tun ]]; then
+  printf '/dev/net/tun is required for the production Mihomo TUN\n' >&2
+  exit 1
+fi
+if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+  printf 'Python PyYAML is required to configure the production Mihomo TUN\n' >&2
+  exit 1
+fi
+python3 scripts/configure-production-mihomo.py
+docker run --rm \
+  --volume /opt/mihomo:/root/.config/mihomo:ro \
+  dockerproxy.net/metacubex/mihomo:v1.19.30 \
+  -t -d /root/.config/mihomo
+
+if docker container inspect mihomo >/dev/null 2>&1; then
+  docker container rm --force mihomo >/dev/null
+fi
+
 compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
 "${compose[@]}" config --quiet
 "${compose[@]}" build backend
 "${compose[@]}" up -d postgres redis
 "${compose[@]}" up --no-build --force-recreate migrate
-"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend cloudflared
+"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend mihomo cloudflared
 
 for _ in $(seq 1 60); do
-  if curl --fail --silent --show-error http://127.0.0.1:8080/health/ready >/dev/null && \
-    "${compose[@]}" ps --status running cloudflared | grep -q cloudflared; then
+  if curl --fail --silent --show-error --noproxy '*' http://127.0.0.1:8080/health/ready >/dev/null && \
+    curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
+      https://api.lyn91r.cn/health/ready >/dev/null; then
     "${compose[@]}" ps
     printf 'Nebula %s is ready\n' "$version"
     exit 0
@@ -161,5 +181,6 @@ for _ in $(seq 1 60); do
 done
 
 "${compose[@]}" ps >&2
-printf 'Deployment health checks did not become ready within 120 seconds\n' >&2
+"${compose[@]}" logs --tail 50 mihomo cloudflared >&2
+printf 'Internal or public deployment health checks did not become ready within 120 seconds\n' >&2
 exit 1

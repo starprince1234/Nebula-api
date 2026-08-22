@@ -72,7 +72,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 .\scripts\compose.ps1 logs --tail 100 backend
 ```
 
-本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
+本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`mihomo`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
 
 ### 2.5 生产部署验证
 
@@ -82,9 +82,10 @@ push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确
 cd /opt/nebula-api
 docker compose --project-name nebula-api --file compose.production.yaml ps
 curl --fail http://127.0.0.1:8080/health/ready
+curl --fail --proxy http://127.0.0.1:7890 https://api.lyn91r.cn/health/ready
 ```
 
-期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`cloudflared` 正在运行，`migrate` 成功退出。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
+期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`mihomo`、`cloudflared` 正在运行，`migrate` 成功退出，内部和公网 readiness 均返回 200。GitHub 日志不得出现 SSH 密码、Doppler token、DSN、代理节点或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
 
 Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成后，直接请求 history 路由应返回控制台 HTML，而不是 Vercel 404：
 
@@ -166,11 +167,11 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | `migrate` exited (1) | PostgreSQL 未就绪、凭据不匹配、`citext`/Ent schema 创建失败 | 修正本地 DSN或数据库权限后重建一次性 service | `.\scripts\compose.ps1 logs --tail 100 migrate`；确认目标是 Docker 本地卷 |
 | `backend` 不启动 | migrate 未成功、Redis 不健康或 Doppler 必填配置错误 | 先恢复依赖，再重新 `up -d` backend | 按 postgres -> redis -> migrate -> backend 顺序查看 `ps` 和日志 |
 | `/health/live` 成功但 `/health/ready` 503 | 进程存活但 PostgreSQL 或 Redis ping 失败 | 修复显示为 unavailable 的依赖 | 响应只给依赖类别；进一步查看对应容器日志 |
-| 公网 API 返回 Cloudflare `530`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | Cloudflare Tunnel 没有可用的 edge connection；CORS 报错是上游不可达后的二次表现，不是控制面 CORS 配置本身 | 生产 Compose 的 `cloudflared` 固定使用 `--protocol http2`，重新部署并确认 Tunnel 日志出现 Registered tunnel connection | 先请求 `https://api.lyn91r.cn/health/live`；再检查 `docker compose -p nebula-api -f compose.production.yaml logs --tail 100 cloudflared`，确认没有 QUIC timeout 且公网 health 返回 200 |
+| 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的 TCP/7844 长连接不可达；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 生产 Compose 让 cloudflared 共享 Mihomo 网络命名空间，并由 Mihomo TUN 接管 edge 出站；部署会把旧的独立 `mihomo` 容器迁移为 Compose service，并等待公网 readiness 200 | 检查 `/dev/net/tun`、`docker compose -p nebula-api -f compose.production.yaml logs --tail 100 mihomo cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running |
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
 | main push 后没有部署 | workflow 未进入 `production` environment，或 GitHub 缺少 `DOPPLER_TOKEN` | 检查 Actions 运行记录和 environment secret；不要把 token 改写到 workflow | `gh run list --workflow deploy.yml` 和 `gh secret list --env production`，只核对名称 |
-| 部署在读取 Doppler 配置时超时 | GitHub Runner 或云服务器到 Doppler API 的网络波动；旧的 CLI 完整配置下载特别容易受 dynamic secrets 影响 | 两端均使用 `curl` 的按名 REST 查询并对同一请求最多重试五次；服务器请求固定经 `127.0.0.1:7890` 的 Mihomo 代理，确认容器运行且端口仅监听 loopback | 查看 `Sync source and deploy` 日志、`docker logs --tail 50 mihomo` 和 `ss -lntp '( sport = :7890 )'`；不要将生产配置复制到 GitHub secret |
+| 部署在读取 Doppler 配置时超时 | GitHub Runner 或云服务器到 Doppler API 的网络波动；旧的 CLI 完整配置下载特别容易受 dynamic secrets 影响 | 两端均使用 `curl` 的按名 REST 查询并对同一请求最多重试五次；服务器请求固定经 `127.0.0.1:7890` 的 Mihomo 代理，确认容器运行且端口仅监听 loopback | 查看 `Sync source and deploy` 日志、`docker compose -p nebula-api -f compose.production.yaml logs --tail 50 mihomo` 和 `ss -lntp '( sport = :7890 )'`；不要将生产配置复制到 GitHub secret |
 | 部署在 SSH 校验阶段失败 | Doppler 主机信息已更新但 `DEPLOY_SSH_KNOWN_HOSTS` 仍是旧主机公钥，或密码认证被禁用 | 在可信通道核对新服务器公钥并同时更新五个 `DEPLOY_SSH_*` 变量 | 不得关闭 `StrictHostKeyChecking`；不要在日志打印密码或完整 Doppler 配置 |
 | 远端镜像未更新 | 源码同步失败、服务器本地构建失败、磁盘不足或 Docker 服务异常 | 修正 SSH/Docker/构建网络问题后重新 push 新 commit | 检查 workflow 的 `Sync source and deploy` 日志、`docker image inspect nebula-api-backend:<version>`、`df -h /opt` 和 `docker system df`；不得删除无关项目镜像或卷 |
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |
