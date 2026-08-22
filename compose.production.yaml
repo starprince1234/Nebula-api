@@ -110,7 +110,7 @@ services:
 
   cloudflared:
     image: docker.m.daocloud.io/cloudflare/cloudflared:2025.8.1
-    command: ["tunnel", "--no-autoupdate", "run"]
+    command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "run"]
     environment:
       TUNNEL_TOKEN:
     networks: [edge]
