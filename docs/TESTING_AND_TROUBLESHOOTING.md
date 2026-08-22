@@ -76,7 +76,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 ### 2.5 生产部署验证
 
-push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确认源码已同步到服务器、服务器本地镜像构建、显式 migrate 和两个 HTTP 健康检查均成功。服务器端只读检查：
+push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确认源码已同步到服务器、第三方镜像依次拉取、单核 Go 构建、分阶段 service 启动、显式 migrate 和两个 HTTP 健康检查均成功。服务器端只读检查：
 
 ```bash
 cd /opt/nebula-api
@@ -170,6 +170,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的 TCP/7844 长连接不可达；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 生产 Compose 让 cloudflared 共享 Mihomo 网络命名空间，并由 Mihomo TUN 接管 edge 出站；部署会把旧的独立 `mihomo` 容器迁移为 Compose service，并等待公网 readiness 200 | 检查 `/dev/net/tun`、`docker compose -p nebula-api -f compose.production.yaml logs --tail 100 mihomo cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running |
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
+| 2C2G 服务器部署时 CPU、内存或磁盘 I/O 突增 | Docker BuildKit 并行执行多阶段构建，Go 编译使用全部核心，或 Compose 同时 pull/start 多个 service | 生产 Dockerfile 固定单核 Go 构建并让 runtime 阶段依赖 builder；部署脚本以 `COMPOSE_PARALLEL_LIMIT=1` 逐个 pull，并按 postgres -> redis -> migrate -> backend -> mihomo -> cloudflared 串行启动，每阶段间隔十秒 | Actions 日志应按阶段输出且同一时间只有一个 pull/build/start 操作；服务器可用 `docker stats --no-stream`、`uptime` 和 `iostat -xz 1 3` 观察，不要并发重跑 workflow |
 | main push 后没有部署 | workflow 未进入 `production` environment，或 GitHub 缺少 `DOPPLER_TOKEN` | 检查 Actions 运行记录和 environment secret；不要把 token 改写到 workflow | `gh run list --workflow deploy.yml` 和 `gh secret list --env production`，只核对名称 |
 | 部署在读取 Doppler 配置时超时 | GitHub Runner 或云服务器到 Doppler API 的网络波动；旧的 CLI 完整配置下载特别容易受 dynamic secrets 影响 | 两端均使用 `curl` 的按名 REST 查询并对同一请求最多重试五次；服务器请求固定经 `127.0.0.1:7890` 的 Mihomo 代理，确认容器运行且端口仅监听 loopback | 查看 `Sync source and deploy` 日志、`docker compose -p nebula-api -f compose.production.yaml logs --tail 50 mihomo` 和 `ss -lntp '( sport = :7890 )'`；不要将生产配置复制到 GitHub secret |
 | 部署在 SSH 校验阶段失败 | Doppler 主机信息已更新但 `DEPLOY_SSH_KNOWN_HOSTS` 仍是旧主机公钥，或密码认证被禁用 | 在可信通道核对新服务器公钥并同时更新五个 `DEPLOY_SSH_*` 变量 | 不得关闭 `StrictHostKeyChecking`；不要在日志打印密码或完整 Doppler 配置 |

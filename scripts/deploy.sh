@@ -4,6 +4,38 @@ umask 077
 
 readonly compose_project="nebula-api"
 readonly repository_root="/opt/nebula-api"
+readonly deployment_pause_seconds=10
+
+export COMPOSE_PARALLEL_LIMIT=1
+
+pause_between_stages() {
+  printf 'Waiting %s seconds before the next deployment stage\n' "$deployment_pause_seconds"
+  sleep "$deployment_pause_seconds"
+}
+
+wait_for_healthy_service() {
+  local service="$1"
+  local container_id
+  local status
+
+  for _ in $(seq 1 60); do
+    container_id="$(docker compose --project-name "$compose_project" --file compose.production.yaml ps -q "$service")"
+    if [[ -n "$container_id" ]]; then
+      status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id")"
+      if [[ "$status" == "healthy" || "$status" == "running" ]]; then
+        return 0
+      fi
+      if [[ "$status" == "unhealthy" || "$status" == "exited" || "$status" == "dead" ]]; then
+        printf 'Service %s entered terminal state: %s\n' "$service" "$status" >&2
+        return 1
+      fi
+    fi
+    sleep 2
+  done
+
+  printf 'Service %s did not become healthy within 120 seconds\n' "$service" >&2
+  return 1
+}
 
 if [[ -d "$repository_root" ]]; then
   chmod 755 "$repository_root"
@@ -160,28 +192,82 @@ docker run --rm \
 
 compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
 "${compose[@]}" config --quiet
+for service in postgres redis mihomo cloudflared; do
+  printf 'Pulling production image for %s\n' "$service"
+  "${compose[@]}" pull --quiet "$service"
+  pause_between_stages
+done
+
+printf 'Building backend image with single-core Go compilation\n'
 "${compose[@]}" build backend
+pause_between_stages
 
 if docker container inspect mihomo >/dev/null 2>&1; then
   docker container rm --force mihomo >/dev/null
 fi
 
-"${compose[@]}" up -d postgres redis
-"${compose[@]}" up --no-build --force-recreate migrate
-"${compose[@]}" up -d --no-build --force-recreate --remove-orphans backend mihomo cloudflared
+printf 'Starting postgres\n'
+"${compose[@]}" up -d --no-deps postgres
+wait_for_healthy_service postgres
+pause_between_stages
 
+printf 'Starting redis\n'
+"${compose[@]}" up -d --no-deps redis
+wait_for_healthy_service redis
+pause_between_stages
+
+printf 'Running database migration\n'
+"${compose[@]}" up --no-build --force-recreate migrate
+pause_between_stages
+
+printf 'Starting backend\n'
+"${compose[@]}" up -d --no-build --no-deps --force-recreate backend
 for _ in $(seq 1 60); do
-  if curl --fail --silent --show-error --noproxy '*' http://127.0.0.1:8080/health/ready >/dev/null && \
+  if curl --fail --silent --show-error --noproxy '*' \
+    --connect-timeout 2 --max-time 5 \
+    http://127.0.0.1:8080/health/ready >/dev/null; then
+    break
+  fi
+  sleep 2
+done
+curl --fail --silent --show-error --noproxy '*' \
+  --connect-timeout 2 --max-time 5 \
+  http://127.0.0.1:8080/health/ready >/dev/null
+pause_between_stages
+
+printf 'Starting Mihomo\n'
+"${compose[@]}" up -d --no-build --no-deps --force-recreate mihomo
+for _ in $(seq 1 30); do
+  if curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
+    --connect-timeout 2 --max-time 5 \
+    -o /dev/null https://api.doppler.com/; then
+    break
+  fi
+  sleep 2
+done
+curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
+  --connect-timeout 2 --max-time 5 \
+  -o /dev/null https://api.doppler.com/
+pause_between_stages
+
+printf 'Starting Cloudflare Tunnel\n'
+"${compose[@]}" up -d --no-build --no-deps --force-recreate cloudflared
+
+for _ in $(seq 1 36); do
+  if curl --fail --silent --show-error --noproxy '*' \
+    --connect-timeout 2 --max-time 5 \
+    http://127.0.0.1:8080/health/ready >/dev/null && \
     curl --fail --silent --show-error --proxy http://127.0.0.1:7890 \
+      --connect-timeout 2 --max-time 5 \
       https://api.lyn91r.cn/health/ready >/dev/null; then
     "${compose[@]}" ps
     printf 'Nebula %s is ready\n' "$version"
     exit 0
   fi
-  sleep 2
+  sleep 5
 done
 
 "${compose[@]}" ps >&2
 "${compose[@]}" logs --tail 50 mihomo cloudflared >&2
-printf 'Internal or public deployment health checks did not become ready within 120 seconds\n' >&2
+printf 'Internal or public deployment health checks did not become ready within the staged deployment timeout\n' >&2
 exit 1
