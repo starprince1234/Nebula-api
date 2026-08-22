@@ -51,7 +51,7 @@ x-application-environment: &application-environment
   UPSTREAM_CONNECT_TIMEOUT_SECONDS:
   UPSTREAM_RESPONSE_HEADER_TIMEOUT_SECONDS:
   GATEWAY_MAX_REQUEST_BYTES:
-  VIDEO_TASK_ROUTE_TTL_HOURS:
+  GATEWAY_RESOURCE_ROUTE_TTL_HOURS:
 
 x-application-image: &application-image
   image: nebula-api-backend:${NEBULA_VERSION:?run through scripts/compose.ps1}

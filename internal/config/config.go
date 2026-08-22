@@ -50,7 +50,7 @@ type Config struct {
 	UpstreamConnectTimeout        time.Duration
 	UpstreamResponseHeaderTimeout time.Duration
 	GatewayMaxRequestBytes        int64
-	VideoTaskRouteTTL             time.Duration
+	GatewayResourceRouteTTL       time.Duration
 }
 
 type BootstrapAccount struct {
@@ -184,7 +184,7 @@ func Load() (Config, error) {
 	if cfg.GatewayMaxRequestBytes, err = int64Value("GATEWAY_MAX_REQUEST_BYTES", 100<<20); err != nil {
 		return Config{}, err
 	}
-	if cfg.VideoTaskRouteTTL, err = durationFromInt("VIDEO_TASK_ROUTE_TTL_HOURS", 24, time.Hour); err != nil {
+	if cfg.GatewayResourceRouteTTL, err = durationFromInt("GATEWAY_RESOURCE_ROUTE_TTL_HOURS", 24, time.Hour); err != nil {
 		return Config{}, err
 	}
 

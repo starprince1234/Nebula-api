@@ -360,12 +360,12 @@ func (s *Store) ReadEvents(
 	return events, nil
 }
 
-func (s *Store) SetVideoRoute(ctx context.Context, taskID, bindingID string, ttl time.Duration) error {
-	return s.client.Set(ctx, videoRouteKey(taskID), bindingID, ttl).Err()
+func (s *Store) SetGatewayResourceRoute(ctx context.Context, resourceType, resourceID, bindingID string, ttl time.Duration) error {
+	return s.client.Set(ctx, gatewayResourceRouteKey(resourceType, resourceID), bindingID, ttl).Err()
 }
 
-func (s *Store) GetVideoRoute(ctx context.Context, taskID string) (string, error) {
-	value, err := s.client.Get(ctx, videoRouteKey(taskID)).Result()
+func (s *Store) GetGatewayResourceRoute(ctx context.Context, resourceType, resourceID string) (string, error) {
+	value, err := s.client.Get(ctx, gatewayResourceRouteKey(resourceType, resourceID)).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", ErrSessionMissing
 	}
@@ -421,8 +421,8 @@ func globalEventStream() string {
 	return "events:global"
 }
 
-func videoRouteKey(taskID string) string {
-	return "gateway:video-task:" + taskID
+func gatewayResourceRouteKey(resourceType, resourceID string) string {
+	return "gateway:resource-route:" + resourceType + ":" + resourceID
 }
 
 func HashKey(hash []byte) string {

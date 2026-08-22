@@ -99,8 +99,17 @@ type Adapter string
 
 // Adapter values.
 const (
-	AdapterOpenaiCompatible Adapter = "openai_compatible"
-	AdapterAnthropic        Adapter = "anthropic"
+	AdapterOpenaiCompatible   Adapter = "openai_compatible"
+	AdapterOpenaiResponses    Adapter = "openai_responses"
+	AdapterOpenaiEmbeddings   Adapter = "openai_embeddings"
+	AdapterOpenaiImages       Adapter = "openai_images"
+	AdapterOpenaiAudio        Adapter = "openai_audio"
+	AdapterOpenaiVideo        Adapter = "openai_video"
+	AdapterOpenaiRealtime     Adapter = "openai_realtime"
+	AdapterOpenaiModerations  Adapter = "openai_moderations"
+	AdapterAnthropic          Adapter = "anthropic"
+	AdapterCohereRerankV2     Adapter = "cohere_rerank_v2"
+	AdapterGoogleGeminiV1beta Adapter = "google_gemini_v1beta"
 )
 
 func (a Adapter) String() string {
@@ -110,7 +119,7 @@ func (a Adapter) String() string {
 // AdapterValidator is a validator for the "adapter" field enum values. It is called by the builders before save.
 func AdapterValidator(a Adapter) error {
 	switch a {
-	case AdapterOpenaiCompatible, AdapterAnthropic:
+	case AdapterOpenaiCompatible, AdapterOpenaiResponses, AdapterOpenaiEmbeddings, AdapterOpenaiImages, AdapterOpenaiAudio, AdapterOpenaiVideo, AdapterOpenaiRealtime, AdapterOpenaiModerations, AdapterAnthropic, AdapterCohereRerankV2, AdapterGoogleGeminiV1beta:
 		return nil
 	default:
 		return fmt.Errorf("modelbinding: invalid enum value for adapter field: %q", a)

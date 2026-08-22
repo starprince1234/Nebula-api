@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { APIError, request, token } from './client'
+import { APIError, networkActivity, request, token } from './client'
 
 describe('API client', () => {
-  afterEach(() => { vi.unstubAllGlobals(); token.set(null) })
+  afterEach(() => { vi.unstubAllGlobals(); token.set(null); networkActivity.reads = 0; networkActivity.writes = 0 })
 
   it('parses structured errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'MODEL_NOT_READY', message: '模型尚未就绪', details: { model_ids: ['m1'] } } }), { status: 409, headers: { 'Content-Type': 'application/json' } })))
@@ -21,5 +21,18 @@ describe('API client', () => {
     vi.stubGlobal('fetch', fetchMock)
     await Promise.all([request<{ok:boolean}>('/api/v1/me'), request<{ok:boolean}>('/api/v1/me')])
     expect(refreshes).toBe(1)
+  })
+
+  it('tracks reads and always clears activity after failures', async () => {
+    let release!: () => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => {
+      release = () => resolve(new Response(JSON.stringify({ error: { code: 'FAILED', message: '失败' } }), { status: 500, headers: { 'Content-Type': 'application/json' } }))
+    })))
+    const pending = request('/api/v1/models')
+    expect(networkActivity.reads).toBe(1)
+    release()
+    await expect(pending).rejects.toBeInstanceOf(APIError)
+    expect(networkActivity.reads).toBe(0)
+    expect(networkActivity.writes).toBe(0)
   })
 })

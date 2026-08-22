@@ -246,7 +246,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "upstream_model_name", Type: field.TypeString, Size: 256},
-		{Name: "adapter", Type: field.TypeEnum, Enums: []string{"openai_compatible", "anthropic"}},
+		{Name: "adapter", Type: field.TypeEnum, Enums: []string{"openai_compatible", "openai_responses", "openai_embeddings", "openai_images", "openai_audio", "openai_video", "openai_realtime", "openai_moderations", "anthropic", "cohere_rerank_v2", "google_gemini_v1beta"}},
 		{Name: "priority", Type: field.TypeInt, Default: 100},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
 		{Name: "model_id", Type: field.TypeUUID},

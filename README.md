@@ -1,6 +1,6 @@
 # Nebula
 
-Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI/Anthropic 兼容代理。
+Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。
 
 只读参考项目位于 `D:\VScodeProjects\NebulaCloud\nebula-ai`。本仓库重新实现业务，不兼容参考项目旧表、旧路由或历史数据。
 
@@ -14,8 +14,10 @@ Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、�
 - 学生首次领取时生成 API Key，明文只返回一次。
 - 导师可撤销负责项目中的 ACTIVE Key。
 - 老师管理组织、项目、导师项目申请、供应商、模型和模型 binding。
+- 官方控制台为每个学生、导师和老师工作区注册全局唯一的技术路由名，中文标题由独立路由元数据呈现，角色间同名页面不会相互覆盖。
+- 官方控制台统一提供页面切换、弹层、状态反馈和交互元素动效；页面与表格请求显示加载进度/骨架，刷新保留已有内容，提交按钮阻止重复操作，并遵循 `prefers-reduced-motion`。
 - 认证 SSE 推送 Key 状态与全局常用模型变化。
-- 标准 `/v1` OpenAI-compatible、Anthropic Messages 和 Realtime WebSocket 网关。
+- 标准 OpenAI Chat/Responses（含 Codex CLI HTTP/WebSocket 与 compact）、Embeddings、Images、Audio、Videos、Realtime、Moderations，Anthropic Messages、Cohere Rerank v2 与 Google Gemini `v1beta` 网关；Binding adapter 按协议独立路由，避免不同请求格式误用同一上游。
 
 首期不包含计费、余额、额度、RPM、Token 限制、用量记录、通知中心、模型价格、智能路由、资源删除 API 或旧路由兼容层。
 
@@ -27,7 +29,7 @@ Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、�
 | HTTP | Gin |
 | ORM | Ent |
 | 数据库 | PostgreSQL，UUIDv7，`citext` |
-| Redis | 验证码、refresh session、老师邀请、SSE stream、视频任务路由 |
+| Redis | 验证码、refresh session、老师邀请、SSE stream、异步上游资源路由 |
 | 安全 | bcrypt、HMAC-SHA256、AES-256-GCM、JWT HS256 |
 | 网关 | `net/http` 流式转发、multipart 重放、WebSocket 双向代理 |
 | 本地编排 | Docker Compose、Doppler `nebula-api/dev_personal` 运行时注入 |

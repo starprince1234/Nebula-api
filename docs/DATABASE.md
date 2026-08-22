@@ -32,7 +32,7 @@
 | `mentor_project_application_status` | `pending`, `approved`, `rejected`, `cancelled` |
 | `model_category` | `text`, `image`, `audio`, `video`, `multimodal`, `embedding`, `rerank` |
 | `model_status` | `pending_configuration`, `active`, `inactive` |
-| `model_binding_adapter` | `openai_compatible`, `anthropic` |
+| `model_binding_adapter` | `openai_compatible`, `openai_responses`, `openai_embeddings`, `openai_images`, `openai_audio`, `openai_video`, `openai_realtime`, `openai_moderations`, `anthropic`, `cohere_rerank_v2`, `google_gemini_v1beta` |
 | `api_key_status` | `pending_mentor`, `pending_teacher`, `approved`, `active`, `rejected`, `revoked` |
 | `api_key_audit_action` | `mentor_approved`, `mentor_rejected`, `teacher_approved`, `teacher_rejected`, `mentor_revoked` |
 
@@ -172,7 +172,7 @@
 | `model_id` | uuid | 否 | - | FK -> `models.id` |
 | `provider_id` | uuid | 否 | - | FK -> `providers.id` |
 | `upstream_model_name` | varchar(256) | 否 | - | 供应商实际模型名 |
-| `adapter` | enum | 否 | - | `openai_compatible/anthropic` |
+| `adapter` | enum | 否 | - | `openai_compatible/openai_responses/openai_embeddings/openai_images/openai_audio/openai_video/openai_realtime/openai_moderations/anthropic/cohere_rerank_v2/google_gemini_v1beta` |
 | `priority` | integer | 否 | 100 | 非负；数值越小优先级越高 |
 | `status` | enum | 否 | `active` | `active/inactive` |
 | `created_at` | timestamptz | 否 | 当前时间 | 不可变 |
@@ -180,7 +180,7 @@
 
 索引：唯一索引 `(model_id, provider_id, adapter)`；普通索引 `(model_id, status, priority)`、`(provider_id, status)`。
 
-一个模型可绑定多个供应商。网关只选择模型、binding 和 provider 均为 `active` 的候选，按 `priority ASC, id ASC` 稳定排序。
+一个模型可绑定多个供应商，也可在同一供应商下按协议分别建立 Binding。Chat/Completions、Responses、Embeddings、Images、Audio、Videos、Realtime、Moderations、Anthropic Messages、Cohere Rerank v2 与 Google Gemini `v1beta` 都使用独立 adapter。网关只选择与入口协议匹配且模型、binding 和 provider 均为 `active` 的候选，按 `priority ASC, id ASC` 稳定排序。
 
 ### 4.10 `api_keys`
 
@@ -289,7 +289,7 @@ active --负责导师撤销--> revoked
 | 老师邀请 | invitation token hash、邀请邮箱、邀请人 | invitation TTL；激活后删除 |
 | 用户 SSE stream | Key 状态事件 | 有界 Redis Stream |
 | 全局模型 SSE stream | 常用模型变更事件 | 有界 Redis Stream |
-| 视频任务路由 | 上游 task ID 对应的 model binding ID | `VIDEO_TASK_ROUTE_TTL_HOURS` |
+| 网关资源路由 | 上游资源类型与 ID 对应的 model binding ID；当前用于异步 video 查询、内容下载和 remix | `GATEWAY_RESOURCE_ROUTE_TTL_HOURS` |
 
 Redis 不是业务权威数据源。客户端 SSE 断线重连后必须重新调用 REST API 获取权威状态。
 
@@ -310,3 +310,7 @@ Redis 不是业务权威数据源。客户端 SSE 断线重连后必须重新调
 - 模型：删除市场价格、智能路由和计费字段。
 - API Key：删除 JSON allowlist、额度、RPM、Token 限制、用量统计；模型白名单规范化为关联表。
 - 全部删除：billing、quota、usage、notification、soft-delete、internal usage/monitor 相关表。
+
+官方控制台的工作区路由名称仅用于前端导航，并与中文页面标题分离；该路由契约不增加数据库表、字段、索引、枚举或迁移。
+
+官方控制台的页面动效、加载骨架、网络活动计数和提交中状态全部为浏览器内存 UI 状态，不写入 PostgreSQL 或 Redis；本功能不增加表、字段、索引、枚举、关系、事务或迁移。

@@ -377,6 +377,24 @@ data: {"revision":"01K2..."}
 }
 ```
 
+`adapter` 可选值及职责：
+
+| Adapter | 公共协议入口 | 上游协议 |
+| --- | --- | --- |
+| `openai_compatible` | `/v1/chat/completions`、`/v1/completions` | OpenAI Chat/Completions |
+| `openai_responses` | `/v1/responses`、`/v1/responses/compact` | OpenAI Responses |
+| `openai_embeddings` | `/v1/embeddings` | OpenAI Embeddings |
+| `openai_images` | `/v1/images/generations`、`/v1/images/edits`、`/v1/images/variations` | OpenAI Images |
+| `openai_audio` | `/v1/audio/transcriptions`、`/v1/audio/translations`、`/v1/audio/speech` | OpenAI Audio |
+| `openai_video` | `/v1/videos`、资源查询、内容下载和 remix | OpenAI Videos |
+| `openai_realtime` | `/v1/realtime`、`/v1/realtime/client_secrets`、`/v1/realtime/calls` | OpenAI Realtime |
+| `openai_moderations` | `/v1/moderations` | OpenAI Moderations |
+| `anthropic` | `/v1/messages` | Anthropic Messages |
+| `cohere_rerank_v2` | `/v2/rerank` | Cohere Rerank v2 `/v2/rerank` |
+| `google_gemini_v1beta` | `/v1beta/models/{model}:...` | Google Gemini 原生 `v1beta` |
+
+同一模型需要支持多个协议时，应分别创建对应 adapter 的 Binding；网关不会在协议之间自动转换请求或响应。
+
 老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型；不返回申请次数或申请用户身份。
 
 学生可调用 `GET /api/v1/student/models/resolve?model_id=...` 检查模型 ID。不存在时返回 `exists=false`；存在时返回平台权威模型卡片。学生提交 Key 时可在 `requested_models` 中携带完整新模型卡片字段（`model_id`、`display_name`、`description`、`category`、`capabilities`、`input_modalities`、`output_modalities`、`context_window`、`max_output_tokens`），模型在同一事务中以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。
@@ -389,7 +407,7 @@ data: {"revision":"01K2..."}
 
 ## 8. 网关 API
 
-网关不使用控制面 envelope，成功和失败响应保持对应 OpenAI 或 Anthropic 协议原生格式。所有路由都只存在于标准 `/v1`。
+网关不使用控制面 envelope，成功和失败响应保持对应 OpenAI、Anthropic、Cohere 或 Google Gemini 协议原生格式。OpenAI 与 Anthropic 入口位于标准 `/v1`，Cohere Rerank 保持官方 `/v2`，Google Gemini 保持官方 `/v1beta` 原生路径。
 
 ### 8.1 路由
 
@@ -398,26 +416,52 @@ data: {"revision":"01K2..."}
 | OpenAI | GET | `/v1/models` | JSON |
 | OpenAI | POST | `/v1/chat/completions` | JSON，支持 `stream=true` SSE |
 | OpenAI | POST | `/v1/completions` | JSON，支持 `stream=true` SSE |
-| OpenAI | POST | `/v1/responses` | JSON，支持 `stream=true` SSE |
+| OpenAI | POST/WS | `/v1/responses` | JSON SSE 或 Responses WebSocket；Codex CLI `response.create` 原样透传并改写 model |
 | OpenAI | POST | `/v1/responses/compact` | JSON |
 | OpenAI | POST | `/v1/embeddings` | JSON |
+| Cohere Rerank | POST | `/v2/rerank` | JSON |
 | OpenAI | POST | `/v1/images/generations` | JSON |
 | OpenAI | POST | `/v1/images/edits` | multipart/form-data |
+| OpenAI | POST | `/v1/images/variations` | multipart/form-data |
 | OpenAI | POST | `/v1/audio/transcriptions` | multipart/form-data |
 | OpenAI | POST | `/v1/audio/translations` | multipart/form-data |
 | OpenAI | POST | `/v1/audio/speech` | JSON，响应音频流 |
-| OpenAI | POST | `/v1/video/generations` | JSON 或 multipart/form-data |
-| OpenAI | GET | `/v1/video/generations/{task_id}` | JSON |
+| OpenAI | POST | `/v1/videos` | JSON 或 multipart/form-data；返回异步 Video resource |
+| OpenAI | GET | `/v1/videos/{video_id}` | JSON |
+| OpenAI | GET | `/v1/videos/{video_id}/content` | 视频二进制流 |
+| OpenAI | POST | `/v1/videos/{video_id}/remix` | JSON |
+| OpenAI | POST | `/v1/moderations` | JSON |
 | Anthropic | POST | `/v1/messages` | JSON，支持 `stream=true` SSE |
+| Google Gemini | POST | `/v1beta/models/{model}:generateContent` | JSON |
+| Google Gemini | POST | `/v1beta/models/{model}:streamGenerateContent` | JSON；`alt=sse` 时为 SSE |
+| Google Gemini | POST | `/v1beta/models/{model}:embedContent` | JSON |
+| Google Gemini | POST | `/v1beta/models/{model}:batchEmbedContents` | JSON |
 | OpenAI Realtime | WS | `/v1/realtime` | WebSocket 双向事件 |
+| OpenAI Realtime | POST | `/v1/realtime/client_secrets` | JSON，`session.model` 用于 Binding 路由 |
+| OpenAI Realtime | POST | `/v1/realtime/calls` | multipart/form-data，`session` JSON 中的 model 用于路由；SDP 原样透传 |
 
 不提供旧 `/api/nebula/gateway/*`、`/models`、`/chat/completions`、`/messages` 等别名，也不提供 health、usage、monitor 或 provider internal 路由作为公共 API。
+
+协议实现依据：
+
+- OpenAI Responses：[Create a model response](https://developers.openai.com/api/reference/resources/responses/methods/create/) 与 [Compact a response](https://developers.openai.com/api/reference/resources/responses/methods/compact/)
+- OpenAI Embeddings：[Create embeddings](https://developers.openai.com/api/reference/resources/embeddings/methods/create/)
+- OpenAI Images：[Images API](https://developers.openai.com/api/reference/resources/images/)
+- OpenAI Audio：[Audio and speech](https://developers.openai.com/api/docs/guides/audio)
+- OpenAI Videos：[Videos API](https://developers.openai.com/api/reference/resources/videos/)
+- OpenAI Realtime：[Realtime and audio](https://developers.openai.com/api/docs/guides/realtime) 与 [WebRTC](https://developers.openai.com/api/docs/guides/realtime-webrtc)
+- OpenAI Moderations：[Moderation](https://developers.openai.com/api/docs/guides/moderation)
+- Anthropic Messages：[Messages API](https://docs.anthropic.com/en/api/messages)
+- Cohere Rerank v2：[Rerank API](https://docs.cohere.com/reference/rerank)
+- Google Gemini：[Generating content](https://ai.google.dev/api/generate-content)、[Embeddings](https://ai.google.dev/api/embeddings) 与 [All methods](https://ai.google.dev/api/all-methods)
 
 ### 8.2 鉴权与授权
 
 - OpenAI-compatible HTTP 使用 `Authorization: Bearer <nebula_api_key>`。
 - Anthropic Messages 同时接受协议原生 `x-api-key: <nebula_api_key>`；要求并透传合法 `anthropic-version`。
+- Google Gemini 原生路由接受 `x-goog-api-key: <nebula_api_key>` 或 `Authorization: Bearer <nebula_api_key>`；禁止使用 `?key=`，网关向上游覆盖为供应商凭据。
 - Realtime 使用 `Authorization` Header；浏览器无法设置 Header 时可使用标准 `Sec-WebSocket-Protocol` 承载凭据，不接受查询参数中的 API Key。
+- Responses WebSocket 使用同一个 `/v1/responses`，在首个 `response.create` frame 中提取公开 model 并改写为上游 model；`OpenAI-Beta`、Codex metadata Header、`previous_response_id`、`prompt_cache_key`、加密 reasoning/compaction item 和未知字段均透明保留。
 - Key 必须为 `active`，所请求 `model` 必须位于 `api_key_models` 白名单，模型、binding 和 provider 均须为 `active`。
 - `/v1/models` 仅返回当前 Key 白名单中当前可路由的模型。
 
@@ -425,7 +469,10 @@ data: {"revision":"01K2..."}
 
 ### 8.3 代理与故障切换
 
-- 保持协议原生 request/response、状态码、SSE 事件、multipart 文件和 WebSocket frame，不使用控制面 envelope。
+- 保持协议原生 request/response、状态码、SSE 事件、multipart 文件和 WebSocket frame，不使用控制面 envelope。每类协议只选择同协议 adapter，不做跨协议 DTO 转换。
+- `/v1/responses/compact` 是独立无状态 compact：网关不得裁剪返回 `output`，也不得解析或替换 opaque `encrypted_content`；Codex CLI 使用的 tools、reasoning、text、prompt cache 与 service tier 字段仅改写顶层 model。
+- Videos 创建成功后，Redis 保存 `video_id -> binding_id`；查询、内容下载和 remix 必须回到创建该资源的上游，不能按 priority 重新选择供应商。
+- OpenAI 和 Cohere 请求体中的公共 `model` 会替换为 Binding 的上游模型名；Gemini 的路径模型会替换为上游模型名，`batchEmbedContents.requests[*].model` 同步改写为 `models/{upstream_model_name}`。
 - 候选 binding 按 `priority ASC, id ASC` 排序。
 - 仅在连接错误、连接/响应超时、HTTP `429` 或 `5xx` 时尝试下一 binding。
 - `4xx` 参数或鉴权错误除 `429` 外不得跨供应商重试。
@@ -464,6 +511,7 @@ Anthropic-compatible 示例：
 - 不实现个人主页、额度设置、计费、余额、用量统计、通知中心或模型价格。
 - 不提供老师浏览项目成员或 ACTIVE Key 的接口。
 - 不提供资源删除接口。
+- 不代理 Files、Uploads、Batches、Fine-tuning 或 Assistants/Threads 等有状态资源 API；这些接口没有可在每个请求中稳定取得的公开 model，若未来纳入必须新增资源 ID 到 Binding 的完整归属状态与授权契约，不能按默认 Binding 猜测上游。
 - 不提供旧路由兼容层、别名、双写、internal usage/monitor 路由或历史数据迁移。
 
 ## 10. 官方 Web 控制台消费约定
@@ -473,6 +521,9 @@ Anthropic-compatible 示例：
 - access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
 - refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。
 - 当前用户与角色以 `/api/v1/me`/session 响应为准，路由守卫不能替代服务端权限校验。
+- 工作区路由使用全局唯一的技术名称，中文页面标题存放在独立的路由元数据中；导师与老师均可使用“项目管理”标题，但 `/mentor/projects` 与 `/teacher/projects` 必须同时保留独立路由记录。
+- 官方 API client 对控制面 GET 与写请求维护仅存在于内存的活动计数：初次读取显示页面/表格加载反馈，刷新保留已渲染数据，写请求显示提交状态并由具体操作按钮阻止重复提交。计数必须在成功、结构化错误、网络错误和 `401` refresh 重试后清零；该 UI 状态不改变请求、响应 envelope、鉴权或错误处理契约。
+- 页面切换、弹层、状态和加载反馈遵循 `prefers-reduced-motion`；关闭位移、缩放、旋转和 shimmer 后仍必须保留文字、禁用态与 `aria-busy` 等可访问状态。
 - `/api/v1/events` 使用带 `Authorization` Header 的 fetch streaming，不使用原生 EventSource；收到状态事件后重新获取 REST 权威数据。
 - 一次性 API Key 仅在领取弹窗中显示和复制，关闭后不写入浏览器持久存储，也不支持再次展示。
 - 老师控制台不提供项目成员和 ACTIVE Key 浏览入口，前端不得扩大服务端可见范围。

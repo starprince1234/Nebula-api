@@ -101,7 +101,7 @@ func run() error {
 		ConnectTimeout:        cfg.UpstreamConnectTimeout,
 		ResponseHeaderTimeout: cfg.UpstreamResponseHeaderTimeout,
 		MaxRequestBytes:       cfg.GatewayMaxRequestBytes,
-		VideoTaskRouteTTL:     cfg.VideoTaskRouteTTL,
+		ResourceRouteTTL:      cfg.GatewayResourceRouteTTL,
 		AllowedOrigin:         cfg.PublicAppURL,
 	})
 	api := httpapi.NewServer(

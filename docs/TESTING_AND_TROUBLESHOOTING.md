@@ -34,9 +34,13 @@ npm run build
 - 控制面完整路由注册，以及不存在 DELETE 和旧网关前缀；
 - 供应商 URL 拼接、公开模型 ID 到上游模型名重写；
 - JSON/multipart body 重放、文件内容保真和请求大小限制；
+- Adapter 协议隔离，以及 Images/Audio/Videos/Realtime/Moderations 的 route-to-adapter 映射；
+- Codex Responses HTTP/compact/WebSocket 的未知字段、加密 compaction item、prompt cache、service tier、`OpenAI-Beta` 与 model 改写保真；
+- Realtime client secret 的 `session.model`、WebRTC calls multipart `session.model` 改写和 SDP 保真；
+- Video resource 创建后的 Redis binding 关联，以及查询、content、remix 返回同一上游；
 - 控制面结构化错误码到 HTTP 状态码映射；
 - 安全配置长度、加密主密钥、开发 Cookie 行为，以及固定测试账号 Secret 的成套解析和角色校验。
-- 前端类型检查、生产构建和关键 API client 行为。
+- 前端类型检查、生产构建、关键 API client 行为，以及初次加载/刷新状态分离、并发请求计数、相同操作去重和可访问骨架渲染。
 - 导师候选游标编解码、学生新模型元数据校验与并发复用规则、nullable 模型字段三态解析、老师驳回进度映射、模型 ID 去重和 1–100 数量校验。
 
 ### 2.2 本地依赖检查
@@ -111,13 +115,14 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 
 ### 2.7 控制台人工验收
 
-1. 分别用学生、导师、老师账号登录，确认默认落点、侧栏权限、手机导航抽屉和退出登录。
+1. 分别用学生、导师、老师账号登录，确认默认落点、侧栏权限、手机导航抽屉和退出登录；导师从“审核密钥”点击“项目管理”后必须保留完整工作台并显示项目列表或明确空状态。
 2. 学生选择组织后确认停用/无导师项目可见但禁选；切换组织确认会清空后续草稿。
 3. 在模型步骤解析一个既有模型，确认采用平台权威卡片；再填写一个不存在模型的完整元数据并提交。
 4. 导师在最早优先队列完成通过和带原因驳回；老师检查逐模型路由后终审。
 5. 学生观察 SSE 状态变化，领取时验证未复制关闭二次确认、复制失败手动选择及关闭后 secret 清空。
 6. 老师验证导师候选搜索分页、组织/项目启停、凭据独立替换、模型 nullable 数值和 Binding 编辑。
-7. 缩窄至 375px 宽度并仅使用键盘完成认证、申请、审核和弹层关闭；开启 reduced motion 后确认无位移或缩放动画。
+7. 缩窄至 375px 宽度并仅使用键盘完成认证、申请、审核和弹层关闭；开启 reduced motion 后确认无位移、缩放、旋转或 shimmer 动画，但加载文字、禁用态和错误信息仍然可见。
+8. 对每个角色依次打开所有侧栏页面：GET 期间应显示顶部加载进度和数据骨架；使用局部 `LoadingRegion` 的复杂列表在初次加载时不得先闪现误导性的空状态，刷新时继续保留已有内容；登录、注册、退出及使用局部 pending 的写操作按钮应显示处理中并禁止重复提交。
 
 ## 3. 常见问题矩阵
 
@@ -153,7 +158,15 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 上游 429/5xx 后没有切换 | 没有下一个 ACTIVE binding，或流已经开始写出 | 添加低优先级候选；流开始后只能返回当前错误 | 查看候选排序、adapter、priority 和首字节是否已发送 |
 | multipart 请求失败 | Content-Type boundary 丢失、文件过大或客户端重复读取 body | 保留原始 Content-Type，调整允许大小 | 检查请求大小和 boundary；不要把文件内容写入日志 |
 | Anthropic Messages 返回鉴权错误 | 缺少 `x-api-key` 或 `anthropic-version` | 使用协议原生 Header | 确认网关覆盖上游 key，不透传客户端 key |
+| 网关返回 `model_not_allowed`，但模型已在 Key 白名单 | 模型没有与当前入口协议匹配的 ACTIVE adapter Binding | 按入口创建 Responses、Embeddings、Images、Audio、Videos、Realtime、Moderations、Rerank 等独立 Binding | 不要用 `openai_compatible` 代替其他协议；检查 Binding、provider 和 model 状态 |
+| Gemini `v1beta` 返回 400/401 | 使用了禁止的 `?key=`、缺少 `x-goog-api-key`/Bearer，或没有 `google_gemini_v1beta` Binding | 使用 Header 携带 Nebula Key，并为模型创建 Gemini Binding | 核对路径 `/v1beta/models/{public_model}:operation`、adapter 和供应商 Base URL；不要记录 key |
+| Gemini batch embeddings 上游提示 model 不匹配 | Binding 上游模型名错误，或批量请求内的 model 不是合法 Gemini embedding 模型 | 修正 Binding 的上游模型名 | 网关会统一改写路径和 `requests[*].model`；检查上游返回但不要输出供应商凭据 |
 | Realtime WebSocket 连接失败 | token 放在 query、模型不允许、subprotocol 不匹配 | 使用 Authorization 或约定 subprotocol | 检查 Upgrade 响应、模型 query 和白名单；禁止记录 token |
+| Codex CLI 普通请求可用但 compact 或 WebSocket 失败 | 缺少 `/v1/responses/compact`、Responses WebSocket Upgrade 未转发、`OpenAI-Beta` 被删除，或 compact output 被代理裁剪 | 使用 `openai_responses` Binding，确认 HTTP 与 WS 都指向支持 Responses 的上游 | compact 必须保留完整 output/`encrypted_content`；检查 `prompt_cache_key`、`previous_response_id` 与 Upgrade Header，不要打印加密内容 |
+| Realtime WebRTC 返回 `model_not_allowed` | `/realtime/client_secrets` 未在 `session.model` 配置公开模型，或 `/realtime/calls` 的 multipart `session` 缺少 model | 在 session JSON 中填写 Key 白名单内且具有 `openai_realtime` Binding 的公开 model | calls 的 SDP 不参与路由；确认网关只改写 session.model 并保留 SDP |
+| Video 创建成功但查询、下载或 remix 404 | Redis 资源路由过期、Video 创建响应没有标准 `id`，或原 Binding/provider 已停用 | 在 TTL 内使用标准 video ID，恢复对应 Binding/provider；必要时重新创建 Video | 检查 `gateway:resource-route:video:{id}` 是否存在；不要把 video ID 当模型重新路由 |
+| Backend 启动时报 `GATEWAY_RESOURCE_ROUTE_TTL_HOURS` 配置错误 | Doppler 仍只保存旧视频任务 TTL 字段或值不是正整数小时 | 在 `nebula-api` 对应 config 中写入 `GATEWAY_RESOURCE_ROUTE_TTL_HOURS=24` 并删除旧字段 | 使用按名配置读取确认新字段存在；不要输出整份 secret 配置 |
+| `/v1/files`、`/v1/uploads` 或 `/v1/batches` 返回 404 | 这些是有状态资源 API，当前按模型 Binding 的首期网关未实现 | 不要映射到任意默认模型；如需该能力先设计资源归属、权限和生命周期契约 | NewAPI 参考实现同样把多项 Files 路由标为未实现；透明代理无法解决后续 resource ID 应回到哪个上游的问题 |
 | 供应商凭据配置后仍不可用 | 加密主密钥不一致或密文损坏 | 恢复原主密钥，无法恢复时重新录入凭据 | 不输出密文/明文；检查 AEAD 解密错误和 key 长度 |
 | 修改常用模型后学生页面不刷新 | 全局 SSE 事件丢失或客户端未重新请求模型广场 | 收到事件后重新 GET 模型广场 | 检查 global stream revision；不要把 SSE payload 当完整数据 |
 | API 返回 404 但资源存在 | 为防越权，资源不可见与不存在统一返回 404 | 使用正确角色和资源范围 | 检查 JWT user ID、角色、组织/项目成员关系 |
@@ -180,6 +193,10 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |
 | 云服务器 8080/8081 从公网不可达 | Compose 按安全契约只绑定 loopback | 使用 SSH tunnel；配置域名、TLS 和反向代理应作为独立部署变更 | 服务器执行 `ss -lntp '( sport = :8080 or sport = :8081 )'`，应只看到 `127.0.0.1` |
 | 前端打开后白屏 | 前端生产构建失败、静态资源未进入镜像或路由脚本异常 | 先完成 typecheck/build，再重建 frontend 镜像 | `cd frontend; npm run typecheck; npm run build`，浏览器查看 Console 与 Network，不粘贴 token |
+| 页面或表格请求期间没有加载反馈 | 页面绕过官方 API client、全局加载层未挂载，或局部初次加载状态被提前标记为完成 | 所有控制面请求使用类型化 API client，并使用共享网络活动层/`LoadingRegion`；不要用空列表冒充加载完成 | 浏览器 Network 节流后依次访问所有侧栏页面；运行 `cd frontend; npm run test -- src/api/client.test.ts src/components/LoadingRegion.test.ts src/composables/useLoadState.test.ts` |
+| 请求完成后加载动画一直不消失 | 请求计数没有在异常路径 `finally` 中递减，或页面启动了未结束的普通 HTTP 请求 | 保证成功、失败和 `401` 重试都成对维护计数；持续连接必须使用独立 SSE/WebSocket 通道，不能计入普通请求 | 检查 Network 中未结束请求及 `networkActivity` 调用链；运行 API client 回归测试，不通过吞错或强制归零掩盖问题 |
+| 快速重复点击造成多次提交 | 写操作没有局部 pending key，按钮只依赖全局提示但仍可点击 | 使用 `LoadingButton` 和 keyed pending action，在 promise 完成前禁用同一操作 | Network 中同一资源操作只能有一个在途请求；运行 `cd frontend; npm run test -- src/composables/usePendingActions.test.ts` |
+| 导师从“审核密钥”点击“项目管理”后整个工作台变空 | 导师与老师的项目页面使用了相同 Vue Router `name`，后注册路由移除了先注册的 `/mentor/projects` 记录 | 所有工作区路由使用全局唯一技术名称，中文标题通过 `meta.title` 展示；禁止复用展示文案作为路由名 | 运行 `cd frontend; npm run test -- src/router/index.test.ts`，并在浏览器确认 `/mentor/projects` 的 `route.matched` 非空且项目接口已发出 |
 | 老师模型管理的新增模型弹窗中 checkbox 与文字错位或纵向间距异常 | 全局普通输入框样式覆盖了 checkbox 的宽度、显示方式和上边距 | 使用模型表单专用 checkbox 选项布局，并重新部署前端 | 打开老师 `模型管理 -> 新增模型`，确认输入/输出模态及“全局常用模型”的 checkbox 与文字同一行、间距一致 |
 | 直接打开或刷新 `/login`、`/teacher/...` 返回 Vercel `404: NOT_FOUND` | Vercel 未读取 `frontend/vercel.json`，通常是 Root Directory 不是 `frontend` 或新配置尚未部署 | 将 Vercel Root Directory 设置为 `frontend` 并重新部署当前版本 | 直接请求 `/login` 和 `/teacher/key-reviews`，确认 HTTP 200 且响应为 `index.html`；不要改用 hash 路由或增加后端旧路由 |
 | 页面刷新后回到登录页 | refresh Cookie 不存在、Path/Secure/SameSite 不匹配，或 Redis session 已失效 | 修正 Cookie 与同源部署配置后重新登录 | 检查 `/api/v1/auth/refresh` 状态和 Set-Cookie 属性；前端不会从 JS 读取 refresh token |

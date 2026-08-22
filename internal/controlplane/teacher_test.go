@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
 )
 
 func TestMentorCandidateCursorRoundTrip(t *testing.T) {
@@ -15,6 +16,30 @@ func TestMentorCandidateCursorRoundTrip(t *testing.T) {
 	}
 	if decoded.Name != "导师甲" || decoded.ID != id {
 		t.Fatalf("unexpected cursor: %#v", decoded)
+	}
+}
+
+func TestValidBindingAdapters(t *testing.T) {
+	t.Parallel()
+	for _, adapter := range []modelbinding.Adapter{
+		modelbinding.AdapterOpenaiCompatible,
+		modelbinding.AdapterOpenaiResponses,
+		modelbinding.AdapterOpenaiEmbeddings,
+		modelbinding.AdapterOpenaiImages,
+		modelbinding.AdapterOpenaiAudio,
+		modelbinding.AdapterOpenaiVideo,
+		modelbinding.AdapterOpenaiRealtime,
+		modelbinding.AdapterOpenaiModerations,
+		modelbinding.AdapterAnthropic,
+		modelbinding.AdapterCohereRerankV2,
+		modelbinding.AdapterGoogleGeminiV1beta,
+	} {
+		if !validBindingAdapter(string(adapter)) {
+			t.Fatalf("expected adapter %q to be valid", adapter)
+		}
+	}
+	if validBindingAdapter("unknown") {
+		t.Fatal("unknown adapter was accepted")
 	}
 }
 

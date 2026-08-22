@@ -48,6 +48,8 @@ func NewServer(
 	server.registerControlPlane()
 	engine.GET("/v1/*path", gin.WrapH(gateway))
 	engine.POST("/v1/*path", gin.WrapH(gateway))
+	engine.POST("/v1beta/*path", gin.WrapH(gateway))
+	engine.POST("/v2/*path", gin.WrapH(gateway))
 	return server
 }
 

@@ -816,7 +816,7 @@ func (s *Service) UpdateBinding(ctx context.Context, bindingID uuid.UUID, input 
 		builder.SetUpstreamModelName(strings.TrimSpace(input.UpstreamModelName))
 	}
 	if input.Adapter != "" {
-		if input.Adapter != string(modelbinding.AdapterOpenaiCompatible) && input.Adapter != string(modelbinding.AdapterAnthropic) {
+		if !validBindingAdapter(input.Adapter) {
 			return BindingView{}, domain.NewError(domain.CodeValidation, "invalid binding adapter")
 		}
 		builder.SetAdapter(modelbinding.Adapter(input.Adapter))
@@ -1218,7 +1218,7 @@ func validateBindingInput(input BindingInput) error {
 	if strings.TrimSpace(input.UpstreamModelName) == "" || len(input.UpstreamModelName) > 256 {
 		return domain.NewError(domain.CodeValidation, "invalid upstream_model_name")
 	}
-	if input.Adapter != string(modelbinding.AdapterOpenaiCompatible) && input.Adapter != string(modelbinding.AdapterAnthropic) {
+	if !validBindingAdapter(input.Adapter) {
 		return domain.NewError(domain.CodeValidation, "invalid binding adapter")
 	}
 	if input.Priority < 0 {
@@ -1228,6 +1228,25 @@ func validateBindingInput(input BindingInput) error {
 		return domain.NewError(domain.CodeValidation, "invalid binding status")
 	}
 	return nil
+}
+
+func validBindingAdapter(value string) bool {
+	switch modelbinding.Adapter(value) {
+	case modelbinding.AdapterOpenaiCompatible,
+		modelbinding.AdapterOpenaiResponses,
+		modelbinding.AdapterOpenaiEmbeddings,
+		modelbinding.AdapterOpenaiImages,
+		modelbinding.AdapterOpenaiAudio,
+		modelbinding.AdapterOpenaiVideo,
+		modelbinding.AdapterOpenaiRealtime,
+		modelbinding.AdapterOpenaiModerations,
+		modelbinding.AdapterAnthropic,
+		modelbinding.AdapterCohereRerankV2,
+		modelbinding.AdapterGoogleGeminiV1beta:
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeSingleModelID(value string) (string, error) {

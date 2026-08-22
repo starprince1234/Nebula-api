@@ -14,7 +14,6 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +36,7 @@ type Config struct {
 	ConnectTimeout        time.Duration
 	ResponseHeaderTimeout time.Duration
 	MaxRequestBytes       int64
-	VideoTaskRouteTTL     time.Duration
+	ResourceRouteTTL      time.Duration
 	AllowedOrigin         string
 }
 
@@ -81,12 +80,16 @@ func NewGateway(db *ent.Client, cacheStore *cache.Store, securityManager *securi
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/v1/realtime" {
-		g.serveRealtime(w, r)
+	if isWebSocketUpgrade(r) && (r.URL.Path == "/v1/realtime" || r.URL.Path == "/v1/responses") {
+		g.serveWebSocket(w, r)
 		return
 	}
 	if !supportedRoute(r.Method, r.URL.Path) {
 		writeOpenAIError(w, http.StatusNotFound, "invalid_request_error", "route_not_found", "Route not found.", "")
+		return
+	}
+	if isGeminiPath(r.URL.Path) && r.URL.Query().Has("key") {
+		writeGeminiError(w, http.StatusBadRequest, "INVALID_ARGUMENT", "API keys are not accepted in query parameters.")
 		return
 	}
 	key, err := g.authenticate(r)
@@ -98,7 +101,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.serveModels(w, r, key)
 		return
 	}
-
 	var replay *replayBody
 	if r.Body != nil {
 		replay, err = captureBody(r.Body, g.config.MaxRequestBytes)
@@ -109,27 +111,29 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer replay.Close()
 	}
 
-	adapter := modelbinding.AdapterOpenaiCompatible
-	if r.URL.Path == "/v1/messages" {
-		adapter = modelbinding.AdapterAnthropic
+	adapter := adapterForPath(r.URL.Path)
+	if adapter == modelbinding.AdapterAnthropic {
 		if strings.TrimSpace(r.Header.Get("anthropic-version")) == "" {
 			writeAnthropicError(w, http.StatusBadRequest, "invalid_request_error", "anthropic-version header is required")
 			return
 		}
 	}
-
-	var routes []route
-	if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/video/generations/") {
-		taskID := path.Base(r.URL.Path)
-		routes, err = g.videoTaskRoutes(r.Context(), key.ID, taskID)
-	} else {
-		modelID, extractErr := extractModel(r.Header.Get("Content-Type"), replay)
-		if extractErr != nil {
-			writeProtocolError(w, r.URL.Path, http.StatusBadRequest, "invalid_request_error", "invalid_model", extractErr.Error(), "model")
+	if resourceType, resourceID, ok := routedResource(r.Method, r.URL.Path); ok {
+		routes, routeErr := g.resourceRoutes(r.Context(), key.ID, resourceType, resourceID, adapter)
+		if routeErr != nil || len(routes) == 0 {
+			writeProtocolError(w, r.URL.Path, http.StatusNotFound, "invalid_request_error", "resource_not_found", "The requested upstream resource is unavailable.", "")
 			return
 		}
-		routes, err = g.routesForModel(r.Context(), key.ID, modelID, adapter)
+		g.proxyHTTP(w, r, replay, routes)
+		return
 	}
+
+	modelID, extractErr := extractRequestedModel(r.URL.Path, r.Header.Get("Content-Type"), replay)
+	if extractErr != nil {
+		writeProtocolError(w, r.URL.Path, http.StatusBadRequest, "invalid_request_error", "invalid_model", extractErr.Error(), "model")
+		return
+	}
+	routes, err := g.routesForModel(r.Context(), key.ID, modelID, adapter)
 	if err != nil || len(routes) == 0 {
 		writeProtocolError(w, r.URL.Path, http.StatusBadRequest, "invalid_request_error", "model_not_allowed", "The requested model is not allowed or is unavailable for this API key.", "model")
 		return
@@ -141,6 +145,8 @@ func (g *Gateway) authenticate(r *http.Request) (*ent.APIKey, error) {
 	raw := ""
 	if r.URL.Path == "/v1/messages" {
 		raw = strings.TrimSpace(r.Header.Get("x-api-key"))
+	} else if isGeminiPath(r.URL.Path) {
+		raw = strings.TrimSpace(r.Header.Get("x-goog-api-key"))
 	}
 	if raw == "" {
 		authorization := strings.TrimSpace(r.Header.Get("Authorization"))
@@ -215,8 +221,8 @@ func (g *Gateway) routesForModel(
 	return g.decryptRoutes(bindings), nil
 }
 
-func (g *Gateway) videoTaskRoutes(ctx context.Context, keyID uuid.UUID, taskID string) ([]route, error) {
-	bindingIDRaw, err := g.cache.GetVideoRoute(ctx, taskID)
+func (g *Gateway) resourceRoutes(ctx context.Context, keyID uuid.UUID, resourceType, resourceID string, adapter modelbinding.Adapter) ([]route, error) {
+	bindingIDRaw, err := g.cache.GetGatewayResourceRoute(ctx, resourceType, resourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +232,7 @@ func (g *Gateway) videoTaskRoutes(ctx context.Context, keyID uuid.UUID, taskID s
 	}
 	binding, err := g.db.ModelBinding.Query().Where(
 		modelbinding.IDEQ(bindingID),
+		modelbinding.AdapterEQ(adapter),
 		modelbinding.StatusEQ(modelbinding.StatusActive),
 		modelbinding.HasProviderWith(provider.StatusEQ(provider.StatusActive)),
 		modelbinding.HasModelWith(
@@ -274,8 +281,8 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 			_ = response.Body.Close()
 			continue
 		}
-		if original.Method == http.MethodPost && original.URL.Path == "/v1/video/generations" && response.StatusCode >= 200 && response.StatusCode < 300 {
-			g.writeVideoGenerationResponse(w, response, candidate.Binding.ID)
+		if resourceType, ok := createdResourceType(original.Method, original.URL.Path); ok && response.StatusCode >= 200 && response.StatusCode < 300 {
+			g.writeResourceCreationResponse(w, response, resourceType, candidate.Binding.ID)
 			return
 		}
 		copyUpstreamResponse(w, response)
@@ -289,14 +296,16 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 }
 
 func (g *Gateway) upstreamRequest(original *http.Request, replay *replayBody, candidate route) (*http.Request, func(), error) {
-	target, err := joinUpstreamURL(candidate.Provider.BaseURL, original.URL.Path, original.URL.RawQuery)
+	requestPath, err := upstreamPath(original.URL.Path, candidate.Binding.UpstreamModelName, candidate.Binding.Adapter)
 	if err != nil {
 		return nil, func() {}, err
 	}
-	body, contentType, contentLength, cleanup, err := rewriteRequestBody(
-		original.Header.Get("Content-Type"),
-		replay,
-		candidate.Binding.UpstreamModelName,
+	target, err := joinUpstreamURL(candidate.Provider.BaseURL, requestPath, original.URL.RawQuery)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	body, contentType, contentLength, cleanup, err := rewriteUpstreamBody(
+		original.Header.Get("Content-Type"), replay, candidate.Binding.UpstreamModelName, candidate.Binding.Adapter,
 	)
 	if err != nil {
 		return nil, func() {}, err
@@ -314,8 +323,11 @@ func (g *Gateway) upstreamRequest(original *http.Request, replay *replayBody, ca
 	request.Header.Del("Content-Length")
 	request.Header.Del("Authorization")
 	request.Header.Del("x-api-key")
+	request.Header.Del("x-goog-api-key")
 	if candidate.Binding.Adapter == modelbinding.AdapterAnthropic {
 		request.Header.Set("x-api-key", candidate.Credential)
+	} else if candidate.Binding.Adapter == modelbinding.AdapterGoogleGeminiV1beta {
+		request.Header.Set("x-goog-api-key", candidate.Credential)
 	} else {
 		request.Header.Set("Authorization", "Bearer "+candidate.Credential)
 	}
@@ -327,18 +339,18 @@ func (g *Gateway) upstreamRequest(original *http.Request, replay *replayBody, ca
 	return request, cleanup, nil
 }
 
-func (g *Gateway) writeVideoGenerationResponse(w http.ResponseWriter, response *http.Response, bindingID uuid.UUID) {
+func (g *Gateway) writeResourceCreationResponse(w http.ResponseWriter, response *http.Response, resourceType string, bindingID uuid.UUID) {
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, 10<<20))
 	if err != nil {
-		writeOpenAIError(w, http.StatusBadGateway, "server_error", "invalid_upstream_response", "Invalid video provider response.", "")
+		writeOpenAIError(w, http.StatusBadGateway, "server_error", "invalid_upstream_response", "Invalid upstream resource response.", "")
 		return
 	}
 	var payload map[string]any
 	if json.Unmarshal(body, &payload) == nil {
-		taskID := firstString(payload, "id", "task_id")
-		if taskID != "" {
-			_ = g.cache.SetVideoRoute(context.Background(), taskID, bindingID.String(), g.config.VideoTaskRouteTTL)
+		resourceID := firstString(payload, "id", "task_id")
+		if resourceID != "" {
+			_ = g.cache.SetGatewayResourceRoute(context.Background(), resourceType, resourceID, bindingID.String(), g.config.ResourceRouteTTL)
 		}
 	}
 	copyHeaders(w.Header(), response.Header)
@@ -346,7 +358,15 @@ func (g *Gateway) writeVideoGenerationResponse(w http.ResponseWriter, response *
 	_, _ = w.Write(body)
 }
 
-func (g *Gateway) serveRealtime(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) serveWebSocket(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/v1/responses" {
+		g.serveResponsesWebSocket(w, r)
+		return
+	}
+	g.serveRealtimeWebSocket(w, r)
+}
+
+func (g *Gateway) serveRealtimeWebSocket(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("api_key") != "" {
 		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "api_key_query_forbidden", "API keys are not accepted in query parameters.", "")
 		return
@@ -361,45 +381,40 @@ func (g *Gateway) serveRealtime(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "invalid_model", "model query parameter is required.", "model")
 		return
 	}
-	routes, err := g.routesForModel(r.Context(), key.ID, modelID, modelbinding.AdapterOpenaiCompatible)
+	routes, err := g.routesForModel(r.Context(), key.ID, modelID, modelbinding.AdapterOpenaiRealtime)
 	if err != nil || len(routes) == 0 {
-		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "model_not_allowed", "The requested model is not allowed.", "model")
+		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "model_not_allowed", "No allowed model is available for this protocol.", "model")
 		return
 	}
 	var upstream *websocket.Conn
 	for _, candidate := range routes {
 		query := r.URL.Query()
 		query.Set("model", candidate.Binding.UpstreamModelName)
-		target, err := joinUpstreamURL(candidate.Provider.BaseURL, "/v1/realtime", query.Encode())
+		target, err := joinUpstreamURL(candidate.Provider.BaseURL, r.URL.Path, query.Encode())
 		if err != nil {
 			continue
 		}
 		target = strings.Replace(target, "https://", "wss://", 1)
 		target = strings.Replace(target, "http://", "ws://", 1)
-		headers := http.Header{"Authorization": []string{"Bearer " + candidate.Credential}}
+		headers := r.Header.Clone()
+		removeHopByHop(headers)
+		headers.Del("Authorization")
+		headers.Del("Sec-WebSocket-Key")
+		headers.Del("Sec-WebSocket-Version")
+		headers.Del("Sec-WebSocket-Extensions")
+		headers.Del("Sec-WebSocket-Protocol")
+		headers.Set("Authorization", "Bearer "+candidate.Credential)
 		upstream, _, err = g.dialer.DialContext(r.Context(), target, headers)
 		if err == nil {
 			break
 		}
 	}
 	if upstream == nil {
-		writeOpenAIError(w, http.StatusBadGateway, "server_error", "upstream_unavailable", "No realtime provider is available.", "")
+		writeOpenAIError(w, http.StatusBadGateway, "server_error", "upstream_unavailable", "No WebSocket provider is available.", "")
 		return
 	}
 	defer upstream.Close()
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(request *http.Request) bool {
-			origin := request.Header.Get("Origin")
-			if origin == "" {
-				return true
-			}
-			if origin == g.config.AllowedOrigin {
-				return true
-			}
-			parsed, err := url.Parse(origin)
-			return err == nil && strings.EqualFold(parsed.Host, request.Host)
-		},
-	}
+	upgrader := websocket.Upgrader{CheckOrigin: g.validWebSocketOrigin}
 	client, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -408,6 +423,167 @@ func (g *Gateway) serveRealtime(w http.ResponseWriter, r *http.Request) {
 	client.SetReadLimit(g.config.MaxRequestBytes)
 	upstream.SetReadLimit(g.config.MaxRequestBytes)
 	proxyWebSockets(client, upstream)
+}
+
+func (g *Gateway) serveResponsesWebSocket(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("api_key") != "" {
+		writeOpenAIError(w, http.StatusBadRequest, "invalid_request_error", "api_key_query_forbidden", "API keys are not accepted in query parameters.", "")
+		return
+	}
+	key, err := g.authenticateRealtime(r)
+	if err != nil {
+		writeOpenAIError(w, http.StatusUnauthorized, "authentication_error", "invalid_api_key", "Invalid API key.", "")
+		return
+	}
+	upgrader := websocket.Upgrader{CheckOrigin: g.validWebSocketOrigin}
+	client, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer client.Close()
+	client.SetReadLimit(g.config.MaxRequestBytes)
+	messageType, firstMessage, err := client.ReadMessage()
+	if err != nil {
+		return
+	}
+	modelID, err := responsesWebSocketModel(firstMessage)
+	if err != nil {
+		_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "invalid_request_error", "code": "invalid_model", "message": err.Error()}})
+		return
+	}
+	routes, err := g.routesForModel(r.Context(), key.ID, modelID, modelbinding.AdapterOpenaiResponses)
+	if err != nil || len(routes) == 0 {
+		_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "invalid_request_error", "code": "model_not_allowed", "message": "The requested model is not allowed."}})
+		return
+	}
+	var upstream *websocket.Conn
+	var rewritten []byte
+	upstreamModel := ""
+	for _, candidate := range routes {
+		rewritten, err = rewriteResponsesWebSocketModel(firstMessage, candidate.Binding.UpstreamModelName)
+		if err != nil {
+			return
+		}
+		target, joinErr := joinUpstreamURL(candidate.Provider.BaseURL, "/v1/responses", r.URL.RawQuery)
+		if joinErr != nil {
+			continue
+		}
+		target = strings.Replace(target, "https://", "wss://", 1)
+		target = strings.Replace(target, "http://", "ws://", 1)
+		headers := upstreamWebSocketHeaders(r.Header, candidate.Credential)
+		upstream, _, err = g.dialer.DialContext(r.Context(), target, headers)
+		if err == nil {
+			upstreamModel = candidate.Binding.UpstreamModelName
+			break
+		}
+	}
+	if upstream == nil {
+		_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "server_error", "code": "upstream_unavailable", "message": "No Responses WebSocket provider is available."}})
+		return
+	}
+	defer upstream.Close()
+	upstream.SetReadLimit(g.config.MaxRequestBytes)
+	if err := upstream.WriteMessage(messageType, rewritten); err != nil {
+		return
+	}
+	proxyResponsesWebSockets(client, upstream, upstreamModel)
+}
+
+func (g *Gateway) validWebSocketOrigin(request *http.Request) bool {
+	origin := request.Header.Get("Origin")
+	if origin == "" || origin == g.config.AllowedOrigin {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	return err == nil && strings.EqualFold(parsed.Host, request.Host)
+}
+
+func upstreamWebSocketHeaders(source http.Header, credential string) http.Header {
+	headers := source.Clone()
+	removeHopByHop(headers)
+	for _, name := range []string{
+		"Authorization", "Sec-WebSocket-Key", "Sec-WebSocket-Version",
+		"Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol",
+	} {
+		headers.Del(name)
+	}
+	headers.Set("Authorization", "Bearer "+credential)
+	return headers
+}
+
+func responsesWebSocketModel(message []byte) (string, error) {
+	var payload struct {
+		Type  string `json:"type"`
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(message, &payload); err != nil {
+		return "", errors.New("invalid response.create message")
+	}
+	payload.Model = strings.TrimSpace(payload.Model)
+	if payload.Type != "response.create" || payload.Model == "" || len(payload.Model) > 256 {
+		return "", errors.New("response.create with model is required")
+	}
+	return payload.Model, nil
+}
+
+func rewriteResponsesWebSocketModel(message []byte, upstreamModel string) ([]byte, error) {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(message, &payload); err != nil {
+		return nil, errors.New("invalid response.create message")
+	}
+	var messageType string
+	if err := json.Unmarshal(payload["type"], &messageType); err != nil || messageType != "response.create" {
+		return nil, errors.New("response.create message is required")
+	}
+	model, err := json.Marshal(upstreamModel)
+	if err != nil {
+		return nil, err
+	}
+	payload["model"] = model
+	return json.Marshal(payload)
+}
+
+func proxyResponsesWebSockets(client, upstream *websocket.Conn, upstreamModel string) {
+	errs := make(chan error, 2)
+	go func() {
+		for {
+			messageType, data, err := client.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if messageType == websocket.TextMessage {
+				var envelope struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal(data, &envelope) == nil && envelope.Type == "response.create" {
+					data, err = rewriteResponsesWebSocketModel(data, upstreamModel)
+					if err != nil {
+						errs <- err
+						return
+					}
+				}
+			}
+			if err := upstream.WriteMessage(messageType, data); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			messageType, data, err := upstream.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if err := client.WriteMessage(messageType, data); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	<-errs
 }
 
 func (g *Gateway) authenticateRealtime(r *http.Request) (*ent.APIKey, error) {
@@ -475,9 +651,13 @@ func supportedRoute(method, requestPath string) bool {
 		return true
 	case method == http.MethodPost && requestPath == "/v1/embeddings":
 		return true
+	case method == http.MethodPost && requestPath == "/v2/rerank":
+		return true
 	case method == http.MethodPost && requestPath == "/v1/images/generations":
 		return true
 	case method == http.MethodPost && requestPath == "/v1/images/edits":
+		return true
+	case method == http.MethodPost && requestPath == "/v1/images/variations":
 		return true
 	case method == http.MethodPost && requestPath == "/v1/audio/transcriptions":
 		return true
@@ -485,15 +665,409 @@ func supportedRoute(method, requestPath string) bool {
 		return true
 	case method == http.MethodPost && requestPath == "/v1/audio/speech":
 		return true
-	case method == http.MethodPost && requestPath == "/v1/video/generations":
+	case method == http.MethodPost && requestPath == "/v1/videos":
 		return true
-	case method == http.MethodGet && strings.HasPrefix(requestPath, "/v1/video/generations/"):
-		return path.Base(requestPath) != "generations"
+	case method == http.MethodGet && isVideoResourcePath(requestPath):
+		return true
+	case method == http.MethodGet && isVideoContentPath(requestPath):
+		return true
+	case method == http.MethodPost && isVideoRemixPath(requestPath):
+		return true
+	case method == http.MethodPost && requestPath == "/v1/moderations":
+		return true
+	case method == http.MethodPost && requestPath == "/v1/realtime/client_secrets":
+		return true
+	case method == http.MethodPost && requestPath == "/v1/realtime/calls":
+		return true
 	case method == http.MethodPost && requestPath == "/v1/messages":
+		return true
+	case method == http.MethodPost && isGeminiPath(requestPath):
 		return true
 	default:
 		return false
 	}
+}
+
+func adapterForPath(requestPath string) modelbinding.Adapter {
+	switch {
+	case requestPath == "/v1/responses" || requestPath == "/v1/responses/compact":
+		return modelbinding.AdapterOpenaiResponses
+	case requestPath == "/v1/embeddings":
+		return modelbinding.AdapterOpenaiEmbeddings
+	case strings.HasPrefix(requestPath, "/v1/images/"):
+		return modelbinding.AdapterOpenaiImages
+	case strings.HasPrefix(requestPath, "/v1/audio/"):
+		return modelbinding.AdapterOpenaiAudio
+	case requestPath == "/v1/videos" || strings.HasPrefix(requestPath, "/v1/videos/"):
+		return modelbinding.AdapterOpenaiVideo
+	case requestPath == "/v1/realtime" || strings.HasPrefix(requestPath, "/v1/realtime/"):
+		return modelbinding.AdapterOpenaiRealtime
+	case requestPath == "/v1/moderations":
+		return modelbinding.AdapterOpenaiModerations
+	case requestPath == "/v1/messages":
+		return modelbinding.AdapterAnthropic
+	case requestPath == "/v2/rerank":
+		return modelbinding.AdapterCohereRerankV2
+	case isGeminiPath(requestPath):
+		return modelbinding.AdapterGoogleGeminiV1beta
+	default:
+		return modelbinding.AdapterOpenaiCompatible
+	}
+}
+
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
+}
+
+func isVideoResourcePath(requestPath string) bool {
+	if !strings.HasPrefix(requestPath, "/v1/videos/") || isVideoContentPath(requestPath) || isVideoRemixPath(requestPath) {
+		return false
+	}
+	return validResourceID(strings.TrimPrefix(requestPath, "/v1/videos/"))
+}
+
+func isVideoContentPath(requestPath string) bool {
+	if !strings.HasSuffix(requestPath, "/content") {
+		return false
+	}
+	return validResourceID(strings.TrimSuffix(strings.TrimPrefix(requestPath, "/v1/videos/"), "/content"))
+}
+
+func isVideoRemixPath(requestPath string) bool {
+	if !strings.HasSuffix(requestPath, "/remix") {
+		return false
+	}
+	return validResourceID(strings.TrimSuffix(strings.TrimPrefix(requestPath, "/v1/videos/"), "/remix"))
+}
+
+func validResourceID(value string) bool {
+	return value != "" && len(value) <= 256 && !strings.Contains(value, "/")
+}
+
+func createdResourceType(method, requestPath string) (string, bool) {
+	if method == http.MethodPost && requestPath == "/v1/videos" {
+		return "video", true
+	}
+	return "", false
+}
+
+func routedResource(method, requestPath string) (string, string, bool) {
+	if adapterForPath(requestPath) != modelbinding.AdapterOpenaiVideo {
+		return "", "", false
+	}
+	if method == http.MethodGet && isVideoResourcePath(requestPath) {
+		return "video", strings.TrimPrefix(requestPath, "/v1/videos/"), true
+	}
+	if method == http.MethodGet && isVideoContentPath(requestPath) {
+		return "video", strings.TrimSuffix(strings.TrimPrefix(requestPath, "/v1/videos/"), "/content"), true
+	}
+	if method == http.MethodPost && isVideoRemixPath(requestPath) {
+		return "video", strings.TrimSuffix(strings.TrimPrefix(requestPath, "/v1/videos/"), "/remix"), true
+	}
+	return "", "", false
+}
+
+func isGeminiPath(requestPath string) bool {
+	if !strings.HasPrefix(requestPath, "/v1beta/models/") {
+		return false
+	}
+	for _, operation := range []string{":generateContent", ":streamGenerateContent", ":embedContent", ":batchEmbedContents"} {
+		if strings.HasSuffix(requestPath, operation) && len(strings.TrimSuffix(strings.TrimPrefix(requestPath, "/v1beta/models/"), operation)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func extractRequestedModel(requestPath, contentType string, replay *replayBody) (string, error) {
+	if isGeminiPath(requestPath) {
+		value := strings.TrimPrefix(requestPath, "/v1beta/models/")
+		if index := strings.LastIndex(value, ":"); index >= 0 {
+			value = value[:index]
+		}
+		value = strings.TrimSpace(value)
+		if value == "" || len(value) > 256 || strings.Contains(value, "/") {
+			return "", errors.New("model is required")
+		}
+		return value, nil
+	}
+	if requestPath == "/v1/realtime/calls" {
+		return extractRealtimeCallModel(contentType, replay)
+	}
+	if requestPath == "/v1/realtime/client_secrets" {
+		return extractNestedJSONModel(contentType, replay, "session")
+	}
+	return extractModel(contentType, replay)
+}
+
+func extractNestedJSONModel(contentType string, replay *replayBody, objectField string) (string, error) {
+	if replay == nil {
+		return "", errors.New("request body is required")
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
+		return "", errors.New("Content-Type must be application/json")
+	}
+	reader, err := replay.Open()
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	var payload map[string]json.RawMessage
+	if err := json.NewDecoder(reader).Decode(&payload); err != nil {
+		return "", errors.New("invalid JSON body")
+	}
+	var nested struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal(payload[objectField], &nested); err != nil {
+		return "", fmt.Errorf("%s.model is required", objectField)
+	}
+	nested.Model = strings.TrimSpace(nested.Model)
+	if nested.Model == "" || len(nested.Model) > 256 {
+		return "", fmt.Errorf("%s.model is required", objectField)
+	}
+	return nested.Model, nil
+}
+
+func extractRealtimeCallModel(contentType string, replay *replayBody) (string, error) {
+	if replay == nil {
+		return "", errors.New("request body is required")
+	}
+	reader, err := replay.Open()
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return "", errors.New("Content-Type must be multipart/form-data")
+	}
+	form := multipart.NewReader(reader, params["boundary"])
+	for {
+		part, err := form.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", errors.New("invalid multipart body")
+		}
+		if part.FormName() != "session" {
+			_ = part.Close()
+			continue
+		}
+		var session struct {
+			Model string `json:"model"`
+		}
+		err = json.NewDecoder(io.LimitReader(part, 1<<20)).Decode(&session)
+		_ = part.Close()
+		session.Model = strings.TrimSpace(session.Model)
+		if err != nil || session.Model == "" || len(session.Model) > 256 {
+			return "", errors.New("model is required in session")
+		}
+		return session.Model, nil
+	}
+	return "", errors.New("session is required")
+}
+
+func upstreamPath(requestPath, upstreamModel string, adapter modelbinding.Adapter) (string, error) {
+	switch adapter {
+	case modelbinding.AdapterCohereRerankV2:
+		return "/v2/rerank", nil
+	case modelbinding.AdapterGoogleGeminiV1beta:
+		if !isGeminiPath(requestPath) {
+			return "", errors.New("invalid Gemini route")
+		}
+		operation := requestPath[strings.LastIndex(requestPath, ":"):]
+		return "/v1beta/models/" + url.PathEscape(strings.TrimPrefix(upstreamModel, "models/")) + operation, nil
+	default:
+		return requestPath, nil
+	}
+}
+
+func rewriteUpstreamBody(contentType string, replay *replayBody, upstreamModel string, adapter modelbinding.Adapter) (
+	io.ReadCloser,
+	string,
+	int64,
+	func(),
+	error,
+) {
+	if adapter != modelbinding.AdapterGoogleGeminiV1beta {
+		if adapter == modelbinding.AdapterOpenaiRealtime && replay != nil {
+			mediaType, _, _ := mime.ParseMediaType(contentType)
+			if mediaType == "application/json" || mediaType == "multipart/form-data" {
+				return rewriteRealtimeBody(contentType, replay, upstreamModel)
+			}
+		}
+		return rewriteRequestBody(contentType, replay, upstreamModel)
+	}
+	if replay == nil {
+		return nil, contentType, 0, func() {}, nil
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
+		return nil, "", 0, func() {}, errors.New("Gemini requests require application/json")
+	}
+	source, err := replay.Open()
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	defer source.Close()
+	var payload map[string]any
+	if err := json.NewDecoder(source).Decode(&payload); err != nil {
+		return nil, "", 0, func() {}, errors.New("invalid JSON body")
+	}
+	qualifiedModel := "models/" + strings.TrimPrefix(upstreamModel, "models/")
+	if _, exists := payload["model"]; exists {
+		payload["model"] = qualifiedModel
+	}
+	if requests, ok := payload["requests"].([]any); ok {
+		for _, raw := range requests {
+			if request, ok := raw.(map[string]any); ok {
+				request["model"] = qualifiedModel
+			}
+		}
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	return io.NopCloser(bytes.NewReader(body)), contentType, int64(len(body)), func() {}, nil
+}
+
+func rewriteRealtimeBody(contentType string, replay *replayBody, upstreamModel string) (io.ReadCloser, string, int64, func(), error) {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	if mediaType == "application/json" {
+		return rewriteNestedJSONModel(contentType, replay, "session", upstreamModel)
+	}
+	if mediaType != "multipart/form-data" {
+		return nil, "", 0, func() {}, errors.New("Realtime requests require application/json or multipart/form-data")
+	}
+	return rewriteMultipartJSONField(contentType, replay, "session", "model", upstreamModel)
+}
+
+func rewriteNestedJSONModel(contentType string, replay *replayBody, objectField, upstreamModel string) (io.ReadCloser, string, int64, func(), error) {
+	source, err := replay.Open()
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	defer source.Close()
+	var payload map[string]json.RawMessage
+	if err := json.NewDecoder(source).Decode(&payload); err != nil {
+		return nil, "", 0, func() {}, errors.New("invalid JSON body")
+	}
+	var nested map[string]json.RawMessage
+	if err := json.Unmarshal(payload[objectField], &nested); err != nil {
+		return nil, "", 0, func() {}, fmt.Errorf("%s is required", objectField)
+	}
+	nested["model"], err = json.Marshal(upstreamModel)
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	payload[objectField], err = json.Marshal(nested)
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	return io.NopCloser(bytes.NewReader(body)), contentType, int64(len(body)), func() {}, nil
+}
+
+func rewriteMultipartJSONField(contentType string, replay *replayBody, fieldName, jsonField, replacement string) (io.ReadCloser, string, int64, func(), error) {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "multipart/form-data" || params["boundary"] == "" {
+		return nil, "", 0, func() {}, errors.New("invalid multipart Content-Type")
+	}
+	source, err := replay.Open()
+	if err != nil {
+		return nil, "", 0, func() {}, err
+	}
+	file, err := os.CreateTemp("", "nebula-upstream-*")
+	if err != nil {
+		_ = source.Close()
+		return nil, "", 0, func() {}, err
+	}
+	filePath := file.Name()
+	cleanupOnError := func() {
+		_ = source.Close()
+		_ = file.Close()
+		_ = os.Remove(filePath)
+	}
+	writer := multipart.NewWriter(file)
+	reader := multipart.NewReader(source, params["boundary"])
+	found := false
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			cleanupOnError()
+			return nil, "", 0, func() {}, err
+		}
+		target, err := writer.CreatePart(cloneMIMEHeader(part.Header))
+		if err != nil {
+			_ = part.Close()
+			cleanupOnError()
+			return nil, "", 0, func() {}, err
+		}
+		if part.FormName() == fieldName {
+			var payload map[string]json.RawMessage
+			err = json.NewDecoder(io.LimitReader(part, 1<<20)).Decode(&payload)
+			if err == nil {
+				payload[jsonField], err = json.Marshal(replacement)
+			}
+			if err == nil {
+				var encoded []byte
+				encoded, err = json.Marshal(payload)
+				if err == nil {
+					_, err = target.Write(encoded)
+				}
+			}
+			found = true
+		} else {
+			_, err = io.Copy(target, part)
+		}
+		_ = part.Close()
+		if err != nil {
+			cleanupOnError()
+			return nil, "", 0, func() {}, err
+		}
+	}
+	_ = source.Close()
+	if !found {
+		cleanupOnError()
+		return nil, "", 0, func() {}, fmt.Errorf("%s is required", fieldName)
+	}
+	if err := writer.Close(); err != nil {
+		cleanupOnError()
+		return nil, "", 0, func() {}, err
+	}
+	if err := file.Close(); err != nil {
+		cleanupOnError()
+		return nil, "", 0, func() {}, err
+	}
+	stat, err := os.Stat(filePath)
+	if err != nil {
+		_ = os.Remove(filePath)
+		return nil, "", 0, func() {}, err
+	}
+	body, err := os.Open(filePath)
+	if err != nil {
+		_ = os.Remove(filePath)
+		return nil, "", 0, func() {}, err
+	}
+	cleanup := func() {
+		_ = body.Close()
+		_ = os.Remove(filePath)
+	}
+	return body, writer.FormDataContentType(), stat.Size(), cleanup, nil
 }
 
 func extractModel(contentType string, replay *replayBody) (string, error) {
@@ -685,8 +1259,11 @@ func joinUpstreamURL(baseURL, requestPath, rawQuery string) (string, error) {
 		return "", errors.New("invalid provider URL")
 	}
 	suffix := requestPath
-	if strings.HasSuffix(base.Path, "/v1") && strings.HasPrefix(suffix, "/v1/") {
-		suffix = strings.TrimPrefix(suffix, "/v1")
+	for _, version := range []string{"/v1beta", "/v2", "/v1"} {
+		if strings.HasSuffix(base.Path, version) && strings.HasPrefix(suffix, version+"/") {
+			suffix = strings.TrimPrefix(suffix, version)
+			break
+		}
 	}
 	base.Path = strings.TrimRight(base.Path, "/") + suffix
 	base.RawQuery = rawQuery
@@ -747,7 +1324,40 @@ func writeProtocolError(w http.ResponseWriter, requestPath string, status int, e
 		writeAnthropicError(w, status, errorType, message)
 		return
 	}
+	if isGeminiPath(requestPath) {
+		writeGeminiError(w, status, geminiStatus(status), message)
+		return
+	}
+	if requestPath == "/v2/rerank" {
+		writeJSON(w, status, map[string]any{"message": message})
+		return
+	}
 	writeOpenAIError(w, status, errorType, code, message, parameter)
+}
+
+func writeGeminiError(w http.ResponseWriter, status int, errorStatus, message string) {
+	writeJSON(w, status, map[string]any{"error": map[string]any{
+		"code": status, "message": message, "status": errorStatus,
+	}})
+}
+
+func geminiStatus(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "INVALID_ARGUMENT"
+	case http.StatusUnauthorized:
+		return "UNAUTHENTICATED"
+	case http.StatusForbidden:
+		return "PERMISSION_DENIED"
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+	case http.StatusTooManyRequests:
+		return "RESOURCE_EXHAUSTED"
+	case http.StatusServiceUnavailable:
+		return "UNAVAILABLE"
+	default:
+		return "INTERNAL"
+	}
 }
 
 func writeOpenAIError(w http.ResponseWriter, status int, errorType, code, message, parameter string) {

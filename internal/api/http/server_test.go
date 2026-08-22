@@ -80,6 +80,8 @@ func TestRegistersControlPlaneAndGatewayRoutes(t *testing.T) {
 		"POST /api/v1/teacher/api-key-reviews/:api_key_id/reject",
 		"POST /v1/*path",
 		"GET /v1/*path",
+		"POST /v1beta/*path",
+		"POST /v2/*path",
 	}
 	for _, route := range expected {
 		if _, exists := routes[route]; !exists {

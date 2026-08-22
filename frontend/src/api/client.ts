@@ -1,8 +1,11 @@
 import type { ApiError, ApiErrorDetails, Envelope, PageMeta } from './types'
+import { reactive } from 'vue'
 
 const base = import.meta.env.VITE_API_BASE_URL ?? ''
 let accessToken: string | null = null
 let refreshFlight: Promise<boolean> | null = null
+
+export const networkActivity = reactive({ reads: 0, writes: 0 })
 
 export const token = { get: () => accessToken, set: (value: string | null) => { accessToken = value } }
 
@@ -33,12 +36,18 @@ async function refresh(): Promise<boolean> {
 }
 
 async function rawRequest<T>(path: string, init: RequestInit = {}, retry = true): Promise<Envelope<T>> {
-  const headers = new Headers(init.headers)
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
-  const response = await fetch(`${base}${path}`, { ...init, headers, credentials: 'include' })
-  if (response.status === 401 && retry && !path.includes('/auth/refresh') && await refresh()) return rawRequest<T>(path, init, false)
-  return parseEnvelope<T>(response)
+  const bucket = (init.method ?? 'GET').toUpperCase() === 'GET' ? 'reads' : 'writes'
+  networkActivity[bucket] += 1
+  try {
+    const headers = new Headers(init.headers)
+    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
+    const response = await fetch(`${base}${path}`, { ...init, headers, credentials: 'include' })
+    if (response.status === 401 && retry && !path.includes('/auth/refresh') && await refresh()) return rawRequest<T>(path, init, false)
+    return parseEnvelope<T>(response)
+  } finally {
+    networkActivity[bucket] -= 1
+  }
 }
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> { return (await rawRequest<T>(path, init)).data }
