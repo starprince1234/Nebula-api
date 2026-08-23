@@ -50,9 +50,12 @@ const errorMessages: Record<string, string> = {
 
 function validationReason(reason: string): string {
   const value = reason.trim()
+  const unknownField = value.match(/unknown field ["']?([^"']+)["']?/i)
+  if (unknownField) return `请求包含不支持的字段“${unknownField[1]}”，请刷新页面后重试`
   if (/required/i.test(value)) return '必填项不能为空'
-  if (/invalid.*(email|format)|must be a valid email/i.test(value)) return '格式不正确'
-  if (/unknown field/i.test(value)) return '包含不支持的字段'
+  if (/invalid.*(email|format)|must be a valid email/i.test(value)) return '格式不正确，请按要求填写后重试'
+  if (/password.*(length|between)|at least .*characters/i.test(value)) return '密码长度不符合要求，请使用 12–128 个字符'
+  if (/invalid.*(code|verification)|verification.*invalid/i.test(value)) return '验证码不正确或已失效，请重新获取验证码'
   if (/unexpected end|unexpected eof|eof/i.test(value)) return '请求内容不完整'
   return value
 }
@@ -60,6 +63,36 @@ function validationReason(reason: string): string {
 function translateServerMessage(message: string): string | undefined {
   const value = message.trim().toLowerCase()
   const translations: Array<[RegExp, string]> = [
+    [/invalid verification purpose/, '验证码用途不正确，请重新选择注册角色'],
+    [/verification code was sent recently/, '验证码已发送，请稍后再试'],
+    [/email is already registered/, '该邮箱已注册，请直接登录'],
+    [/invalid email/, '邮箱格式不正确，请检查后重试'],
+    [/invalid name/, '姓名不能为空且长度不能超过 64 个字符'],
+    [/invalid or expired verification code/, '验证码不正确或已过期，请重新获取'],
+    [/invalid verification code/, '验证码不正确，请检查后重试'],
+    [/verification code expired/, '验证码已过期，请重新获取'],
+    [/verification attempts are locked/, '验证码错误次数过多，请稍后再试'],
+    [/invalid email or password/, '邮箱或密码不正确'],
+    [/account is not active/, '账号当前不可用，请联系平台管理员'],
+    [/refresh token is required|invalid refresh token/, '登录状态已失效，请重新登录'],
+    [/invalid or expired invitation/, '邀请链接无效或已过期，请联系邀请人重新发送'],
+    [/comment is too long/, '审核意见不能超过 1000 个字符'],
+    [/invalid resource status/, '状态值不正确，请重新选择'],
+    [/invalid model category/, '模型类别不正确，请重新选择'],
+    [/invalid model status/, '模型状态不正确，请重新选择'],
+    [/invalid binding status/, 'Binding 状态不正确，请重新选择'],
+    [/priority must be non-negative/, '优先级不能为负数'],
+    [/provider_id is required/, '请选择供应商'],
+    [/invalid upstream_model_name/, '请填写有效的上游模型名称'],
+    [/model description is too long/, '模型描述不能超过 2048 个字符'],
+    [/requested model capabilities and modalities are required/, '请至少填写一项能力、输入模态和输出模态'],
+    [/context_window must be positive/, '上下文长度必须为正整数'],
+    [/max_output_tokens must be positive/, '最大输出 Token 必须为正整数'],
+    [/new models require complete requested_models metadata/, '新模型信息不完整，请补齐模型卡片后再提交'],
+    [/API key name is already in use/, 'Key 名称已存在，请更换名称'],
+    [/project has no active mentor/, '该项目暂无有效导师，请等待导师加入并由老师批准'],
+    [/organization not found/, '组织不存在或已停用'],
+    [/project not found/, '项目不存在或已停用'],
     [/mentor does not belong to the project organization/, '该导师尚未加入项目所属组织，请先在“组织管理”中分配导师'],
     [/mentor already manages this project/, '该导师已经负责此项目，无需重复审批'],
     [/project application is already pending/, '该项目已有待审核申请，请勿重复提交'],
@@ -67,6 +100,11 @@ function translateServerMessage(message: string): string | undefined {
     [/project not found/, '项目不存在或已停用'],
     [/organization not found/, '组织不存在或已停用'],
     [/invalid binding adapter/, '模型 Binding 类型不受支持'],
+    [/model binding already exists/, '该模型已经配置了相同 Binding'],
+    [/model ID already exists/, '该模型 ID 已存在，请直接配置已有模型'],
+    [/provider name already exists/, '供应商名称已存在，请更换名称'],
+    [/organization name already exists/, '组织名称已存在，请更换名称'],
+    [/project name already exists in this organization/, '该组织下已存在同名项目，请更换名称'],
   ]
   return translations.find(([pattern]) => pattern.test(value))?.[1]
 }

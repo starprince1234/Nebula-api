@@ -207,6 +207,8 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 登录后刷新页面被重定向到登录页，且 refresh Cookie 原本有效 | 路由守卫与 `App.vue` 同时调用 bootstrap，单次轮换 refresh token 被并发使用，后端将第二次请求识别为重用并撤销 session family | 由 auth store 提供 single-flight bootstrap，并让路由守卫复用同一个 Promise；不要在多个启动入口重复调用 refresh | 运行 `cd frontend; npm run test -- src/store/auth.test.ts`，浏览器 Network 中刷新页面应只有一个 `/api/v1/auth/refresh` 请求 |
 | 多个请求同时 401 导致反复刷新 | API client 未共享 refresh 请求，或 refresh token 被并发轮换重用 | 使用前端内置 single-flight client，禁止页面直接调用 fetch | Network 中应只有一个并发 refresh；若 session family 被撤销则重新登录 |
 | 前端提示接口 404 | 未通过 Vite/Nginx 代理访问、路径写成旧路由或 backend 未启动 | 使用相对 `/api/v1` 路径并恢复 backend | 检查浏览器请求 URL、`frontend/nginx.conf` 和 Compose 网络，不增加旧路由别名 |
+| 注册成功收到验证码但提交返回 `VALIDATION_ERROR` 且提示未知字段 | 注册页面把 `role`、密码确认字段等 UI 状态一并发送；后端注册 DTO 只接受 `name`、`email`、`password`、`verification_code` 并严格拒绝未知 JSON 字段 | API client 现在显式构造四个允许字段；更新前端构建后重新注册 | 浏览器 Network 查看请求 JSON 的字段名，不要提交 `role`、`confirm` 或其他表单状态；错误提示会指出具体字段 |
+| 前端错误提示出现 `body: 包含不支持字段` 或英文原始错误 | 客户端直接展示 Gin/JSON 解析器原文，未按错误码和字段原因翻译 | 使用统一 API error 文案映射；校验错误显示具体字段和可执行处理方式 | 检查响应 `error.code`、`error.details` 和 `request_id`；不要把完整请求头或 token 粘贴到工单 |
 | 前端 SSE 无状态更新 | 使用 EventSource 无法带 Bearer，或 fetch stream 中断 | 使用内置 fetch streaming，重连后重新拉取列表 | 检查 `/api/v1/events` Authorization 与响应 Content-Type；不要把 token 放 query |
 | 领取弹窗关闭后找不到完整 Key | 明文按契约只在首次响应与当前内存弹窗出现 | 使用首次领取时复制的值；遗失后只能重新申请 | 数据库和浏览器存储都不应存在明文，禁止增加“再次显示”功能 |
 | 8081 端口被占用 | 本机其他进程占用前端入口 | 停止冲突进程或按正式变更流程修改端口和文档 | `Get-NetTCPConnection -LocalPort 8081 -State Listen` |

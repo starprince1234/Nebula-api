@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { APIError, apiErrorMessage, networkActivity, request, token } from './client'
+import { authAPI } from './auth'
 
 describe('API client', () => {
   afterEach(() => { vi.unstubAllGlobals(); token.set(null); networkActivity.reads = 0; networkActivity.writes = 0 })
@@ -15,6 +16,15 @@ describe('API client', () => {
     expect(apiErrorMessage(new APIError('rejection reason is required', 400, 'REJECTION_REASON_REQUIRED'))).toBe('驳回原因不能为空，请填写具体原因')
     expect(apiErrorMessage(new APIError('request validation failed', 400, 'VALIDATION_ERROR', [{ field: 'body', reason: 'unexpected end of JSON input' }]))).toBe('body：请求内容不完整')
     expect(apiErrorMessage(new APIError('one or more models are not ready', 409, 'MODEL_NOT_READY', { model_ids: ['gpt-4.1', 'embedding-3'] }))).toContain('gpt-4.1、embedding-3')
+    expect(apiErrorMessage(new APIError('json: unknown field "confirm"', 400, 'VALIDATION_ERROR', [{ field: 'body', reason: 'json: unknown field "confirm"' }]))).toContain('confirm')
+    expect(apiErrorMessage(new APIError('email is already registered', 409, 'EMAIL_ALREADY_REGISTERED'))).toBe('该邮箱已注册，请直接登录')
+  })
+
+  it('registers with only the fields accepted by the server DTO', async () => {
+    let body = ''
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => { body = String(init?.body ?? ''); return new Response(JSON.stringify({ data: {} }), { status: 201, headers: { 'Content-Type': 'application/json' } }) }))
+    await authAPI.register('student', { name: '学生', email: 'student@example.com', password: 'a-secure-password', verification_code: '123456' })
+    expect(JSON.parse(body)).toEqual({ name: '学生', email: 'student@example.com', password: 'a-secure-password', verification_code: '123456' })
   })
 
   it('shares one refresh request across concurrent 401 responses', async () => {
