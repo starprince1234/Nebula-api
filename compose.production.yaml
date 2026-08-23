@@ -64,6 +64,8 @@ x-application-image: &application-image
 services:
   postgres:
     image: docker.m.daocloud.io/library/postgres:17.11-alpine3.24
+    ports:
+      - "127.0.0.1:15432:5432"
     environment:
       POSTGRES_USER:
       POSTGRES_PASSWORD:
