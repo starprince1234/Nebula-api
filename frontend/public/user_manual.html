@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Nebula AI API 中转站用户手册：统一登录注册、API Key 申请、模型管理与常见问题。">
+  <title>Nebula 用户手册</title>
+  <style>
+    :root {
+      --ink: #172235;
+      --muted: #667085;
+      --line: #dfe5ef;
+      --soft: #f5f7fb;
+      --card: #ffffff;
+      --navy: #14213d;
+      --blue: #2563eb;
+      --blue-soft: #eaf1ff;
+      --cyan: #0f9fba;
+      --green: #087443;
+      --green-soft: #eaf8f0;
+      --amber: #996300;
+      --amber-soft: #fff7df;
+      --red: #b42318;
+      --red-soft: #fff0ee;
+      --shadow: 0 16px 42px rgba(20, 33, 61, .08);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--soft);
+      line-height: 1.7;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; }
+    code, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { background: #eef2f7; border-radius: 5px; padding: .12em .38em; font-size: .92em; }
+    .topbar {
+      background: linear-gradient(135deg, #121e39, #1e3766 58%, #0d849b);
+      color: white;
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 4px 18px rgba(14, 28, 54, .16);
+    }
+    .topbar-inner { max-width: 1240px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .02em; }
+    .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgba(255,255,255,.45); border-radius: 10px; font-weight: 900; }
+    .topbar small { color: #dbe9ff; }
+    .layout { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 238px minmax(0, 1fr); gap: 30px; padding: 30px 24px 72px; }
+    .toc { position: sticky; top: 78px; align-self: start; max-height: calc(100vh - 100px); overflow: auto; padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+    .toc-title { margin: 0 0 10px; font-size: 13px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .toc a { display: block; padding: 6px 8px; border-radius: 8px; color: #344054; font-size: 14px; line-height: 1.45; }
+    .toc a:hover { background: var(--blue-soft); text-decoration: none; color: var(--blue); }
+    .toc .sub { padding-left: 20px; font-size: 13px; color: var(--muted); }
+    main { min-width: 0; }
+    .hero, section, .callout, .quick-card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }
+    .hero { padding: 42px 44px; margin-bottom: 24px; background: radial-gradient(circle at 92% 12%, rgba(37,99,235,.15), transparent 30%), linear-gradient(135deg, #fff, #f4f8ff); }
+    .eyebrow { margin: 0 0 8px; color: var(--cyan); font-size: 12px; font-weight: 800; letter-spacing: .14em; }
+    h1, h2, h3, h4 { line-height: 1.28; color: var(--navy); }
+    h1 { margin: 0 0 14px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.035em; }
+    h2 { margin: 0 0 18px; padding-top: 2px; font-size: 28px; }
+    h3 { margin: 30px 0 10px; font-size: 21px; }
+    h4 { margin: 20px 0 7px; font-size: 16px; }
+    p { margin: 8px 0 14px; }
+    .lead { color: #40516f; font-size: 18px; max-width: 780px; }
+    .section { padding: 30px 34px; margin-top: 24px; scroll-margin-top: 90px; }
+    .section > h2 { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+    .section-number { color: var(--blue); margin-right: 8px; }
+    .quick-grid, .grid-2, .grid-3 { display: grid; gap: 14px; }
+    .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 24px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .quick-card { padding: 18px; box-shadow: none; border-radius: 16px; }
+    .quick-card strong { display: block; color: var(--navy); margin-bottom: 4px; }
+    .quick-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .step { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 14px; margin: 16px 0; }
+    .step-no { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: white; font-weight: 800; }
+    .step-body { border-left: 2px solid #d9e4fb; padding-left: 16px; }
+    .step-body h4 { margin-top: 0; }
+    .step-body p:last-child { margin-bottom: 0; }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pill.blue { color: #1d4ed8; background: var(--blue-soft); }
+    .pill.green { color: var(--green); background: var(--green-soft); }
+    .pill.amber { color: var(--amber); background: var(--amber-soft); }
+    .pill.red { color: var(--red); background: var(--red-soft); }
+    .callout { padding: 16px 18px; margin: 18px 0; box-shadow: none; border-radius: 14px; }
+    .callout strong { display: block; margin-bottom: 3px; }
+    .callout.info { border-color: #bfd2fb; background: var(--blue-soft); }
+    .callout.tip { border-color: #b9e6cf; background: var(--green-soft); }
+    .callout.warn { border-color: #f0d48b; background: var(--amber-soft); }
+    .callout.danger { border-color: #f3c1bb; background: var(--red-soft); }
+    .table-wrap { overflow-x: auto; margin: 14px 0 20px; border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 640px; background: #fff; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #f3f6fb; color: #344054; font-size: 13px; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    ul, ol { padding-left: 22px; }
+    li + li { margin-top: 5px; }
+    .flow-figure { margin: 18px 0 24px; padding: 18px; text-align: center; background: #fbfcff; border: 1px solid var(--line); border-radius: 16px; }
+    .flow-figure img { width: min(579px, 100%); display: block; margin: auto; border: 1px solid #d9dee8; background: white; }
+    .flow-figure figcaption { color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .screen-label { display: inline-block; margin: 4px 0; padding: 3px 9px; color: #334155; background: #edf2f7; border-radius: 7px; font-size: 13px; font-weight: 700; }
+    .mini { color: var(--muted); font-size: 13px; }
+    .checklist { display: grid; gap: 8px; margin: 12px 0; }
+    .checklist div { padding: 9px 12px 9px 36px; position: relative; background: #f8fafc; border-radius: 9px; }
+    .checklist div::before { content: "✓"; position: absolute; left: 12px; color: var(--green); font-weight: 900; }
+    details { border: 1px solid var(--line); border-radius: 11px; padding: 0 14px; margin: 10px 0; background: #fff; }
+    summary { cursor: pointer; padding: 11px 0; font-weight: 700; color: var(--navy); }
+    details[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 11px; }
+    .footer { color: var(--muted); text-align: center; padding: 26px 0 0; font-size: 13px; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; padding: 18px 14px 48px; }
+      .toc { position: static; max-height: none; }
+      .toc a { display: inline-block; margin: 2px 3px 2px 0; }
+      .toc .sub { padding-left: 8px; }
+      .hero { padding: 30px 24px; }
+      .section { padding: 24px 20px; }
+    }
+    @media (max-width: 620px) {
+      .topbar { padding: 13px 16px; }
+      .topbar-inner small { display: none; }
+      .quick-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      h2 { font-size: 24px; }
+      h3 { font-size: 19px; }
+      .hero { border-radius: 16px; }
+      .section { border-radius: 16px; }
+    }
+    @media print {
+      .topbar { position: static; color: #000; background: #fff; border-bottom: 1px solid #999; }
+      .topbar small { color: #555; }
+      .toc { display: none; }
+      .layout { display: block; max-width: none; padding: 0; }
+      .hero, section, .callout, .quick-card { box-shadow: none; break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark">N</span><span>Nebula 用户手册</span></div>
+      <small>AI API 中转站 · 面向学生、导师与老师</small>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="手册目录">
+      <p class="toc-title">目录</p>
+      <a href="#overview">使用前先了解</a>
+      <a href="#auth">一、统一登录 / 注册</a>
+      <a class="sub" href="#auth-login">登录控制台</a>
+      <a class="sub" href="#auth-register">注册学生 / 导师</a>
+      <a class="sub" href="#auth-teacher">老师激活与找回密码</a>
+      <a href="#keys">二、密钥申请流程</a>
+      <a class="sub" href="#key-student">学生提交申请</a>
+      <a class="sub" href="#key-mentor">导师初审</a>
+      <a class="sub" href="#key-teacher">老师终审</a>
+      <a class="sub" href="#key-status">状态、领取与撤销</a>
+      <a href="#models">三、模型管理</a>
+      <a class="sub" href="#models-student">学生模型广场</a>
+      <a class="sub" href="#models-teacher">老师模型管理</a>
+      <a class="sub" href="#models-provider">供应商与 Binding</a>
+      <a href="#global">全局页面元素速查</a>
+      <a href="#faq">常见情况解决方案</a>
+    </nav>
+
+    <main>
+      <section class="hero" id="overview">
+        <p class="eyebrow">NEBULA · USER GUIDE</p>
+        <h1>从注册到可用 API Key，按角色完成每一步</h1>
+        <p class="lead">Nebula 将模型访问放在明确的组织、项目、模型白名单和双级审批边界内。本手册按真实页面和按钮说明操作，不要求用户记忆接口地址。</p>
+        <div class="quick-grid">
+          <div class="quick-card"><strong>学生</strong><p>注册后选择组织、项目和模型，提交 Key 申请；审批完成后一次性领取。</p></div>
+          <div class="quick-card"><strong>导师</strong><p>先申请负责项目，再审核该项目中的学生 Key；可查看并撤销已生效 Key。</p></div>
+          <div class="quick-card"><strong>老师</strong><p>维护组织、项目、导师、供应商、模型与 Binding，并执行 Key 终审。</p></div>
+        </div>
+        <div class="callout info"><strong>页面入口</strong>登录成功后，系统按账号角色进入默认页面：学生进入“申请密钥”，导师进入“审核密钥”，老师进入“审批密钥”。侧栏只展示当前角色有权限的页面。</div>
+      </section>
+
+      <section class="section" id="auth">
+        <h2><span class="section-number">一、</span>统一登录 / 注册</h2>
+        <p>Nebula 使用同一个登录页面识别三种角色。学生和导师可以公开注册；老师账号由系统初始化或由已有老师邀请后激活。</p>
+
+        <h3 id="auth-login">1. 登录控制台</h3>
+        <div class="step"><span class="step-no">1</span><div class="step-body"><h4>填写邮箱和密码</h4><p>在“邮箱”输入注册邮箱，在“密码”输入当前密码。邮箱格式由浏览器校验，密码不会在页面上明文显示。</p></div></div>
+        <div class="step"><span class="step-no">2</span><div class="step-body"><h4>需要时点击密码右侧的眼睛按钮</h4><p>眼睛图标用于“显示密码”；再次点击会切换为“隐藏密码”。它只改变当前输入框的显示方式，不会修改密码。</p></div></div>
+        <div class="step"><span class="step-no">3</span><div class="step-body"><h4>点击“登录”</h4><p>提交期间按钮显示“登录中…”并禁止重复提交。成功后按照角色跳转到对应工作台；如果是从受保护页面跳转到登录页，成功后会回到原页面。</p></div></div>
+        <div class="grid-2">
+          <div class="callout tip"><strong>登录后的默认落点</strong><ul><li>学生：申请密钥</li><li>导师：审核密钥</li><li>老师：审批密钥</li></ul></div>
+          <div class="callout warn"><strong>账号状态</strong><p>被停用的账号不能继续使用受保护页面。遇到“账号已被停用”，请联系老师处理；不要重复注册同一邮箱。</p></div>
+        </div>
+
+        <h3 id="auth-register">2. 注册学生 / 导师</h3>
+        <p>在登录页点击“注册学生/导师”，进入“创建账号”。注册页面顶部的两个切换按钮决定注册角色：</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>页面元素</th><th>用途与操作</th><th>注意</th></tr></thead>
+          <tbody>
+            <tr><td>“学生” / “导师”</td><td>选择要创建的角色。默认选中“学生”。</td><td>切换邮箱或角色后，之前发送的验证码不再适用于当前组合，需要重新发送。</td></tr>
+            <tr><td>姓名</td><td>填写显示名称，最多 64 个字符。</td><td>必填。</td></tr>
+            <tr><td>邮箱</td><td>填写可收信的邮箱。</td><td>全局唯一；提示“该邮箱已注册”时直接登录或找回密码。</td></tr>
+            <tr><td>密码 / 确认密码</td><td>输入并再次确认密码。</td><td>长度必须为 12–128 个字符，两次必须一致。</td></tr>
+            <tr><td>“发送验证码”</td><td>向当前邮箱发送注册验证码。发送后按钮进入 60 秒倒计时。</td><td>倒计时结束前不能重复发送；验证码不会在页面或接口响应中显示。</td></tr>
+            <tr><td>邮箱验证码</td><td>填写邮件中的验证码。</td><td>验证码过期或错误时，重新发送后再提交。</td></tr>
+            <tr><td>“注册”</td><td>提交账号创建。成功后跳转登录页。</td><td>注册期间按钮显示“注册中…”并禁止重复点击。</td></tr>
+            <tr><td>“← 返回登录”</td><td>放弃注册并返回登录页。</td><td>不会创建账号。</td></tr>
+          </tbody>
+        </table></div>
+        <div class="checklist">
+          <div>选择角色 → 填写姓名、邮箱和两次密码 → 发送验证码。</div>
+          <div>收到验证码后填写“邮箱验证码”，确认邮箱和角色没有改变。</div>
+          <div>点击“注册”，看到成功提示后使用新账号登录。</div>
+        </div>
+
+        <h3 id="auth-teacher">3. 老师激活账号</h3>
+        <p>老师不能在公开注册页自行创建。已有老师在“组织管理”点击“邀请老师”，填写对方邮箱后发送邀请。被邀请人打开邀请链接进入“激活老师账号”。</p>
+        <div class="step"><span class="step-no">1</span><div class="step-body"><h4>确认邀请 Token</h4><p>如果邀请链接已带 Token，页面会自动使用它；如果没有，填写“邀请 Token”。邀请无效或已过期时，需让邀请方重新发送。</p></div></div>
+        <div class="step"><span class="step-no">2</span><div class="step-body"><h4>填写姓名、设置密码、确认密码</h4><p>密码同样要求 12–128 个字符且两次一致。</p></div></div>
+        <div class="step"><span class="step-no">3</span><div class="step-body"><h4>点击“完成激活”</h4><p>成功后返回登录页。按钮在激活请求期间显示“激活中…”，不要重复点击。</p></div></div>
+
+        <h3>4. 找回密码</h3>
+        <p>登录页点击“忘记密码”，流程分两步：</p>
+        <ol><li>第一步填写“注册邮箱”，点击“发送重置验证码”。</li><li>第二步确认邮箱，填写“验证码”“新密码”“确认新密码”，点击“重置密码”。成功后返回登录页。</li></ol>
+        <div class="callout danger"><strong>安全提示</strong><p>不要向任何人提供密码、验证码、JWT、refresh token 或完整 API Key。系统不会在页面上显示这些敏感值，也不会通过 URL 查询参数传递它们。</p></div>
+
+        <h3>5. 认证页常见问题</h3>
+        <div class="table-wrap"><table><thead><tr><th>现象</th><th>处理方法</th></tr></thead><tbody>
+          <tr><td>收不到注册 / 重置验证码</td><td>检查垃圾邮件，确认邮箱拼写；发送按钮有 60 秒冷却，等待后再试。仍失败时联系管理员检查邮件服务。</td></tr>
+          <tr><td>提示邮箱已注册</td><td>不要重复注册。回到登录页直接登录；忘记密码则使用“忘记密码”。</td></tr>
+          <tr><td>提示验证码错误或过期</td><td>使用最近一次邮件中的验证码；重新发送后只使用新验证码。连续失败过多可能暂时锁定。</td></tr>
+          <tr><td>提示邮箱或密码不正确</td><td>确认登录角色无需手动选择，系统按账号识别角色；检查输入后仍失败就走找回密码。</td></tr>
+          <tr><td>老师邀请链接打不开或激活失败</td><td>确认 Token 完整、没有过期；让现有老师在“组织管理”重新发送邀请。</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section class="section" id="keys">
+        <h2><span class="section-number">二、</span>密钥申请流程</h2>
+        <p>一个 API Key 的完整链路是：学生提交 → 负责项目的导师初审 → 老师检查模型路由并终审 → 学生一次性领取。任何一步驳回都会结束本次申请，学生需要重新提交新的申请。</p>
+        <figure class="flow-figure">
+          <img src="../assets/images/中转站-申请流程图.drawio.svg" alt="Nebula 密钥申请流程图：学生提交申请，导师审核，老师终审，学生一次性领取">
+          <figcaption>申请流程图（静态资源）。图中“审核密钥”分别对应导师初审和老师终审。</figcaption>
+        </figure>
+
+        <div class="callout info"><strong>先检查前置条件</strong><p>学生能看到组织和项目，不代表申请一定能提交：项目必须处于启用状态并且已有负责导师；所选模型在老师终审前必须配置为可用并有可用路由。</p></div>
+
+        <h3 id="key-student">1. 学生：提交新的密钥申请</h3>
+        <p>登录后进入侧栏 <span class="screen-label">申请密钥</span>。页面左侧是“新申请”，右侧是“我的申请”。按以下顺序填写：</p>
+        <div class="step"><span class="step-no">1</span><div class="step-body"><h4>点击“刷新”（可选）</h4><p>重新加载组织、模型和历史申请。如果页面刚打开，系统会自动加载；刷新期间原有内容会保留并显示刷新进度。</p></div></div>
+        <div class="step"><span class="step-no">2</span><div class="step-body"><h4>选择“1. 组织”</h4><p>下拉框只列出当前可申请的 ACTIVE 组织。选择组织后会加载该组织的项目；如果已经选过模型或填写了新模型草稿，再切换组织会弹出确认框，确认后会清空项目、已选模型和新模型草稿。</p></div></div>
+        <div class="step"><span class="step-no">3</span><div class="step-body"><h4>选择“2. 项目”</h4><p>项目下拉框只有在选择组织后可用。已停用项目显示“已停用”，没有负责导师的项目显示“暂无负责导师”，这两类项目不能选择。没有可用项目时，需要联系老师启用项目并分配导师。</p></div></div>
+        <div class="step"><span class="step-no">4</span><div class="step-body"><h4>填写“3. 模型白名单”</h4><p>先使用“搜索可见模型”按名称、model ID 或能力筛选。点击某一模型的“选择”加入白名单；已选模型按钮变为“已选择”，再次点击可取消。白名单总数显示为 <code>当前数量/100</code>，平台模型和新模型合计最多 100 个。</p></div></div>
+        <div class="step"><span class="step-no">5</span><div class="step-body"><h4>需要新模型时点击“申请新模型”</h4><p>新模型必须在申请 Key 的这个弹窗中添加，不是在“模型广场”里添加。弹窗标题为“申请新模型”，填写完整卡片后点击“加入白名单”。</p></div></div>
+        <div class="step"><span class="step-no">6</span><div class="step-body"><h4>填写“4. Key 名称”并提交</h4><p>例如 <code>research-key</code>。名称最多 128 个字符；进行中或生效的 Key 名称不区分大小写且不能重复。确认已选择至少一个模型后，点击“提交申请”。</p></div></div>
+
+        <h4>“申请新模型”弹窗中的每个字段</h4>
+        <div class="table-wrap"><table><thead><tr><th>元素</th><th>如何填写</th><th>是否必填 / 作用</th></tr></thead><tbody>
+          <tr><td>模型 ID</td><td>填写供应商实际识别的公开模型 ID，例如 <code>new-lab-model</code>。</td><td>必填；应保持稳定、唯一。</td></tr>
+          <tr><td>显示名称</td><td>填写用户容易识别的名称。</td><td>必填；用于模型广场、审批和模型卡片展示。</td></tr>
+          <tr><td>类别</td><td>选择 <code>text</code>、<code>image</code>、<code>audio</code>、<code>video</code>、<code>multimodal</code>、<code>embedding</code> 或 <code>rerank</code>。</td><td>必填。</td></tr>
+          <tr><td>描述</td><td>补充模型用途、适用场景等说明。</td><td>可选。</td></tr>
+          <tr><td>能力 + “添加”</td><td>输入能力后点击“添加”，也可以在输入框按 Enter。已添加能力会以 chip 显示。</td><td>至少一项；重复能力不会重复加入。</td></tr>
+          <tr><td>输入模态 / 输出模态</td><td>勾选 <code>text</code>、<code>image</code>、<code>audio</code>、<code>video</code>。</td><td>输入和输出各至少一项。</td></tr>
+          <tr><td>上下文长度</td><td>填写正整数。</td><td>可选；未知时可以留空。</td></tr>
+          <tr><td>最大输出 Token</td><td>填写正整数。</td><td>可选；未知时可以留空。</td></tr>
+          <tr><td>“加入白名单”</td><td>校验通过后把模型加入当前申请。若 ID 已存在，系统会复用平台权威配置。</td><td>未填写完整模型 ID、名称、能力或模态时不能加入。</td></tr>
+          <tr><td>弹窗关闭按钮</td><td>关闭弹窗。已经加入白名单的模型仍保留在申请表中；未提交的表单内容不作为申请保存。</td><td>关闭不等于提交。</td></tr>
+        </tbody></table></div>
+        <div class="callout warn"><strong>新模型的实际处理方式</strong><p>如果模型 ID 已存在，系统会把它加入当前申请并采用平台的权威卡片；如果不存在，系统会创建为“待配置”，并随本次 Key 申请进入老师后续配置流程。模型申请审批通过并完成配置后，才会出现在学生模型广场。</p></div>
+
+        <h3 id="key-mentor">2. 导师：申请负责项目并完成初审</h3>
+        <p>导师必须先成为项目负责人，才能看到该项目的待初审 Key。导师侧的两个页面都属于密钥流程的前置或审批环节。</p>
+        <h4>2.1 在“项目管理”申请负责项目</h4>
+        <ol>
+          <li>进入 <span class="screen-label">项目管理</span>，点击“刷新”获取组织和项目。</li>
+          <li>按组织分组查看项目。项目卡片显示名称、说明和状态。</li>
+          <li>对 ACTIVE 且尚未负责、没有待处理申请的项目，点击“申请负责”。提交后按钮变为待审核状态。</li>
+          <li>在下方“申请历史”查看项目申请状态和老师意见。申请被批准后，项目按钮变为“查看 ACTIVE Key”。</li>
+        </ol>
+        <div class="callout danger"><strong>导师项目关系异常</strong><p>如果老师批准导师项目申请时提示“导师未加入项目所属组织”，老师应先到“组织管理”分配导师；如果提示导师已经是项目成员，则无需重复审批，刷新页面即可。</p></div>
+        <h4>2.2 在“审核密钥”完成初审</h4>
+        <ol>
+          <li>进入 <span class="screen-label">审核密钥</span>。列表按最早提交优先，只显示负责项目中的待初审申请。</li>
+          <li>使用“搜索申请人”按姓名或邮箱过滤，使用“项目”下拉框按项目过滤；点击“刷新”重新拉取队列。</li>
+          <li>点击申请行右侧的“审核”，右侧详情显示 Key 名称、申请人、组织、项目、提交时间、申请模型和每个模型状态。</li>
+          <li>通过时可在“审核意见”填写可选意见，点击“通过”。驳回时先点击“驳回”，在确认弹窗中点击“确认驳回”；驳回原因必填且会永久记录。</li>
+        </ol>
+        <p>导师不能代替老师做终审。初审通过后，Key 状态进入“等待老师审核”，学生和老师会在实时连接恢复后看到刷新结果。</p>
+
+        <h3 id="key-teacher">3. 老师：为终审准备配置并审批</h3>
+        <p>老师的终审按钮只允许在申请包含的全部模型都已可用、且每个模型都有可用路由时点击。建议按“组织 → 项目 → 导师 → 供应商 → 模型 Binding → Key 终审”的顺序准备。</p>
+        <h4>3.1 组织管理：建立申请范围和导师关系</h4>
+        <ul>
+          <li><span class="screen-label">添加组织</span>：填写名称、说明和状态后保存。名称在平台中必须唯一。</li>
+          <li><span class="screen-label">编辑</span>：修改组织名称、说明或状态。</li>
+          <li><span class="screen-label">分配导师</span>：在弹窗中用“搜索姓名或邮箱”查找 ACTIVE 导师，点击“搜索”，对候选点击“分配”。已加入的候选会显示“已加入”并禁用按钮；需要更多结果时点击“加载更多”。</li>
+          <li><span class="screen-label">邀请老师</span>：填写老师邮箱并点击“发送邀请”。这只负责创建邀请，不会自动激活对方账号。</li>
+          <li><span class="screen-label">停用 / 启用</span>：停用组织会阻止新的学生申请，但不删除历史成员和记录；停用前页面会要求确认。</li>
+        </ul>
+        <h4>3.2 项目管理：建立学生可申请的项目</h4>
+        <ul>
+          <li><span class="screen-label">添加项目</span>：选择所属组织，填写名称和说明，保存后默认为 ACTIVE。</li>
+          <li>使用“项目名称”搜索、“组织”筛选和“状态”筛选定位项目。</li>
+          <li><span class="screen-label">编辑</span>：修改项目名称、说明或状态；所属组织创建后不可更换。</li>
+          <li><span class="screen-label">停用 / 启用</span>：停用只影响新的申请，已有成员关系和历史记录保留。</li>
+          <li>右侧“导师项目申请”列表中，点击“通过”或“驳回”。驳回必须填写原因；通过意见可选。</li>
+        </ul>
+        <h4>3.3 在“审批密钥”完成终审</h4>
+        <ol>
+          <li>进入 <span class="screen-label">审批密钥</span>，用“搜索申请人”“组织”“项目”筛选待终审队列；队列按最早提交优先。</li>
+          <li>点击某行的“终审”，右侧打开终审摘要。每个模型都会显示模型状态和“路由是否就绪”。</li>
+          <li>如果模型未就绪，点击该模型右侧的“配置”，系统会进入“模型管理”并定位到对应模型。</li>
+          <li>在模型管理补齐模型元数据、供应商和 Binding，确认模型为 ACTIVE、供应商为 ACTIVE、至少一个 Binding 为 ACTIVE 且协议 Adapter 正确。</li>
+          <li>返回终审详情，确认所有模型均为 ACTIVE 且路由就绪。可以填写“终审意见”，驳回时必须填写原因。</li>
+          <li>点击“终审通过”，在确认弹窗中点击“确认”。通过后学生会自动加入目标组织和项目，Key 进入“等待领取”。</li>
+        </ol>
+        <div class="callout danger"><strong>“终审通过”按钮按不了：完整解决方案</strong><ol><li>看右侧“模型就绪检查”，找到显示“未 ACTIVE”或“路由未就绪”的模型。</li><li>点击该模型旁边的“配置”，进入“模型管理”。</li><li>先在“供应商管理”确认供应商已创建、凭据已配置且状态为启用；再在模型详情中新增正确的 Binding，设置上游模型名、对应 Adapter、优先级和 ACTIVE 状态。</li><li>保存后确认模型卡片显示“已就绪”，必要时将模型启用；返回“审批密钥”刷新并重新打开申请。</li><li>所有模型都通过检查后，“终审通过”才会变为可用。不要通过修改浏览器页面状态来绕过检查。</li></ol></div>
+
+        <h3 id="key-status">4. 学生查看状态、领取和保存 Key</h3>
+        <h4>4.1 “我的申请”中的按钮和信息</h4>
+        <div class="table-wrap"><table><thead><tr><th>元素</th><th>作用</th></tr></thead><tbody>
+          <tr><td>状态徽标</td><td>显示“等待导师审核”“等待老师审核”“等待领取”“已启用”“已驳回”或“已撤销”。</td></tr>
+          <tr><td>进度条</td><td>按“已提交 → 导师审核 → 老师审核 → 领取生效”显示当前阶段；驳回和撤销会停在对应终态。</td></tr>
+          <tr><td>“审核状态”</td><td>打开申请详情，查看组织、项目、模型列表和按时间排列的审核记录。</td></tr>
+          <tr><td>“一次性领取”</td><td>只在状态为“等待领取”时出现。点击后先确认，再请求生成/领取完整 API Key。</td></tr>
+          <tr><td>“刷新”</td><td>重新加载申请列表。实时连接也只负责提示刷新，权威状态始终以页面重新加载的数据为准。</td></tr>
+        </tbody></table></div>
+        <h4>4.2 一次性领取的正确做法</h4>
+        <ol><li>点击“审核状态”或直接点击“领取”，确认申请已经是“等待领取”。</li><li>点击“一次性领取”，在确认弹窗中点击“确认领取”。</li><li>弹窗显示完整 API Key 后，立即点击“复制密钥”，并将它保存到安全的密码管理器或应用配置中。</li><li>关闭弹窗。关闭前如果还没有复制，系统会再次确认；确认关闭后，完整明文不会再次显示。</li></ol>
+        <div class="callout danger"><strong>完整 API Key 只显示一次</strong><p>数据库只保存不可逆的校验信息，页面关闭后也不会提供“再次显示”。复制失败时可手动选中密钥复制；如果已经丢失明文，只能重新提交申请，不能要求后台恢复。</p></div>
+        <h4>4.3 导师撤销已生效 Key</h4>
+        <p>负责导师进入 <span class="screen-label">项目管理</span>，在负责项目卡片点击“查看 ACTIVE Key”。在弹窗中找到 Key，点击“撤销”，填写必填的“撤销原因”，再点击“确认撤销”。撤销后立即失效且不能恢复，但不会删除学生的组织或项目成员关系。</p>
+      </section>
+
+      <section class="section" id="models">
+        <h2><span class="section-number">三、</span>模型管理</h2>
+        <p>模型有两套用户视角：学生通过“模型广场”查看当前可见模型；老师通过“模型管理”维护平台模型元数据、启停状态和供应商路由。学生不能直接修改平台模型。</p>
+
+        <h3 id="models-student">1. 学生模型管理：模型广场</h3>
+        <p>进入侧栏 <span class="screen-label">模型广场</span>。页面集合包含平台 ACTIVE 的全局常用模型，以及学生已获批或已生效 Key 中关联的模型；因此某个已停用模型仍可能因历史 Key 出现在列表中，并显示真实状态。</p>
+        <div class="table-wrap"><table><thead><tr><th>页面元素</th><th>使用说明</th></tr></thead><tbody>
+          <tr><td>“申请新模型贴士”</td><td>打开提示弹窗，说明新模型应在“申请密钥”阶段添加；审批并完成配置后会自动更新模型广场。它不是新模型创建按钮。</td></tr>
+          <tr><td>“搜索”</td><td>按模型名称、model ID 或能力过滤。</td></tr>
+          <tr><td>“类别”</td><td>按 text、image、audio、video、multimodal、embedding、rerank 过滤。</td></tr>
+          <tr><td>“状态”</td><td>按已启用、已停用、待配置过滤。</td></tr>
+          <tr><td>模型卡片</td><td>显示显示名称、model ID、类别、状态、描述和常用标记。</td></tr>
+          <tr><td>“查看详情” / “收起”</td><td>展开或折叠能力、输入/输出模态、上下文长度和最大输出 Token。</td></tr>
+          <tr><td>“没有匹配的模型”</td><td>说明当前搜索或筛选没有结果；调整搜索词或筛选条件。</td></tr>
+        </tbody></table></div>
+        <div class="callout info"><strong>学生需要一个还不存在的模型怎么办？</strong><p>不要在模型广场寻找新增按钮。回到“申请密钥”，选择组织和项目，点击模型白名单中的“申请新模型”，完整填写模型卡片后随 Key 一起提交。</p></div>
+
+        <h3 id="models-teacher">2. 老师模型管理：模型元数据和状态</h3>
+        <p>进入侧栏 <span class="screen-label">模型管理</span>。老师看到的是平台全部去重模型：包括学生曾申请的模型和老师主动添加的模型，不显示申请次数或申请人身份。</p>
+        <h4>2.1 列表筛选与卡片按钮</h4>
+        <div class="table-wrap"><table><thead><tr><th>元素</th><th>作用</th><th>注意</th></tr></thead><tbody>
+          <tr><td>“新增模型”</td><td>打开模型表单，主动创建一个待配置模型。</td><td>创建后仍需配置可用 Binding，不能直接绕过路由准备。</td></tr>
+          <tr><td>“常用模型” / “所有模型”</td><td>常用模型只看被标记为全局常用的模型；所有模型查看完整列表。“所有模型”旁的数字表示待配置数量。</td><td>学生模型广场只会把 ACTIVE 常用模型作为平台公共模型展示。</td></tr>
+          <tr><td>搜索</td><td>按显示名称或 model ID 过滤。</td><td>不按供应商凭据或申请人搜索。</td></tr>
+          <tr><td>类别 / 状态</td><td>按模型类别和待配置、启用、停用筛选。</td><td>“待配置”不等于可用于终审；必须检查 route ready。</td></tr>
+          <tr><td>“配置”</td><td>打开模型详情弹窗，编辑基础配置并管理 Bindings。</td><td>已存在模型的 model ID 只读。</td></tr>
+          <tr><td>“启用” / “停用”</td><td>切换模型状态。停用 ACTIVE 模型会影响使用它的 Key，需要确认。</td><td>没有可用路由的待配置模型不能启用。</td></tr>
+        </tbody></table></div>
+        <h4>2.2 模型表单字段</h4>
+        <p>“新增模型”和“配置”使用同一类表单。基础配置保存后，仍要在同一个模型详情中配置 Binding。</p>
+        <div class="table-wrap"><table><thead><tr><th>字段</th><th>操作说明</th></tr></thead><tbody>
+          <tr><td>模型 ID</td><td>新增时填写；编辑已有模型时只读。它是对外模型白名单和网关路由使用的公开标识。</td></tr>
+          <tr><td>显示名称 / 描述</td><td>用于控制台展示和帮助用户选择模型。</td></tr>
+          <tr><td>类别</td><td>选择 text、image、audio、video、multimodal、embedding 或 rerank。</td></tr>
+          <tr><td>能力</td><td>输入能力后点击“添加”或按 Enter；能力以 chip 展示，重复值不会重复加入。</td></tr>
+          <tr><td>输入模态 / 输出模态</td><td>分别勾选 text、image、audio、video。</td></tr>
+          <tr><td>上下文长度 / 最大输出 Token</td><td>填写正整数；已存在模型编辑时也可以清空可选数值。</td></tr>
+          <tr><td>全局常用模型</td><td>勾选后可作为平台公共常用模型展示给学生；学生申请新模型表单不显示此选项。</td></tr>
+          <tr><td>“保存基础配置”</td><td>保存模型元数据。保存成功后仍需检查并配置 Binding。</td></tr>
+        </tbody></table></div>
+
+        <h3 id="models-provider">3. 供应商和 Binding：让模型真正可路由</h3>
+        <p>模型卡片上的“已就绪”不仅取决于元数据，还取决于供应商和 Binding。推荐先配置供应商，再回到模型详情创建 Binding。</p>
+        <h4>3.1 供应商管理</h4>
+        <div class="table-wrap"><table><thead><tr><th>页面元素</th><th>操作</th><th>规则</th></tr></thead><tbody>
+          <tr><td>“添加供应商”</td><td>填写名称、Base URL、凭据和状态后保存。</td><td>凭据会被加密保存，读取时只显示“凭据已配置/未配置”。</td></tr>
+          <tr><td>搜索 / 状态</td><td>按名称或 Base URL 搜索，按全部状态或启用/停用筛选。</td><td>Base URL 必须是有效 URL。</td></tr>
+          <tr><td>“编辑”</td><td>修改名称、Base URL 或状态。</td><td>普通编辑不会回显或携带旧凭据。</td></tr>
+          <tr><td>“替换凭据”</td><td>输入新凭据，点击“确认替换”。“按住临时显示”只在按住期间显示输入内容，松开立即隐藏。</td><td>凭据不会再次显示；确认替换后无法从页面取回旧值。</td></tr>
+          <tr><td>“启用” / “停用”</td><td>切换供应商状态。</td><td>如果停用会让 ACTIVE 模型失去最后一条路由，系统会弹出“无法停用供应商”并列出受影响模型；先为这些模型保留其他有效路由。</td></tr>
+        </tbody></table></div>
+        <h4>3.2 Binding 详情</h4>
+        <p>在模型卡片点击“配置”，进入模型详情弹窗，在 “Bindings” 区域操作：</p>
+        <ul>
+          <li><span class="screen-label">新增 Binding</span>：选择供应商，填写上游模型名，选择 Adapter，设置优先级和状态，然后保存。</li>
+          <li><span class="screen-label">编辑</span>：修改上游模型名、Adapter、优先级或状态；已创建 Binding 的供应商不能在编辑表单中更换，需要新增正确 Binding。</li>
+          <li><strong>优先级</strong>：填写不小于 0 的数字，用于候选路由排序。需要同一模型支持多个协议时，要按协议分别创建 Binding。</li>
+          <li><strong>状态</strong>：只有 ACTIVE Binding 且所属供应商 ACTIVE，模型路由才可能就绪。</li>
+        </ul>
+        <div class="table-wrap"><table><thead><tr><th>Adapter</th><th>对应公共入口</th><th>何时使用</th></tr></thead><tbody>
+          <tr><td>OpenAI Chat / Completions</td><td><code>/v1/chat/completions</code>、<code>/v1/completions</code></td><td>上游兼容 OpenAI Chat/Completions。</td></tr>
+          <tr><td>OpenAI Responses</td><td><code>/v1/responses</code>、<code>/v1/responses/compact</code></td><td>Responses、Codex CLI HTTP/WebSocket。</td></tr>
+          <tr><td>OpenAI Embeddings</td><td><code>/v1/embeddings</code></td><td>向量嵌入。</td></tr>
+          <tr><td>OpenAI Images</td><td><code>/v1/images/generations</code>、edits、variations</td><td>图像生成和编辑。</td></tr>
+          <tr><td>OpenAI Audio</td><td><code>/v1/audio/transcriptions</code>、translations、speech</td><td>语音转文字、翻译、语音合成。</td></tr>
+          <tr><td>OpenAI Videos</td><td><code>/v1/videos</code>及资源操作</td><td>视频创建、查询、下载和 remix。</td></tr>
+          <tr><td>OpenAI Realtime</td><td><code>/v1/realtime</code>、client_secrets、calls</td><td>Realtime WebSocket / WebRTC。</td></tr>
+          <tr><td>OpenAI Moderations</td><td><code>/v1/moderations</code></td><td>内容审核。</td></tr>
+          <tr><td>Anthropic Messages</td><td><code>/v1/messages</code></td><td>Anthropic 原生 Messages 协议。</td></tr>
+          <tr><td>Cohere Rerank v2</td><td><code>/v2/rerank</code></td><td>Cohere Rerank v2。</td></tr>
+          <tr><td>Google Gemini v1beta</td><td><code>/v1beta/models/{model}:...</code></td><td>Gemini 原生 generateContent、embedContent 等。</td></tr>
+        </tbody></table></div>
+        <div class="callout warn"><strong>不要用错误 Adapter“凑就绪”</strong><p>网关不会把不同协议自动转换。一个模型要同时支持 Chat、Responses、Embeddings 或其他协议，必须分别创建对应 Adapter 的 ACTIVE Binding；仅有一个 <code>openai_compatible</code> Binding 不能替代其他协议。</p></div>
+
+        <h3>4. 模型状态与终审判定</h3>
+        <div class="table-wrap"><table><thead><tr><th>状态</th><th>页面含义</th><th>处理方式</th></tr></thead><tbody>
+          <tr><td><span class="pill amber">待配置</span></td><td>模型记录已经存在，但尚未完成可用配置；如果已有就绪路由，卡片会按“已就绪”展示。</td><td>配置 ACTIVE provider + ACTIVE binding，确认路由就绪。</td></tr>
+          <tr><td><span class="pill green">已启用</span></td><td>模型可被纳入正常可用范围。</td><td>停用前确认不会影响已有 Key 和其他依赖。</td></tr>
+          <tr><td><span class="pill blue">已就绪</span></td><td>派生状态：模型有可用路由，可以通过老师终审的就绪检查。</td><td>仍需模型本身为 ACTIVE 才适合作为正常公共模型。</td></tr>
+          <tr><td><span class="pill red">已停用</span></td><td>模型暂时不能作为新的可用路由。</td><td>点击“启用”；若按钮不可用，先补齐 Binding。</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section class="section" id="global">
+        <h2>全局页面元素速查</h2>
+        <p>以下元素出现在多个页面，理解它们可以避免把正常反馈误认为错误。</p>
+        <div class="table-wrap"><table><thead><tr><th>元素</th><th>含义</th><th>用户操作</th></tr></thead><tbody>
+          <tr><td>左侧导航</td><td>只显示当前角色可访问的页面，并在申请/审核队列旁显示待处理数量。</td><td>点击菜单切换页面；手机端先点顶部菜单图标打开抽屉，点遮罩或关闭图标收起。</td></tr>
+          <tr><td>顶部账号区</td><td>显示姓名、邮箱和角色。</td><td>点击“退出登录”结束当前会话；退出期间按钮变为“退出中…”。</td></tr>
+          <tr><td>“实时已连接 / 正在连接 / 实时连接中断”</td><td>显示 SSE 状态。它只负责提示数据变化，不是业务状态本身。</td><td>连接中断时可手动点击当前页面的“刷新”；恢复后页面会重新获取权威列表。</td></tr>
+          <tr><td>顶部刷新进度</td><td>后台刷新请求正在进行，不会把页面内容挪动到右上角。</td><td>等待请求结束；不要因短暂刷新状态重复提交。</td></tr>
+          <tr><td>骨架屏</td><td>列表、卡片、详情或弹窗首次加载时的占位内容。</td><td>等待数据加载完成；空状态只会在请求真正完成且没有数据时显示。</td></tr>
+          <tr><td>Toast 成功 / 错误提示</td><td>页面右下角的短消息，例如“申请已提交”“已复制密钥”。</td><td>需要时点击关闭图标；错误信息按提示修正表单或刷新。</td></tr>
+          <tr><td>弹窗右上角 X</td><td>关闭当前弹窗。</td><td>关闭前确认已保存；密钥弹窗若未复制会再次确认。</td></tr>
+          <tr><td>状态徽标</td><td>用文字和图标表达资源状态，例如启用、停用、待审核、待配置。</td><td>以文字为准，不要只依赖颜色。</td></tr>
+          <tr><td>“暂无…” / “没有匹配的模型”</td><td>正常空状态，表示当前权限、筛选或业务条件下没有记录。</td><td>先清空搜索和筛选；仍为空时检查前置配置。</td></tr>
+          <tr><td>确认弹窗</td><td>用于驳回、撤销、停用、终审和一次性领取等不可逆或有影响的操作。</td><td>读完提示后再点击确认；驳回、撤销必须填写原因。</td></tr>
+        </tbody></table></div>
+        <div class="callout info"><strong>页面权限边界</strong><p>老师拥有平台级管理权限，但不能浏览项目成员或历史 ACTIVE Key；负责导师负责查看和撤销自己项目中的 ACTIVE Key。不存在删除按钮，组织、项目、供应商、模型和 Binding 通过“停用”管理。</p></div>
+      </section>
+
+      <section class="section" id="faq">
+        <h2>常见情况解决方案</h2>
+        <div class="table-wrap"><table><thead><tr><th>现象</th><th>常见根因</th><th>解决方案</th></tr></thead><tbody>
+          <tr><td>学生看不到可选择的项目</td><td>组织未启用、项目已停用，或项目尚未分配负责导师。</td><td>联系老师在“项目管理”启用项目，并在“组织管理”分配导师。学生重新选择组织或点击“刷新”。</td></tr>
+          <tr><td>学生不能提交申请</td><td>未选组织、项目、模型或 Key 名称；模型数为 0 或超过 100；新模型卡片不完整。</td><td>按“1–4”逐项检查。新模型至少填写 ID、显示名称、能力、输入模态和输出模态。</td></tr>
+          <tr><td>导师审核队列为空</td><td>导师还不是对应项目负责人，或申请尚未提交到该项目。</td><td>在导师“项目管理”申请负责；由老师批准后再刷新“审核密钥”。</td></tr>
+          <tr><td>老师终审按钮不可用</td><td>申请中的一个或多个模型未 ACTIVE，或没有 ACTIVE provider + ACTIVE Binding 路由。</td><td>在右侧逐模型点击“配置”，补齐供应商、模型元数据和正确 Adapter 的 Binding；保存后返回并刷新。</td></tr>
+          <tr><td>停用供应商 / Binding 失败并列出模型</td><td>操作会使 ACTIVE 模型失去最后一条可用路由。</td><td>按弹窗列出的 model ID 逐个添加替代 Binding，确认新路由 ACTIVE 后再停用原资源。</td></tr>
+          <tr><td>模型已在学生申请中，但老师看到的名称或字段不同</td><td>平台已存在同 ID 模型，系统采用平台权威卡片，不重复创建。</td><td>老师在“模型管理”打开该模型更新权威元数据；不要创建大小写不同的重复 ID。</td></tr>
+          <tr><td>申请状态长时间不变</td><td>当前审批人尚未处理，或实时连接中断。</td><td>查看状态进度和审核详情；点击“刷新”。实时连接恢复后系统会自动重新获取列表。</td></tr>
+          <tr><td>提示“申请状态已发生变化”</td><td>另一位导师或老师已经先完成了操作。</td><td>刷新页面，按最新状态继续；不要重复提交同一决策。</td></tr>
+          <tr><td>Key 领取后找不到完整密钥</td><td>完整明文只在首次领取响应和当前弹窗中出现，关闭后不会再次返回。</td><td>使用领取时保存的密钥；如果遗失，只能重新申请。不要要求后台恢复明文。</td></tr>
+          <tr><td>网关提示 model_not_allowed</td><td>请求模型不在该 Key 的模型白名单，或客户端使用了错误模型 ID。</td><td>使用网关模型列表中的公开 model ID；学生确认该模型已包含在对应 Key 申请中。</td></tr>
+          <tr><td>网关提示模型不可用</td><td>模型、Binding 或供应商被停用，或当前入口没有匹配 Adapter。</td><td>老师按“模型 → Binding → 供应商”检查状态；不同协议创建对应 Adapter，不要用错误 Adapter 替代。</td></tr>
+          <tr><td>页面显示登录状态失效</td><td>会话过期、账号退出、refresh session 失效或账号被停用。</td><td>重新登录；若账号被停用，联系老师。不要复制浏览器 Cookie 或 Token 给他人。</td></tr>
+        </tbody></table></div>
+        <details><summary>哪些功能当前不在首期范围内？</summary><p>当前网站不提供计费、余额、额度、RPM、Token 限制、用量记录、通知中心、模型价格、智能路由、资源删除 API 或旧路由兼容层。页面没有这些按钮是设计范围，不是缺失。</p></details>
+        <details><summary>遇到仍无法解决的错误，应该提供什么信息？</summary><p>请提供页面显示的错误文字、操作页面、资源名称或脱敏的 Key prefix，以及错误发生的大致时间。不要提供密码、验证码、完整 API Key、refresh token、JWT、供应商凭据、数据库 DSN 或加密主密钥。</p></details>
+      </section>
+
+      <p class="footer">Nebula 用户手册 · 以当前控制台实际页面和权限为准 · 请妥善保管所有密钥与账号凭据</p>
+    </main>
+  </div>
+</body>
+</html>

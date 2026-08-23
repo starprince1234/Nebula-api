@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex & Claude Code 安装配置教程</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --bg: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --text: #1a1a2e;
+    --text-secondary: #555;
+    --border: #e2e8f0;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --link-color: #1a56db;
+    --link-underline: rgba(26, 86, 219, 0.3);
+    --code-bg: #0d1117;
+    --callout-tip-bg: #f0fdf4;
+    --callout-tip-border: #22c55e;
+    --callout-warn-bg: #fffbeb;
+    --callout-warn-border: #f59e0b;
+    --callout-info-bg: #eff6ff;
+    --callout-info-border: #3b82f6;
+    --tab-active-bg: #fff;
+    --tab-inactive-bg: #f1f5f9;
+    --tab-border: #e2e8f0;
+    --sidebar-bg: #f8f9fa;
+    --sidebar-width: 260px;
+    --max-content-width: 860px;
+    --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0d1117;
+        --bg-secondary: #161b22;
+        --text: #e6edf3;
+        --text-secondary: #8b949e;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --accent-hover: #79c0ff;
+        --link-color: #58a6ff;
+        --link-underline: rgba(88, 166, 255, 0.35);
+        --callout-tip-bg: #0d3320;
+        --callout-tip-border: #22c55e;
+        --callout-warn-bg: #33270d;
+        --callout-warn-border: #f59e0b;
+        --callout-info-bg: #0d1d33;
+        --callout-info-border: #58a6ff;
+        --tab-active-bg: #0d1117;
+        --tab-inactive-bg: #21262d;
+        --tab-border: #30363d;
+        --sidebar-bg: #161b22;
+    }
+}
+
+body {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--text);
+    background: var(--bg);
+}
+
+a {
+    color: var(--link-color);
+    text-decoration: underline;
+    text-decoration-color: var(--link-underline);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.15s;
+}
+
+a:hover {
+    text-decoration-color: var(--link-color);
+}
+
+/* ===== Layout ===== */
+.page-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* ===== Sidebar TOC ===== */
+.sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 24px 20px;
+    z-index: 100;
+    font-size: 13px;
+}
+
+.sidebar h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text);
+    letter-spacing: 0.02em;
+}
+
+.sidebar nav ul {
+    list-style: none;
+    padding: 0;
+}
+
+.sidebar nav ul ul {
+    padding-left: 14px;
+}
+
+.sidebar nav li {
+    margin: 2px 0;
+}
+
+.sidebar nav a {
+    display: block;
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+}
+
+.sidebar nav a:hover,
+.sidebar nav a.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-left-color: var(--accent);
+}
+
+.sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 200;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--text);
+}
+
+/* ===== Main Content ===== */
+.main-content {
+    margin-left: var(--sidebar-width);
+    flex: 1;
+    max-width: var(--max-content-width);
+    padding: 48px 40px 80px;
+    width: calc(100% - var(--sidebar-width));
+}
+
+/* ===== Page Header ===== */
+.page-header {
+    text-align: center;
+    padding: 40px 0 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+}
+
+.page-header h1 {
+    font-size: 2.2em;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+}
+
+.page-header .subtitle {
+    font-size: 1.1em;
+    color: var(--text-secondary);
+}
+
+/* ===== Section Headings ===== */
+h2 {
+    font-size: 1.6em;
+    font-weight: 700;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+}
+
+h3 {
+    font-size: 1.25em;
+    font-weight: 700;
+    margin: 32px 0 12px;
+    color: var(--text);
+}
+
+h4 {
+    font-size: 1.05em;
+    font-weight: 600;
+    margin: 24px 0 8px;
+    color: var(--text);
+}
+
+/* ===== OS Tabs ===== */
+.tab-container {
+    margin: 16px 0;
+}
+
+.tab-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 0;
+}
+
+.tab-btn {
+    padding: 10px 24px;
+    border: none;
+    background: var(--tab-inactive-bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    margin-right: 4px;
+    transition: all 0.15s;
+    font-family: var(--font-sans);
+}
+
+.tab-btn:hover {
+    color: var(--text);
+    background: var(--bg);
+}
+
+.tab-btn.active {
+    background: var(--tab-active-bg);
+    color: var(--accent);
+    font-weight: 600;
+    border-bottom: 2px solid var(--tab-active-bg);
+    margin-bottom: -2px;
+    position: relative;
+}
+
+.tab-panel {
+    display: none;
+    padding: 20px 24px;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    background: var(--bg);
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+/* ===== Code Blocks ===== */
+.code-block-wrapper {
+    margin: 16px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    font-size: 12px;
+    color: #8b949e;
+}
+
+.code-block-header .lang-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    background: #21262d;
+    color: #c9d1d9;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    transition: all 0.15s;
+}
+
+.copy-btn:hover {
+    background: #30363d;
+    color: #fff;
+}
+
+.copy-btn.copied {
+    background: #1a3a2a;
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
+.code-block-wrapper pre {
+    margin: 0;
+    padding: 16px;
+    background: var(--code-bg);
+    overflow-x: auto;
+}
+
+.code-block-wrapper pre code {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    tab-size: 4;
+}
+
+/* Inline code */
+:not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    padding: 2px 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent);
+}
+
+/* ===== Callout Boxes ===== */
+.callout {
+    margin: 16px 0;
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    font-size: 14px;
+}
+
+.callout.tip {
+    background: var(--callout-tip-bg);
+    border-color: var(--callout-tip-border);
+}
+
+.callout.warning {
+    background: var(--callout-warn-bg);
+    border-color: var(--callout-warn-border);
+}
+
+.callout.info {
+    background: var(--callout-info-bg);
+    border-color: var(--callout-info-border);
+}
+
+.callout strong {
+    display: inline;
+}
+
+/* ===== Lists & Tables ===== */
+ul, ol {
+    margin: 8px 0;
+    padding-left: 1.5em;
+}
+
+li {
+    margin: 4px 0;
+}
+
+table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+}
+
+table.data-table th,
+table.data-table td {
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+}
+
+table.data-table th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+}
+
+table.data-table tr:nth-child(even) td {
+    background: var(--bg-secondary);
+}
+
+/* ===== Step Indicators ===== */
+.step {
+    display: flex;
+    gap: 14px;
+    margin: 20px 0;
+}
+
+.step-num {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.step-body {
+    flex: 1;
+}
+
+.step-body strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* ===== FAQ ===== */
+.faq-item {
+    margin: 20px 0;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+}
+
+.faq-item .faq-q {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.faq-item .faq-a {
+    color: var(--text-secondary);
+}
+
+/* ===== Footer ===== */
+.page-footer {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 860px) {
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar-toggle {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 24px 16px 60px;
+        width: 100%;
+    }
+
+    .page-header h1 {
+        font-size: 1.5em;
+    }
+
+    .tab-nav {
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+
+    .code-block-wrapper pre {
+        padding: 12px;
+    }
+
+    .code-block-wrapper pre code {
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-header {
+        padding: 20px 0 16px;
+    }
+
+    .page-header h1 {
+        font-size: 1.3em;
+    }
+
+    .tab-btn {
+        flex: 1;
+        text-align: center;
+        padding: 8px 6px;
+        font-size: 12px;
+    }
+}
+
+/* ===== Smooth Scroll ===== */
+html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 20px;
+}
+
+/* ===== Print ===== */
+@media print {
+    .sidebar, .sidebar-toggle, .copy-btn { display: none; }
+    .main-content { margin-left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar TOC -->
+<aside class="sidebar" id="sidebar">
+    <h3>📑 目录导航</h3>
+    <nav>
+        <ul>
+            <li><a href="#section-codex">Codex 安装配置</a>
+                <ul>
+                    <li><a href="#codex-requirements">系统要求</a></li>
+                    <li><a href="#codex-install">安装步骤</a></li>
+                    <li><a href="#codex-api-config">配置 API</a></li>
+                    <li><a href="#codex-start">启动 Codex</a></li>
+                    <li><a href="#codex-vscode">VSCode 插件</a></li>
+                    <li><a href="#codex-faq">常见问题</a></li>
+                </ul>
+            </li>
+            <li><a href="#section-claude">Claude Code 教程</a>
+                <ul>
+                    <li><a href="#claude-requirements">系统要求</a></li>
+                    <li><a href="#claude-install-node">安装 Node.js</a></li>
+                    <li><a href="#claude-install">安装 Claude Code</a></li>
+                    <li><a href="#claude-config">配置与启动</a></li>
+                    <li><a href="#claude-first-run">初次运行</a></li>
+                    <li><a href="#claude-faq">常见问题</a></li>
+                </ul>
+            </li>
+            <li><a href="#section-notes">注意事项</a></li>
+            <li><a href="#section-links">相关链接</a></li>
+        </ul>
+    </nav>
+</aside>
+
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">☰</button>
+
+<!-- Main Content -->
+<main class="main-content">
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>🛠️ Codex & Claude Code 安装配置教程</h1>
+        <p class="subtitle">一站式指南，快速上手 AI 编程助手</p>
+    </header>
+
+    <!-- ==================== PART 1: CODEX ==================== -->
+    <section id="section-codex">
+        <h2>Codex 安装与配置教程</h2>
+
+        <h3 id="codex-requirements">系统要求</h3>
+
+        <!-- OS Tabs for Codex -->
+        <div class="tab-container" id="codex-tabs">
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="codex-windows">🪟 Windows</button>
+                <button class="tab-btn" data-tab="codex-mac">🍎 macOS</button>
+                <button class="tab-btn" data-tab="codex-linux">🐧 Linux</button>
+            </div>
+
+            <!-- ---- Windows Panel ---- -->
+            <div class="tab-panel active" id="codex-windows">
+                <ul>
+                    <li>Windows 10 或 Windows 11</li>
+                    <li>Node.js 22+</li>
+                    <li>npm 10+</li>
+                    <li>正常网络连接</li>
+                </ul>
+
+                <h4>前置步骤</h4>
+                <p>安装 Git Bash，访问 <a href="https://git-scm.com/downloads" target="_blank" rel="noopener">Git - Downloads</a> 下载对应系统版本，全程默认下一步完成安装。</p>
+
+                <h4 id="codex-install">1. 安装 Node.js</h4>
+                <p>访问 <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js 官网</a>，下载并安装最新 LTS 版本。</p>
+
+                <h4>2. 安装 Codex</h4>
+                <p>打开 CMD 或 PowerShell，执行命令：</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">npm install -g @openai/codex</code></pre>
+                </div>
+
+                <h4>3. 验证安装</h4>
+                <p>终端内运行以下指令，查看版本：</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">codex --version</code></pre>
+                </div>
+
+                <h4 id="codex-api-config">配置 API</h4>
+                <ol>
+                    <li>进入用户目录下的 <code>.codex</code> 文件夹，示例路径：<code>C:\Users\testuser\.codex</code>（<code>testuser</code> 替换为你自己的用户名）
+                        <div class="callout info"><strong>💡 提示：</strong>看不到目录请在文件资源管理器开启「显示隐藏的项目」。</div>
+                    </li>
+                    <li>若无 <code>.codex</code> 文件夹，手动创建，并在其中新建 <code>config.toml</code>、<code>auth.json</code> 两个文件。</li>
+                    <li>填入对应配置：</li>
+                </ol>
+
+                <p><strong>auth.json</strong></p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">json</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-json">{"OPENAI_API_KEY": "nb-xxx"}</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ 将 <code>nb-xxx</code> 替换为你申请的真实密钥</p>
+
+                <p><strong>config.toml</strong></p>
+                <p style="font-size:13px; color: var(--text-secondary);"><code>model_reasoning_effort</code> 可选 <code>high</code> / <code>medium</code> / <code>low</code>，代表模型思考强度。</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">toml</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-toml">model_provider = "your-provider-name"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+preferred_auth_method = "apikey"
+
+[model_providers.api111]
+name = "your-provider-name"
+base_url = "https://api.lyn91r.cn/v1"
+wire_api = "responses"</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ <code>model_provider</code> 和 <code>name</code> 填你自己起的名字（英文或数字），两者需一致；<code>model</code> 填你申请到的模型名。</p>
+            </div>
+
+            <!-- ---- Mac Panel ---- -->
+            <div class="tab-panel" id="codex-mac">
+                <ul>
+                    <li>macOS 12 及以上版本</li>
+                    <li>Node.js 22+</li>
+                    <li>npm 10+</li>
+                    <li>正常网络连接</li>
+                </ul>
+
+                <h4>1. 安装 Node.js</h4>
+                <p>方式一：前往 <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js 官网</a> 下载最新 LTS 版本安装。</p>
+                <p>方式二（推荐，使用 Homebrew）：</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash"># 未安装 Homebrew 先执行此命令
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 安装 Node.js
+brew install node</code></pre>
+                </div>
+
+                <h4>2. 安装 Codex</h4>
+                <p>打开终端，如需权限可加上 <code>sudo</code>：</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">npm install -g @openai/codex</code></pre>
+                </div>
+
+                <h4>3. 验证安装</h4>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">codex --version</code></pre>
+                </div>
+
+                <h4>配置 API</h4>
+                <ol>
+                    <li>创建目录与文件</li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">mkdir -p ~/.codex
+touch ~/.codex/auth.json
+touch ~/.codex/config.toml</code></pre>
+                </div>
+
+                <ol start="2">
+                    <li>编辑 <code>auth.json</code></li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">vi ~/.codex/auth.json</code></pre>
+                </div>
+                <p>按 <code>i</code> 进入编辑模式，粘贴下方内容并替换密钥；完成后按 <code>ESC</code>，输入 <code>:wq</code> 回车保存退出。</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">json</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-json">{"OPENAI_API_KEY": "nb-xxx"}</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ 将 <code>nb-xxx</code> 替换为你申请的真实密钥</p>
+
+                <ol start="3">
+                    <li>编辑 <code>config.toml</code></li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">vi ~/.codex/config.toml</code></pre>
+                </div>
+                <p>按 <code>i</code> 进入编辑模式，粘贴配置内容；完成后按 <code>ESC</code>，输入 <code>:wq</code> 回车保存退出。</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">toml</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-toml">model_provider = "your-provider-name"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+preferred_auth_method = "apikey"
+
+[model_providers.api111]
+name = "your-provider-name"
+base_url = "https://api.lyn91r.cn/v1"
+wire_api = "responses"</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ <code>model_provider</code> 和 <code>name</code> 填你自己起的名字，两者需一致；<code>model</code> 填你申请到的模型名。</p>
+            </div>
+
+            <!-- ---- Linux Panel ---- -->
+            <div class="tab-panel" id="codex-linux">
+                <ul>
+                    <li>主流发行版：Ubuntu 20.04+、Debian 10+、CentOS 7+ 等</li>
+                    <li>Node.js 22+</li>
+                    <li>npm 10+</li>
+                    <li>正常网络连接</li>
+                </ul>
+
+                <h4>1. 安装 Node.js</h4>
+                <p><strong>Ubuntu/Debian</strong></p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">sudo apt update
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs</code></pre>
+                </div>
+
+                <p><strong>CentOS/RHEL/Fedora</strong></p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash"># Fedora 使用 dnf
+sudo dnf install nodejs npm
+
+# CentOS/RHEL 使用 yum
+sudo yum install nodejs npm</code></pre>
+                </div>
+
+                <p><strong>Arch Linux</strong></p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">sudo pacman -S nodejs npm</code></pre>
+                </div>
+
+                <h4>2. 安装 Codex</h4>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">sudo npm install -g @openai/codex</code></pre>
+                </div>
+
+                <h4>3. 验证安装</h4>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">codex --version</code></pre>
+                </div>
+
+                <h4>配置 API</h4>
+                <ol>
+                    <li>创建目录与文件</li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">mkdir -p ~/.codex
+touch ~/.codex/auth.json
+touch ~/.codex/config.toml</code></pre>
+                </div>
+
+                <ol start="2">
+                    <li>编辑 <code>auth.json</code></li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">vi ~/.codex/auth.json</code></pre>
+                </div>
+                <p>按 <code>i</code> 编辑，粘贴内容并替换密钥；<code>ESC</code> 后输入 <code>:wq</code> 保存退出。</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">json</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-json">{"OPENAI_API_KEY": "nb-xxx"}</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ 将 <code>nb-xxx</code> 替换为你申请的真实密钥</p>
+
+                <ol start="3">
+                    <li>编辑 <code>config.toml</code></li>
+                </ol>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">vi ~/.codex/config.toml</code></pre>
+                </div>
+                <p>按 <code>i</code> 编辑，粘贴配置；<code>ESC</code> 后输入 <code>:wq</code> 保存退出。</p>
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">toml</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-toml">model_provider = "your-provider-name"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+preferred_auth_method = "apikey"
+
+[model_providers.api111]
+name = "your-provider-name"
+base_url = "https://api.lyn91r.cn/v1"
+wire_api = "responses"</code></pre>
+                </div>
+                <p style="font-size:13px; color: var(--text-secondary); margin-top: 4px;">⚠️ <code>model_provider</code> 和 <code>name</code> 填你自己起的名字，两者需一致；<code>model</code> 填你申请到的模型名。</p>
+            </div>
+        </div><!-- end codex-tabs -->
+
+        <h3 id="codex-start">启动 Codex</h3>
+        <div class="callout warning"><strong>⚠️ 务必重启终端</strong>，之后执行：</div>
+        <div class="code-block-wrapper">
+            <div class="code-block-header">
+                <span class="lang-label">bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+            </div>
+            <pre><code class="language-bash">cd your-project-folder
+codex</code></pre>
+        </div>
+
+        <h3 id="codex-vscode">VSCode 插件 Codex</h3>
+        <p>配置完成后，在 VSCode 扩展商店搜索 <code>codex</code> 并安装，安装完成后会展示在软件侧边栏。</p>
+
+        <h3 id="codex-faq">常见问题</h3>
+        <p>出现报错按以下步骤排查：</p>
+        <ol>
+            <li>检查 API Key 配置：额度选择<strong>无限额度</strong>，不限制模型，分组按对应系统要求选择正确分组。</li>
+        </ol>
+        <p>更多使用与配置细节，请参考 Codex 官方教程。</p>
+    </section>
+
+    <!-- ==================== PART 2: CLAUDE CODE ==================== -->
+    <section id="section-claude">
+        <h2>Claude Code 安装使用教程</h2>
+        <p>Claude Code 是一个强大的 AI 编程助手，让您可以直接在终端中与 AI 协作编程。本教程将指导您完成安装和配置过程。</p>
+
+        <h3 id="claude-requirements">📋 系统要求</h3>
+        <ul>
+            <li>Node.js 版本 ≥ 18.0</li>
+            <li>支持的操作系统：macOS、Linux、Windows (WSL)</li>
+        </ul>
+
+        <h3 id="claude-install-node">🚀 快速开始 — 安装 Node.js</h3>
+        <div class="callout tip"><strong>💡 提示：</strong>如果您已经安装了 Node.js 18.0 或更高版本，可以跳过此步骤。</div>
+
+        <div class="tab-container" id="claude-node-tabs">
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="claude-node-ubuntu">🐧 Ubuntu / Debian</button>
+                <button class="tab-btn" data-tab="claude-node-macos">🍎 macOS</button>
+            </div>
+            <div class="tab-panel active" id="claude-node-ubuntu">
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash"># 安装 Node.js LTS 版本
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -
+sudo apt-get install -y nodejs
+
+# 验证安装
+node --version</code></pre>
+                </div>
+            </div>
+            <div class="tab-panel" id="claude-node-macos">
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash"># 安装 Xcode 命令行工具
+sudo xcode-select --install
+
+# 安装 Homebrew（如果尚未安装）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# 通过 Homebrew 安装 Node.js
+brew install node
+
+# 验证安装
+node --version</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <h3 id="claude-install">安装 Claude Code</h3>
+        <p>使用 npm 全局安装 Claude Code：</p>
+        <div class="code-block-wrapper">
+            <div class="code-block-header">
+                <span class="lang-label">bash</span>
+                <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+            </div>
+            <pre><code class="language-bash">npm install -g @anthropic-ai/claude-code
+
+# 验证安装
+claude --version</code></pre>
+        </div>
+
+        <h3 id="claude-config">配置并开始使用</h3>
+        <h4>获取必要的配置信息</h4>
+        <p>您需要准备两个重要的配置项：</p>
+        <table class="data-table">
+            <thead>
+                <tr><th>配置项</th><th>说明</th><th>获取方式</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>ANTHROPIC_AUTH_TOKEN</code></td><td>API 认证令牌</td><td>自己申请来的令牌</td></tr>
+                <tr><td><code>ANTHROPIC_BASE_URL</code></td><td>API 服务地址</td><td>使用 <code>https://api.lyn91r.cn</code></td></tr>
+            </tbody>
+        </table>
+
+        <h4>启动 Claude Code</h4>
+        <p>在您的项目目录下运行：</p>
+
+        <div class="tab-container" id="claude-start-tabs">
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="claude-start-linux">🐧 Linux / Unix</button>
+                <button class="tab-btn" data-tab="claude-start-ps">🪟 PowerShell</button>
+                <button class="tab-btn" data-tab="claude-start-cmd">⬛ CMD</button>
+            </div>
+            <div class="tab-panel active" id="claude-start-linux">
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">bash</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash"># 进入项目目录
+cd your-project-folder
+
+# 设置环境变量
+export ANTHROPIC_AUTH_TOKEN="nb-..."
+export ANTHROPIC_BASE_URL="https://api.lyn91r.cn"
+export API_TIMEOUT_MS=300000
+
+# 启动 Claude Code
+claude</code></pre>
+                </div>
+            </div>
+            <div class="tab-panel" id="claude-start-ps">
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">powershell</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-powershell"># 进入项目目录
+cd your-project-folder
+
+# 设置环境变量
+$env:ANTHROPIC_BASE_URL = "https://api.lyn91r.cn"
+$env:ANTHROPIC_AUTH_TOKEN = "nb-..."
+$env:API_TIMEOUT_MS = "300000"
+
+# 启动 Claude Code
+claude</code></pre>
+                </div>
+            </div>
+            <div class="tab-panel" id="claude-start-cmd">
+                <div class="code-block-wrapper">
+                    <div class="code-block-header">
+                        <span class="lang-label">cmd</span>
+                        <button class="copy-btn" onclick="copyCode(this)">📋 复制</button>
+                    </div>
+                    <pre><code class="language-bash">REM 进入项目目录
+cd your-project-folder
+
+REM 设置环境变量
+set ANTHROPIC_BASE_URL=https://api.lyn91r.cn
+set ANTHROPIC_AUTH_TOKEN=nb-...
+set API_TIMEOUT_MS=300000
+
+REM 启动 Claude Code
+claude</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <h3 id="claude-first-run">初次运行配置</h3>
+        <p>启动后，您将看到以下配置步骤：</p>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body"><strong>选择主题</strong> → 选择您喜欢的主题 + 按 Enter</div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body"><strong>安全须知</strong> → 确认安全须知 + 按 Enter</div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body"><strong>Terminal 配置</strong> → 使用默认配置 + 按 Enter</div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body"><strong>工作目录信任</strong> → 信任当前目录 + 按 Enter</div>
+        </div>
+        <div class="callout tip"><strong>✨ 恭喜！</strong>现在您可以开始与您的 AI 编程搭档一起写代码了！</div>
+
+        <h3 id="claude-faq">❓ 常见问题解答</h3>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: 遇到 "Invalid API Key / Please run /login" 错误？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> 这表明 Claude Code 未检测到环境变量。请检查：</p>
+                <ul>
+                    <li>是否正确设置了 <code>ANTHROPIC_AUTH_TOKEN</code> 和 <code>ANTHROPIC_BASE_URL</code></li>
+                    <li>环境变量值是否正确（令牌以 <code>sk-</code> 开头）</li>
+                    <li>如果使用了永久配置，是否重启了终端</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: 为什么显示 "offline" 状态？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> Claude Code 通过连接 Google 来判断网络状态。显示 "offline" 不影响正常使用，只是表明无法连接到 Google。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: 为什么浏览网页的 Fetch 会失败？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> Claude Code 在访问网页前需要调用 Claude 服务进行安全检查。您需要：</p>
+                <ul>
+                    <li>保持稳定的国际互联网连接</li>
+                    <li>必要时使用全局代理</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: 请求总是显示 "fetch failed"？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> 可能是网络环境导致的问题。解决方案：尝试使用代理工具。</p>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: API 报错如何处理？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> 可能是转发代理不稳定导致的，建议：</p>
+                <ul>
+                    <li>退出 Claude Code（Ctrl+C）</li>
+                    <li>重新运行 <code>claude</code> 命令</li>
+                    <li>如果问题持续，请稍后再试</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-q">Q: 网页登录错误？</div>
+            <div class="faq-a">
+                <p><strong>A:</strong> 尝试清除本站的 Cookie，然后重新登录。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== NOTES ==================== -->
+    <section id="section-notes">
+        <h2>📌 注意事项</h2>
+        <ul>
+            <li>本站直接接入官方 Claude Code 转发服务</li>
+            <li>仅支持 Claude Code 的 API 流量，不支持其他 API 调用</li>
+            <li>请妥善保管您的 API 令牌，避免泄露</li>
+        </ul>
+    </section>
+
+    <!-- ==================== RELATED LINKS ==================== -->
+    <section id="section-links">
+        <h2>🔗 相关链接</h2>
+        <ul>
+            <li><a href="https://docs.anthropic.com/en/docs/claude-code/overview" target="_blank" rel="noopener noreferrer">Claude Code 官方文档</a></li>
+            <li><a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer">Node.js 官方网站</a></li>
+        </ul>
+    </section>
+
+    <footer class="page-footer">
+        <p>💡 <strong>提示：</strong>如遇到其他问题，请查看官方文档或联系技术支持。</p>
+    </footer>
+</main>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script>
+// ===== Initialize syntax highlighting =====
+hljs.highlightAll();
+
+// ===== Copy button =====
+function copyCode(btn) {
+    const wrapper = btn.closest('.code-block-wrapper');
+    const code = wrapper.querySelector('code').textContent;
+
+    navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = '📋 复制';
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            btn.textContent = '✅ 已复制';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.textContent = '📋 复制';
+                btn.classList.remove('copied');
+            }, 2000);
+        } catch (e) {
+            btn.textContent = '❌ 复制失败';
+        }
+        document.body.removeChild(textarea);
+    });
+}
+
+// ===== Tab switching =====
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tabGroup = btn.parentElement;
+        const tabContainer = tabGroup.parentElement;
+        const targetId = btn.dataset.tab;
+
+        // Deactivate all buttons and panels in this group
+        tabGroup.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        tabContainer.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+        // Activate the clicked one
+        btn.classList.add('active');
+        const panel = tabContainer.querySelector('#' + targetId);
+        if (panel) panel.classList.add('active');
+    });
+});
+
+// ===== Sidebar TOC =====
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+
+sidebarToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+});
+
+// Close sidebar when clicking a link (mobile)
+sidebar.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+        if (window.innerWidth <= 860) {
+            sidebar.classList.remove('open');
+        }
+    });
+});
+
+// Highlight active TOC item on scroll
+const tocLinks = document.querySelectorAll('.sidebar nav a');
+const headings = Array.from(document.querySelectorAll('h2[id], h3[id]'));
+
+function updateActiveLink() {
+    let current = '';
+    headings.forEach(h => {
+        const rect = h.getBoundingClientRect();
+        if (rect.top <= 120) {
+            current = h.id;
+        }
+    });
+    tocLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    });
+}
+
+window.addEventListener('scroll', updateActiveLink, { passive: true });
+
+// Close sidebar on outside click (mobile)
+document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 860 &&
+        !sidebar.contains(e.target) &&
+        e.target !== sidebarToggle &&
+        !sidebarToggle.contains(e.target)) {
+        sidebar.classList.remove('open');
+    }
+});
+</script>
+</body>
+</html>
