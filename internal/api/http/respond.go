@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -141,9 +143,22 @@ func bindJSON(c *gin.Context, destination any) bool {
 }
 
 func bindOptionalComment(c *gin.Context) (string, bool) {
-	if c.Request.ContentLength == 0 {
+	if c.Request.Body == nil {
 		return "", true
 	}
+	raw, err := io.ReadAll(io.LimitReader(c.Request.Body, (1<<20)+1))
+	if err != nil {
+		writeError(c, &domain.Error{Code: domain.CodeValidation, Message: "request validation failed", Details: []map[string]string{{"field": "body", "reason": "unable to read request body"}}})
+		return "", false
+	}
+	if len(raw) > 1<<20 {
+		writeError(c, &domain.Error{Code: domain.CodeValidation, Message: "request validation failed", Details: []map[string]string{{"field": "body", "reason": "request body is too large"}}})
+		return "", false
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return "", true
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(raw))
 	var input struct {
 		Comment string `json:"comment"`
 	}
@@ -189,7 +204,7 @@ func writeError(c *gin.Context, err error) {
 
 func errorStatus(code string) int {
 	switch code {
-	case domain.CodeValidation:
+	case domain.CodeValidation, domain.CodeRejectionReasonRequired:
 		return http.StatusBadRequest
 	case domain.CodeAuthenticationRequired, domain.CodeInvalidCredentials, domain.CodeTokenExpired:
 		return http.StatusUnauthorized
@@ -198,7 +213,8 @@ func errorStatus(code string) int {
 	case domain.CodeNotFound:
 		return http.StatusNotFound
 	case domain.CodeEmailRegistered, domain.CodeNameConflict, domain.CodeInvalidTransition,
-		domain.CodeProjectNoMentor, domain.CodeModelNotReady, domain.CodeModelRoutingRequired,
+		domain.CodeProjectNoMentor, domain.CodeMentorNotInOrganization, domain.CodeMentorAlreadyProjectMember,
+		domain.CodeModelNotReady, domain.CodeModelRoutingRequired,
 		domain.CodeKeyAlreadyClaimed:
 		return http.StatusConflict
 	case domain.CodeVerificationInvalid, domain.CodeVerificationExpired, domain.CodeInvitationInvalid:

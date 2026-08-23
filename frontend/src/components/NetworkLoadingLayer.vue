@@ -11,7 +11,6 @@ const writing = computed(() => networkActivity.writes > 0)
     <div v-if="reading" class="network-loading-layer" role="status" aria-live="polite">
       <span class="sr-only">正在加载页面和表格数据</span>
       <span class="network-progress" aria-hidden="true" />
-      <div class="network-skeleton" aria-hidden="true"><span/><span/><span/><span/><span/><span/></div>
     </div>
   </Transition>
   <Transition name="content-fade">

@@ -385,7 +385,7 @@ func (s *Service) ReviewMentorApplication(
 ) error {
 	comment = strings.TrimSpace(comment)
 	if !approve && comment == "" {
-		return domain.NewError(domain.CodeValidation, "rejection reason is required")
+		return domain.NewError(domain.CodeRejectionReasonRequired, "rejection reason is required")
 	}
 	if len([]rune(comment)) > 1000 {
 		return domain.NewError(domain.CodeValidation, "comment is too long")
@@ -411,8 +411,25 @@ func (s *Service) ReviewMentorApplication(
 		if application.Edges.Project == nil {
 			return domain.NewError(domain.CodeNotFound, "project not found")
 		}
-		if err := ensureOrganizationMember(ctx, tx, application.Edges.Project.OrganizationID, application.MentorID); err != nil {
-			return err
+		organizationMember, err := tx.OrganizationMember.Query().Where(
+			organizationmember.OrganizationIDEQ(application.Edges.Project.OrganizationID),
+			organizationmember.UserIDEQ(application.MentorID),
+		).Exist(ctx)
+		if err != nil {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "query mentor organization membership", err)
+		}
+		if !organizationMember {
+			return domain.NewError(domain.CodeMentorNotInOrganization, "mentor is no longer a member of the project organization")
+		}
+		projectMember, err := tx.ProjectMember.Query().Where(
+			projectmember.ProjectIDEQ(application.ProjectID),
+			projectmember.UserIDEQ(application.MentorID),
+		).Exist(ctx)
+		if err != nil {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "query mentor project membership", err)
+		}
+		if projectMember {
+			return domain.NewError(domain.CodeMentorAlreadyProjectMember, "mentor already belongs to the project")
 		}
 		if err := ensureProjectMember(ctx, tx, application.ProjectID, application.MentorID); err != nil {
 			return err

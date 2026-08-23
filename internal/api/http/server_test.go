@@ -37,7 +37,6 @@ func TestRegistersControlPlaneAndGatewayRoutes(t *testing.T) {
 		"GET /api/v1/student/organizations",
 		"GET /api/v1/student/organizations/:organization_id/projects",
 		"GET /api/v1/student/models",
-		"GET /api/v1/student/models/resolve",
 		"POST /api/v1/student/api-keys",
 		"GET /api/v1/student/api-keys",
 		"GET /api/v1/student/api-keys/:api_key_id",

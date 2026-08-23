@@ -39,4 +39,3 @@ export type BindingCreate = { provider_id: string; upstream_model_name: string; 
 export type BindingUpdate = { upstream_model_name?: string; adapter?: BindingAdapter; priority?: number; status?: ResourceStatus }
 export type RequestedModel = { model_id: string; display_name: string; description?: string | null; category: ModelCategory; capabilities: string[]; input_modalities: string[]; output_modalities: string[]; context_window?: number | null; max_output_tokens?: number | null }
 export type SubmitApiKey = { name: string; organization_id: string; project_id: string; model_ids: string[]; requested_models: RequestedModel[] }
-export type ModelResolution = { exists: boolean; model?: Model }

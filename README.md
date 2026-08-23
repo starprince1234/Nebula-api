@@ -1,12 +1,13 @@
 # Nebula
 
-Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。
+Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。学生申请 Key 时可直接添加新模型卡片，审批完成后模型自动进入模型广场。
 
 只读参考项目位于 `D:\VScodeProjects\NebulaCloud\nebula-ai`。本仓库重新实现业务，不兼容参考项目旧表、旧路由或历史数据。
 
 ## 首期能力
 
 - 学生和导师邮箱验证码注册，三种角色统一登录，JWT access token 与 Redis refresh token 轮换。
+- 页面刷新时通过 HttpOnly refresh Cookie 恢复内存 access token；启动阶段的 refresh 使用 single-flight，避免并发轮换导致会话被误判为重用。
 - 老师 bootstrap、邀请与邀请激活；可从运行时 Secret 幂等初始化固定的学生/导师测试账号。
 - 学生选择组织、项目和模型白名单提交 Key 申请。
 - 项目任一负责导师完成首次初审；老师完成终审。
@@ -15,7 +16,7 @@ Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、�
 - 导师可撤销负责项目中的 ACTIVE Key。
 - 老师管理组织、项目、导师项目申请、供应商、模型和模型 binding。
 - 官方控制台为每个学生、导师和老师工作区注册全局唯一的技术路由名，中文标题由独立路由元数据呈现，角色间同名页面不会相互覆盖。
-- 官方控制台统一提供页面切换、弹层、状态反馈和交互元素动效；页面与表格请求显示加载进度/骨架，刷新保留已有内容，提交按钮阻止重复操作，并遵循 `prefers-reduced-motion`。
+- 官方控制台统一提供页面切换、弹层、状态反馈和交互元素动效；学生、导师、老师工作台的列表、表格、详情和候选弹窗均在各自内容区域显示骨架，全局网络层只显示不占布局的加载进度，刷新保留已有内容，提交按钮阻止重复操作，并遵循 `prefers-reduced-motion`。
 - 认证 SSE 推送 Key 状态与全局常用模型变化。
 - 标准 OpenAI Chat/Responses（含 Codex CLI HTTP/WebSocket 与 compact）、Embeddings、Images、Audio、Videos、Realtime、Moderations，Anthropic Messages、Cohere Rerank v2 与 Google Gemini `v1beta` 网关；Binding adapter 按协议独立路由，避免不同请求格式误用同一上游。
 

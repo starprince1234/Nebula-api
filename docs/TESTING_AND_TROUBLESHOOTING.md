@@ -119,7 +119,8 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 2. 学生选择组织后确认停用/无导师项目可见但禁选；切换组织确认会清空后续草稿。
 3. 在模型步骤解析一个既有模型，确认采用平台权威卡片；再填写一个不存在模型的完整元数据并提交。
 4. 导师在最早优先队列完成通过和带原因驳回；老师检查逐模型路由后终审。
-5. 学生观察 SSE 状态变化，领取时验证未复制关闭二次确认、复制失败手动选择及关闭后 secret 清空。
+5. 学生观察 SSE 状态变化：只有已有 Key 的状态真正变化时自动打开该 Key 详情；首次进入、普通刷新、SSE 重连和新提交不会自动弹窗。领取时验证未复制关闭二次确认、复制失败手动选择及关闭后 secret 清空。
+6. 学生模型广场点击“申请新模型贴士”，确认提示申请应在申请密钥阶段添加，审批通过后自动更新模型广场；申请密钥阶段直接填写新模型卡片，不再先调用模型 ID 检查接口。
 6. 老师验证导师候选搜索分页、组织/项目启停、凭据独立替换、模型 nullable 数值和 Binding 编辑。
 7. 缩窄至 375px 宽度并仅使用键盘完成认证、申请、审核和弹层关闭；开启 reduced motion 后确认无位移、缩放、旋转或 shimmer 动画，但加载文字、禁用态和错误信息仍然可见。
 8. 对每个角色依次打开所有侧栏页面：GET 期间应显示顶部加载进度和数据骨架；使用局部 `LoadingRegion` 的复杂列表在初次加载时不得先闪现误导性的空状态，刷新时继续保留已有内容；登录、注册、退出及使用局部 pending 的写操作按钮应显示处理中并禁止重复提交。
@@ -148,6 +149,8 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
 | 导师看不到待审 Key | 导师不是目标项目的 ACTIVE 负责成员，或已被其他导师处理 | 完成项目申请，或刷新状态 | 查项目成员关系和 Key 当前状态；首个有效初审胜出 |
 | 导师/老师重复审批得到 409 | 条件更新阻止并发重复状态迁移 | 刷新详情，不要重复提交 | 检查审计时间线和当前状态，不要直接改数据库 |
+| 老师驳回申请返回原因缺失 | 驳回请求没有填写非空审核意见；通过请求的审核意见可以省略 | 在驳回弹窗填写具体原因；通过时可以留空意见 | 期望错误码为 `REJECTION_REASON_REQUIRED`；通过请求空 body 应返回 `204` |
+| 老师审批导师项目申请提示导师关系异常 | 审批时发现导师未加入项目所属组织，或导师已经是项目成员；空 body 则可能是请求体解析错误 | `MENTOR_NOT_IN_ORGANIZATION`：在“组织管理”重新分配导师；`MENTOR_ALREADY_PROJECT_MEMBER`：无需重复审批并刷新列表 | 查看响应 `error.code`；核对 `organization_members`、`project_members` 和申请状态 |
 | 老师看不到 ACTIVE Key | 这是首期权限边界，不是数据丢失 | 由负责导师查看和撤销 | 老师接口只暴露 `pending_teacher` 摘要 |
 | 终审后学生未加入组织/项目 | 终审事务回滚或数据库约束失败 | 修复根因后重新执行合法终审；禁止手工只改 Key 状态 | 同时检查 Key、两张 member 表和 audit；四者必须原子一致 |
 | 领取接口没有再次返回完整 Key | 明文只在首次领取返回一次 | 创建新申请，不支持找回 | 只能使用 prefix 定位；任何人都不应从数据库恢复明文 |
@@ -193,13 +196,15 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |
 | 云服务器 8080/8081 从公网不可达 | Compose 按安全契约只绑定 loopback | 使用 SSH tunnel；配置域名、TLS 和反向代理应作为独立部署变更 | 服务器执行 `ss -lntp '( sport = :8080 or sport = :8081 )'`，应只看到 `127.0.0.1` |
 | 前端打开后白屏 | 前端生产构建失败、静态资源未进入镜像或路由脚本异常 | 先完成 typecheck/build，再重建 frontend 镜像 | `cd frontend; npm run typecheck; npm run build`，浏览器查看 Console 与 Network，不粘贴 token |
-| 页面或表格请求期间没有加载反馈 | 页面绕过官方 API client、全局加载层未挂载，或局部初次加载状态被提前标记为完成 | 所有控制面请求使用类型化 API client，并使用共享网络活动层/`LoadingRegion`；不要用空列表冒充加载完成 | 浏览器 Network 节流后依次访问所有侧栏页面；运行 `cd frontend; npm run test -- src/api/client.test.ts src/components/LoadingRegion.test.ts src/composables/useLoadState.test.ts` |
+| 页面或表格请求期间没有加载反馈，或骨架跑到页面右上角 | 页面绕过官方 API client、局部初次加载状态被提前标记为完成，或把骨架误放入全局网络层 | 所有控制面请求使用类型化 API client；全局层只允许顶部进度条，页面/表格骨架必须由对应内容区域的 `LoadingRegion` 承载；不要用空列表冒充加载完成 | 浏览器 Network 节流后依次访问所有侧栏页面，确认骨架位于对应列表/表单容器；运行 `cd frontend; npm run test -- src/components/NetworkLoadingLayer.test.ts src/components/LoadingRegion.test.ts src/composables/useLoadState.test.ts` |
 | 请求完成后加载动画一直不消失 | 请求计数没有在异常路径 `finally` 中递减，或页面启动了未结束的普通 HTTP 请求 | 保证成功、失败和 `401` 重试都成对维护计数；持续连接必须使用独立 SSE/WebSocket 通道，不能计入普通请求 | 检查 Network 中未结束请求及 `networkActivity` 调用链；运行 API client 回归测试，不通过吞错或强制归零掩盖问题 |
 | 快速重复点击造成多次提交 | 写操作没有局部 pending key，按钮只依赖全局提示但仍可点击 | 使用 `LoadingButton` 和 keyed pending action，在 promise 完成前禁用同一操作 | Network 中同一资源操作只能有一个在途请求；运行 `cd frontend; npm run test -- src/composables/usePendingActions.test.ts` |
 | 导师从“审核密钥”点击“项目管理”后整个工作台变空 | 导师与老师的项目页面使用了相同 Vue Router `name`，后注册路由移除了先注册的 `/mentor/projects` 记录 | 所有工作区路由使用全局唯一技术名称，中文标题通过 `meta.title` 展示；禁止复用展示文案作为路由名 | 运行 `cd frontend; npm run test -- src/router/index.test.ts`，并在浏览器确认 `/mentor/projects` 的 `route.matched` 非空且项目接口已发出 |
 | 老师模型管理的新增模型弹窗中 checkbox 与文字错位或纵向间距异常 | 全局普通输入框样式覆盖了 checkbox 的宽度、显示方式和上边距 | 使用模型表单专用 checkbox 选项布局，并重新部署前端 | 打开老师 `模型管理 -> 新增模型`，确认输入/输出模态及“全局常用模型”的 checkbox 与文字同一行、间距一致 |
+| 老师配置 Binding 后模型卡片仍显示“待配置”且同时显示“路由就绪”小泡泡 | 卡片直接渲染数据库 `status`，又重复渲染派生的 `route_ready`；`pending_configuration + route_ready=true` 的展示语义没有统一 | 卡片将该组合展示为“已就绪”，移除“路由就绪/未就绪”小泡泡；数据库状态仍由模型启用/停用契约控制 | 配置 ACTIVE Binding 和 ACTIVE provider 后刷新老师模型列表，确认卡片只有“已就绪”状态徽标；运行 `cd frontend; npm run test -- src/utils/models.test.ts` |
 | 直接打开或刷新 `/login`、`/teacher/...` 返回 Vercel `404: NOT_FOUND` | Vercel 未读取 `frontend/vercel.json`，通常是 Root Directory 不是 `frontend` 或新配置尚未部署 | 将 Vercel Root Directory 设置为 `frontend` 并重新部署当前版本 | 直接请求 `/login` 和 `/teacher/key-reviews`，确认 HTTP 200 且响应为 `index.html`；不要改用 hash 路由或增加后端旧路由 |
 | 页面刷新后回到登录页 | refresh Cookie 不存在、Path/Secure/SameSite 不匹配，或 Redis session 已失效 | 修正 Cookie 与同源部署配置后重新登录 | 检查 `/api/v1/auth/refresh` 状态和 Set-Cookie 属性；前端不会从 JS 读取 refresh token |
+| 登录后刷新页面被重定向到登录页，且 refresh Cookie 原本有效 | 路由守卫与 `App.vue` 同时调用 bootstrap，单次轮换 refresh token 被并发使用，后端将第二次请求识别为重用并撤销 session family | 由 auth store 提供 single-flight bootstrap，并让路由守卫复用同一个 Promise；不要在多个启动入口重复调用 refresh | 运行 `cd frontend; npm run test -- src/store/auth.test.ts`，浏览器 Network 中刷新页面应只有一个 `/api/v1/auth/refresh` 请求 |
 | 多个请求同时 401 导致反复刷新 | API client 未共享 refresh 请求，或 refresh token 被并发轮换重用 | 使用前端内置 single-flight client，禁止页面直接调用 fetch | Network 中应只有一个并发 refresh；若 session family 被撤销则重新登录 |
 | 前端提示接口 404 | 未通过 Vite/Nginx 代理访问、路径写成旧路由或 backend 未启动 | 使用相对 `/api/v1` 路径并恢复 backend | 检查浏览器请求 URL、`frontend/nginx.conf` 和 Compose 网络，不增加旧路由别名 |
 | 前端 SSE 无状态更新 | 使用 EventSource 无法带 Bearer，或 fetch stream 中断 | 使用内置 fetch streaming，重连后重新拉取列表 | 检查 `/api/v1/events` Authorization 与响应 Content-Type；不要把 token 放 query |

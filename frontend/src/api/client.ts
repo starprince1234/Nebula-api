@@ -16,7 +16,77 @@ export class APIError extends Error {
   requestId?: string
   constructor(message: string, status: number, code = 'REQUEST_FAILED', details?: ApiErrorDetails, requestId?: string) {
     super(message); this.status = status; this.code = code; this.details = details; this.requestId = requestId
+    this.message = detailsMessage(code, details) ?? translateServerMessage(message) ?? errorMessages[code] ?? message
   }
+}
+
+const errorMessages: Record<string, string> = {
+  REQUEST_FAILED: '请求失败，请稍后重试',
+  VALIDATION_ERROR: '请求参数不正确，请检查填写内容后重试',
+  REJECTION_REASON_REQUIRED: '驳回原因不能为空，请填写具体原因',
+  AUTHENTICATION_REQUIRED: '登录状态已失效，请重新登录',
+  INVALID_CREDENTIALS: '邮箱或密码不正确',
+  TOKEN_EXPIRED: '登录状态已过期，请重新登录',
+  FORBIDDEN: '当前账号没有执行此操作的权限',
+  ACCOUNT_DISABLED: '账号已被停用，请联系老师',
+  RESOURCE_NOT_FOUND: '请求的资源不存在，可能已被停用或删除',
+  EMAIL_ALREADY_REGISTERED: '该邮箱已注册，请直接登录',
+  RESOURCE_NAME_CONFLICT: '名称已存在，请更换后重试',
+  INVALID_STATE_TRANSITION: '申请状态已发生变化，请刷新页面后重试',
+  PROJECT_HAS_NO_MENTOR: '该项目尚未分配有效导师，暂时不能提交申请',
+  MENTOR_NOT_IN_ORGANIZATION: '该导师未加入项目所属组织，请先在“组织管理”中分配导师',
+  MENTOR_ALREADY_PROJECT_MEMBER: '该导师已经加入此项目，无需重复审批',
+  MODEL_NOT_READY: '所选模型尚未完成可用配置',
+  MODEL_ROUTING_REQUIRED: '操作会导致模型失去可用路由，请先保留至少一个有效 binding',
+  KEY_ALREADY_CLAIMED: '该 API Key 已领取，不能重复领取',
+  VERIFICATION_CODE_INVALID: '验证码不正确，请检查后重试',
+  VERIFICATION_CODE_EXPIRED: '验证码已过期，请重新获取',
+  INVITATION_INVALID: '邀请链接无效或已过期',
+  RATE_LIMITED: '操作过于频繁，请稍后再试',
+  VERIFICATION_LOCKED: '验证码失败次数过多，请稍后再试',
+  DEPENDENCY_UNAVAILABLE: '服务暂时不可用，请稍后重试',
+  INTERNAL_ERROR: '服务器内部错误，请稍后重试',
+}
+
+function validationReason(reason: string): string {
+  const value = reason.trim()
+  if (/required/i.test(value)) return '必填项不能为空'
+  if (/invalid.*(email|format)|must be a valid email/i.test(value)) return '格式不正确'
+  if (/unknown field/i.test(value)) return '包含不支持的字段'
+  if (/unexpected end|unexpected eof|eof/i.test(value)) return '请求内容不完整'
+  return value
+}
+
+function translateServerMessage(message: string): string | undefined {
+  const value = message.trim().toLowerCase()
+  const translations: Array<[RegExp, string]> = [
+    [/mentor does not belong to the project organization/, '该导师尚未加入项目所属组织，请先在“组织管理”中分配导师'],
+    [/mentor already manages this project/, '该导师已经负责此项目，无需重复审批'],
+    [/project application is already pending/, '该项目已有待审核申请，请勿重复提交'],
+    [/project application is no longer pending|project application was reviewed concurrently/, '该申请已被其他操作处理，请刷新页面查看最新状态'],
+    [/project not found/, '项目不存在或已停用'],
+    [/organization not found/, '组织不存在或已停用'],
+    [/invalid binding adapter/, '模型 Binding 类型不受支持'],
+  ]
+  return translations.find(([pattern]) => pattern.test(value))?.[1]
+}
+
+function detailsMessage(code: string, details: ApiErrorDetails | undefined): string | undefined {
+  if (!details) return undefined
+  if ((code === 'MODEL_NOT_READY' || code === 'MODEL_ROUTING_REQUIRED') && !Array.isArray(details) && Array.isArray(details.model_ids)) {
+    const modelIds = details.model_ids.filter((value): value is string => typeof value === 'string')
+    if (modelIds.length) return `${errorMessages[code]}：${modelIds.join('、')}`
+  }
+  if (code === 'VALIDATION_ERROR' && Array.isArray(details)) {
+    const reasons = details.map(item => `${item.field || '请求'}：${validationReason(item.reason || '参数不合法')}`)
+    if (reasons.length) return reasons.join('；')
+  }
+  return undefined
+}
+
+export function apiErrorMessage(error: unknown, fallback = '请求失败，请稍后重试'): string {
+  if (!(error instanceof APIError)) return fallback
+  return detailsMessage(error.code, error.details) ?? translateServerMessage(error.message) ?? errorMessages[error.code] ?? (error.message || fallback)
 }
 
 async function parseEnvelope<T>(response: Response): Promise<Envelope<T>> {

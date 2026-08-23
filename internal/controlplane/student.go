@@ -37,11 +37,6 @@ type RequestedModelInput struct {
 	MaxOutputTokens  *int
 }
 
-type ModelResolutionView struct {
-	Exists bool       `json:"exists"`
-	Model  *ModelView `json:"model,omitempty"`
-}
-
 type ClaimView struct {
 	APIKey    string    `json:"api_key"`
 	KeyPrefix string    `json:"key_prefix"`
@@ -106,22 +101,6 @@ func (s *Service) StudentProjects(ctx context.Context, organizationID uuid.UUID)
 		result = append(result, projectView(row, mentorProjects[row.ID]))
 	}
 	return result, nil
-}
-
-func (s *Service) ResolveStudentModel(ctx context.Context, modelID string) (ModelResolutionView, error) {
-	normalized, err := normalizeSingleModelID(modelID)
-	if err != nil {
-		return ModelResolutionView{}, err
-	}
-	row, err := s.db.Model.Query().Where(entmodel.ModelIDEQ(normalized)).Only(ctx)
-	if ent.IsNotFound(err) {
-		return ModelResolutionView{Exists: false}, nil
-	}
-	if err != nil {
-		return ModelResolutionView{}, domain.WrapError(domain.CodeDependencyUnavailable, "resolve student model", err)
-	}
-	view := modelView(row)
-	return ModelResolutionView{Exists: true, Model: &view}, nil
 }
 
 func (s *Service) StudentModels(ctx context.Context, studentID uuid.UUID) ([]ModelView, error) {

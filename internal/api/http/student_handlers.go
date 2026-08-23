@@ -38,15 +38,6 @@ func (s *Server) studentModels(c *gin.Context) {
 	respondList(c, rows)
 }
 
-func (s *Server) resolveStudentModel(c *gin.Context) {
-	view, err := s.service.ResolveStudentModel(c.Request.Context(), c.Query("model_id"))
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	respond(c, http.StatusOK, view)
-}
-
 func (s *Server) submitAPIKey(c *gin.Context) {
 	var input struct {
 		Name            string   `json:"name" binding:"required"`

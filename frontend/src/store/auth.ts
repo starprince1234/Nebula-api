@@ -9,9 +9,15 @@ export const useAuthStore = defineStore('auth', () => {
   const ready = ref(false)
   const loading = ref(false)
   const isAuthenticated = computed(() => Boolean(user.value && token.get()))
+  let bootstrapFlight: Promise<void> | null = null
   async function bootstrap() {
     if (ready.value) return
-    try { const session = await authAPI.refresh(); token.set(session.access_token); user.value = session.user } catch { token.set(null); user.value = null } finally { ready.value = true }
+    if (!bootstrapFlight) {
+      bootstrapFlight = (async () => {
+        try { const session = await authAPI.refresh(); token.set(session.access_token); user.value = session.user } catch { token.set(null); user.value = null } finally { ready.value = true }
+      })().finally(() => { bootstrapFlight = null })
+    }
+    await bootstrapFlight
   }
   async function login(email: string, password: string) { loading.value = true; try { const session = await authAPI.login({ email, password }); token.set(session.access_token); user.value = session.user } finally { loading.value = false } }
   async function logout() { try { await authAPI.logout() } finally { token.set(null); user.value = null } }

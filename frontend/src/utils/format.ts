@@ -3,7 +3,7 @@ import type { ApiKeyStatus, ModelStatus, ProgressCurrent, ResourceStatus, Role }
 const roleLabels: Record<Role, string> = { student: '学生', mentor: '导师', teacher: '老师' }
 const statusLabels: Record<ApiKeyStatus | ModelStatus | ResourceStatus | string, string> = {
   pending_mentor: '等待导师审核', pending_teacher: '等待老师审核', approved: '等待领取', active: '已启用',
-  rejected: '已驳回', revoked: '已撤销', inactive: '已停用', pending_configuration: '待配置', pending: '待审核',
+  rejected: '已驳回', revoked: '已撤销', inactive: '已停用', pending_configuration: '待配置', ready: '已就绪', pending: '待审核',
   cancelled: '已取消', mentor_review: '导师审核', teacher_review: '老师审核', claim: '等待领取',
   rejected_teacher: '老师已驳回',
 }

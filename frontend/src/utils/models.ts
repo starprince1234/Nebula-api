@@ -1,4 +1,10 @@
-import type { RequestedModel } from '../api/types'
+import type { ModelStatus, RequestedModel } from '../api/types'
+
+export type ModelCardStatus = ModelStatus | 'ready'
+
+export function modelCardStatus(model: Pick<{ status: ModelStatus; route_ready: boolean }, 'status' | 'route_ready'>): ModelCardStatus {
+  return model.status === 'pending_configuration' && model.route_ready ? 'ready' : model.status
+}
 
 export function normalizeModelSelection(existing: string[], requested: RequestedModel[]): string[] {
   const values = [...existing, ...requested.map(model => model.model_id)]

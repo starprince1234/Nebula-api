@@ -80,7 +80,6 @@ func (s *Server) registerControlPlane() {
 	student.GET("/organizations", s.studentOrganizations)
 	student.GET("/organizations/:organization_id/projects", s.studentProjects)
 	student.GET("/models", s.studentModels)
-	student.GET("/models/resolve", s.resolveStudentModel)
 	student.POST("/api-keys", s.submitAPIKey)
 	student.GET("/api-keys", s.studentAPIKeys)
 	student.GET("/api-keys/:api_key_id", s.studentAPIKey)

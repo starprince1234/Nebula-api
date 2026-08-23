@@ -66,11 +66,11 @@
 
 | HTTP | 错误码 | 场景 |
 | --- | --- | --- |
-| 400 | `VALIDATION_ERROR` | JSON、字段或业务输入不合法 |
+| 400 | `VALIDATION_ERROR`, `REJECTION_REASON_REQUIRED` | JSON、字段或业务输入不合法；驳回申请必须填写原因，通过意见可以省略 |
 | 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `TOKEN_EXPIRED` | 未登录或凭据失效 |
 | 403 | `FORBIDDEN`, `ACCOUNT_DISABLED` | 角色或资源范围不允许 |
 | 404 | `RESOURCE_NOT_FOUND` | 资源不存在或调用者不可见 |
-| 409 | `EMAIL_ALREADY_REGISTERED`, `RESOURCE_NAME_CONFLICT`, `INVALID_STATE_TRANSITION`, `PROJECT_HAS_NO_MENTOR`, `MODEL_NOT_READY`, `KEY_ALREADY_CLAIMED` | 唯一性或状态冲突 |
+| 409 | `EMAIL_ALREADY_REGISTERED`, `RESOURCE_NAME_CONFLICT`, `INVALID_STATE_TRANSITION`, `PROJECT_HAS_NO_MENTOR`, `MENTOR_NOT_IN_ORGANIZATION`, `MENTOR_ALREADY_PROJECT_MEMBER`, `MODEL_NOT_READY`, `KEY_ALREADY_CLAIMED` | 唯一性或状态冲突；老师审批导师项目申请时会区分导师未加入组织和已加入项目 |
 | 422 | `VERIFICATION_CODE_INVALID`, `VERIFICATION_CODE_EXPIRED`, `INVITATION_INVALID` | 可解析但无法完成认证流程 |
 | 429 | `RATE_LIMITED`, `VERIFICATION_LOCKED` | 冷却或失败锁定 |
 | 500 | `INTERNAL_ERROR` | 未预期服务端错误，不泄露内部细节 |
@@ -210,7 +210,6 @@ data: {"revision":"01K2..."}
 | GET | `/api/v1/student/organizations` | 列出平台全部 ACTIVE 组织 |
 | GET | `/api/v1/student/organizations/{organization_id}/projects` | 列出该 ACTIVE 组织全部项目，并返回真实状态与 `has_mentor` |
 | GET | `/api/v1/student/models` | 模型广场 |
-| GET | `/api/v1/student/models/resolve` | 按 `model_id` 检查平台权威模型 |
 | POST | `/api/v1/student/api-keys` | 提交 Key 申请 |
 | GET | `/api/v1/student/api-keys` | 列出自己的申请和 Key |
 | GET | `/api/v1/student/api-keys/{api_key_id}` | 查看自己的审核详情与进度 |
@@ -397,7 +396,7 @@ data: {"revision":"01K2..."}
 
 老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型；不返回申请次数或申请用户身份。
 
-学生可调用 `GET /api/v1/student/models/resolve?model_id=...` 检查模型 ID。不存在时返回 `exists=false`；存在时返回平台权威模型卡片。学生提交 Key 时可在 `requested_models` 中携带完整新模型卡片字段（`model_id`、`display_name`、`description`、`category`、`capabilities`、`input_modalities`、`output_modalities`、`context_window`、`max_output_tokens`），模型在同一事务中以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。
+学生在申请 Key 阶段直接填写新模型完整卡片字段（`model_id`、`display_name`、`description`、`category`、`capabilities`、`input_modalities`、`output_modalities`、`context_window`、`max_output_tokens`）。服务端在提交事务内按 `model_id` 查询：已有模型直接复用平台权威配置；不存在时以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。模型申请审批通过并完成配置后，自动出现在学生模型广场。
 
 ### 7.3 Key 终审可见范围
 
@@ -520,10 +519,12 @@ Anthropic-compatible 示例：
 
 - access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
 - refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。
+- 页面启动时路由守卫与应用壳共享同一个 bootstrap refresh 请求；不会因重复调用轮换同一个 refresh token。刷新成功后重新建立内存 access token 和当前用户，刷新失败才进入登录态失效流程。
 - 当前用户与角色以 `/api/v1/me`/session 响应为准，路由守卫不能替代服务端权限校验。
 - 工作区路由使用全局唯一的技术名称，中文页面标题存放在独立的路由元数据中；导师与老师均可使用“项目管理”标题，但 `/mentor/projects` 与 `/teacher/projects` 必须同时保留独立路由记录。
-- 官方 API client 对控制面 GET 与写请求维护仅存在于内存的活动计数：初次读取显示页面/表格加载反馈，刷新保留已渲染数据，写请求显示提交状态并由具体操作按钮阻止重复提交。计数必须在成功、结构化错误、网络错误和 `401` refresh 重试后清零；该 UI 状态不改变请求、响应 envelope、鉴权或错误处理契约。
+- 官方 API client 对控制面 GET 与写请求维护仅存在于内存的活动计数：GET 活动只驱动全局不占布局的顶部进度条，学生、导师、老师页面及候选弹窗通过局部 `LoadingRegion` 在自身内容区域显示骨架；刷新保留已渲染数据，写请求显示提交状态并由具体操作按钮阻止重复提交。计数必须在成功、结构化错误、网络错误和 `401` refresh 重试后清零；该 UI 状态不改变请求、响应 envelope、鉴权或错误处理契约。
 - 页面切换、弹层、状态和加载反馈遵循 `prefers-reduced-motion`；关闭位移、缩放、旋转和 shimmer 后仍必须保留文字、禁用态与 `aria-busy` 等可访问状态。
+- 老师模型卡片将 `status=pending_configuration` 且 `route_ready=true` 的模型展示为“已就绪”；`route_ready` 只作为权威派生条件，不再重复渲染为卡片小泡泡。该展示映射不修改 API 返回的模型状态，启用/停用仍遵循模型状态契约。
 - `/api/v1/events` 使用带 `Authorization` Header 的 fetch streaming，不使用原生 EventSource；收到状态事件后重新获取 REST 权威数据。
 - 一次性 API Key 仅在领取弹窗中显示和复制，关闭后不写入浏览器持久存储，也不支持再次展示。
 - 老师控制台不提供项目成员和 ACTIVE Key 浏览入口，前端不得扩大服务端可见范围。
