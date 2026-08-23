@@ -157,6 +157,7 @@
       <a href="#keys">二、密钥申请流程</a>
       <a class="sub" href="#key-student">学生提交申请</a>
       <a class="sub" href="#key-mentor">导师初审</a>
+      <a class="sub" href="#mentor-project">导师项目申请</a>
       <a class="sub" href="#key-teacher">老师终审</a>
       <a class="sub" href="#key-status">状态、领取与撤销</a>
       <a href="#models">三、模型管理</a>
@@ -271,7 +272,15 @@
 
         <h3 id="key-mentor">2. 导师：申请负责项目并完成初审</h3>
         <p>导师必须先成为项目负责人，才能看到该项目的待初审 Key。导师侧的两个页面都属于密钥流程的前置或审批环节。</p>
-        <h4>2.1 在“项目管理”申请负责项目</h4>
+        <h4 id="mentor-project">2.1 导师项目申请流程</h4>
+        <p>导师项目申请解决的是“谁负责审核某个项目的学生 Key”。它不是学生 Key 申请本身，必须先完成并通过这一流程。</p>
+        <div class="step"><span class="step-no">1</span><div class="step-body"><h4>老师准备组织和项目</h4><p>老师在“组织管理”创建并启用组织，在“项目管理”创建并启用项目。项目必须属于该组织；停用项目不能提交新的导师负责申请。</p></div></div>
+        <div class="step"><span class="step-no">2</span><div class="step-body"><h4>老师把导师分配到组织</h4><p>老师进入“组织管理 → 分配导师”，搜索导师姓名或邮箱并点击“分配”。导师只有属于项目所属组织，后续申请才具备审批条件。</p></div></div>
+        <div class="step"><span class="step-no">3</span><div class="step-body"><h4>导师提交“申请负责”</h4><p>导师进入“项目管理”，在所属组织下找到 ACTIVE 项目，点击“申请负责”。提交成功后，该项目卡片显示“待审核”，按钮不再允许重复提交。</p></div></div>
+        <div class="step"><span class="step-no">4</span><div class="step-body"><h4>老师审批导师项目申请</h4><p>老师进入“项目管理”右侧的“导师项目申请”，找到导师和项目，点击“通过”或“驳回”。通过意见可选；驳回必须填写具体原因，确认后申请会进入终态。</p></div></div>
+        <div class="step"><span class="step-no">5</span><div class="step-body"><h4>导师开始负责项目</h4><p>导师刷新“项目管理”。通过后项目卡片显示“查看 ACTIVE Key”，导师可以查看该项目的生效 Key，并在需要时按原因撤销；同时该项目的待初审 Key 会出现在“审核密钥”页面。</p></div></div>
+        <div class="callout info"><strong>状态变化</strong><p><span class="pill blue">可申请</span> → 点击“申请负责” → <span class="pill amber">待审核</span> → 老师通过 → <span class="pill green">已负责</span>。老师驳回后，申请记录会保留在导师“申请历史”中；如需再次申请，应在状态允许时重新提交，不要重复点击正在处理的申请。</p></div>
+        <h4>2.2 在“项目管理”申请负责项目</h4>
         <ol>
           <li>进入 <span class="screen-label">项目管理</span>，点击“刷新”获取组织和项目。</li>
           <li>按组织分组查看项目。项目卡片显示名称、说明和状态。</li>
@@ -279,7 +288,7 @@
           <li>在下方“申请历史”查看项目申请状态和老师意见。申请被批准后，项目按钮变为“查看 ACTIVE Key”。</li>
         </ol>
         <div class="callout danger"><strong>导师项目关系异常</strong><p>如果老师批准导师项目申请时提示“导师未加入项目所属组织”，老师应先到“组织管理”分配导师；如果提示导师已经是项目成员，则无需重复审批，刷新页面即可。</p></div>
-        <h4>2.2 在“审核密钥”完成初审</h4>
+        <h4>2.3 在“审核密钥”完成初审</h4>
         <ol>
           <li>进入 <span class="screen-label">审核密钥</span>。列表按最早提交优先，只显示负责项目中的待初审申请。</li>
           <li>使用“搜索申请人”按姓名或邮箱过滤，使用“项目”下拉框按项目过滤；点击“刷新”重新拉取队列。</li>
