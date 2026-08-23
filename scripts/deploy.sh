@@ -225,7 +225,7 @@ if docker container inspect mihomo >/dev/null 2>&1; then
 fi
 
 printf 'Starting postgres\n'
-"${compose[@]}" up -d --no-deps postgres
+"${compose[@]}" up -d --no-deps --force-recreate postgres
 wait_for_healthy_service postgres
 pause_between_stages
 
