@@ -15,7 +15,10 @@ const props = withDefaults(defineProps<{
 }>(), { label: 'credit 用量图', mini: false })
 
 const root = ref<HTMLElement | null>(null)
-const positiveSegments = computed(() => props.segments.filter(item => Number.isFinite(item.value) && item.value > 0))
+const palette = ['#7657e8', '#2fa8c4', '#e5a93f', '#e16d8b', '#45a779', '#8b79cb', '#64748b']
+const positiveSegments = computed(() => props.segments
+  .filter(item => Number.isFinite(item.value) && item.value > 0)
+  .map((item, index) => ({ ...item, color: item.color ?? palette[index % palette.length] })))
 const chartSegments = computed(() => {
   const totalUsed = positiveSegments.value.reduce((sum, item) => sum + item.value, 0)
   if (props.total <= 0 || totalUsed <= props.total) return positiveSegments.value
@@ -49,6 +52,13 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); chart = 
 <template>
   <div class="credit-chart" :class="{ mini }">
     <div ref="root" class="credit-donut" :aria-label="label" role="img" />
+    <ul v-if="!mini" class="credit-legend" aria-label="图表图例">
+      <li v-for="segment in positiveSegments" :key="segment.name">
+        <span class="credit-legend-swatch" :style="{ backgroundColor: segment.color }" />
+        <span class="credit-legend-name">{{ segment.name }}</span>
+        <strong>{{ segment.value.toFixed(3) }}</strong>
+      </li>
+    </ul>
     <table v-if="!mini" class="sr-only">
       <caption>{{ label }}</caption>
       <thead><tr><th>分项</th><th>credits</th></tr></thead>

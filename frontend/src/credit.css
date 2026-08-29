@@ -1,15 +1,28 @@
-.credit-donut{width:180px;height:180px;min-width:180px}
+.credit-chart{display:grid;grid-template-columns:190px minmax(0,1fr);align-items:center;gap:18px;min-width:0}
+.credit-donut{width:190px;height:190px;min-width:190px}
 .credit-donut-wrap{display:flex;align-items:center;gap:16px;min-height:190px}
-.credit-chart.mini .credit-donut{width:64px;height:64px;min-width:64px}
+.credit-chart.mini{display:block}.credit-chart.mini .credit-donut{width:72px;height:72px;min-width:72px}
+.credit-legend{list-style:none;margin:0;padding:0;display:grid;gap:10px;min-width:0}
+.credit-legend li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:9px;color:var(--ink-soft);font-size:12px}
+.credit-legend li strong{color:var(--ink);font-variant-numeric:tabular-nums}.credit-legend-swatch{width:10px;height:10px;border-radius:3px}.credit-legend-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .usage-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
 .usage-stat{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-raised)}
 .usage-stat strong{display:block;font-size:1.25rem;margin-top:4px}
 .usage-table{width:100%;border-collapse:collapse}.usage-table th,.usage-table td{text-align:left;padding:12px;border-bottom:1px solid var(--border);vertical-align:top}
-.quota-progress{width:min(340px,100%);height:10px;overflow:hidden;border-radius:999px;background:var(--surface-muted);margin:7px 0}
-.quota-progress>span{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.usage-table th{color:var(--ink-soft);font-size:11px;letter-spacing:.02em;white-space:nowrap}.usage-table tbody tr:last-child td{border-bottom:0}
+.usage-dialog-summary{margin:14px 0 22px}.usage-chart-card{padding:18px;border:1px solid var(--line);border-radius:15px;background:rgba(249,250,253,.72)}.usage-chart-card h2{margin:0 0 4px}.usage-chart-card>p{margin:12px 0 0}
+.member-name{display:grid;gap:5px;min-width:120px}.member-name strong{font-size:14px}.numeric-cell{font-variant-numeric:tabular-nums;white-space:nowrap}
+.key-usage-list{display:grid;gap:16px;min-width:360px}.key-usage-item{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.72)}
+.key-usage-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.key-usage-heading>div{display:flex;align-items:center;gap:8px}.key-usage-heading small{color:var(--ink-soft)}
+.key-progress-line{display:grid;grid-template-columns:minmax(150px,1fr) 64px;align-items:center;gap:12px;margin-top:10px}.key-progress-line strong{text-align:right;font-variant-numeric:tabular-nums}
+.key-progress-track{min-width:44px;max-width:100%;transition:width 220ms var(--ease-out)}
+.quota-progress{width:100%;height:12px;overflow:hidden;border-radius:999px;background:#e7eaf1;box-shadow:inset 0 1px 2px rgba(35,45,70,.08)}
+.quota-progress>span{display:block;height:100%;background:linear-gradient(90deg,#7657e8,#9a7ff0);border-radius:inherit;transition:width 220ms var(--ease-out)}
+.table-caption{text-align:left;padding:0 0 12px;color:var(--ink-soft);font-size:12px}.table-caption strong{color:var(--ink)}
 .sensitive-text{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;padding:16px;border-radius:12px;background:var(--surface-muted)}
 .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
 .spend-row{display:grid;grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr);align-items:center;gap:20px}
+.project-spend-table .project-spend-chart{width:92px}.project-spend-table .credit-chart.mini .credit-donut{width:72px;height:72px}.project-spend-name{display:grid;gap:5px;min-width:170px}.project-spend-usage{display:grid;gap:5px;min-width:150px}.project-spend-usage strong{font-size:15px}.free-call-list{display:grid;gap:5px;color:var(--ink-soft);font-size:12px}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-@media(max-width:700px){.credit-donut-wrap{flex-direction:column;align-items:flex-start}.credit-donut{width:160px;height:160px;min-width:160px}}
-@media(max-width:800px){.spend-row{grid-template-columns:1fr}.usage-table{display:block;overflow-x:auto}}
+@media(max-width:700px){.credit-donut-wrap{flex-direction:column;align-items:flex-start}.credit-chart{grid-template-columns:1fr;justify-items:center;width:100%}.credit-legend{width:100%}.credit-donut{width:170px;height:170px;min-width:170px}}
+@media(max-width:800px){.spend-row{grid-template-columns:1fr}.usage-table{display:block;overflow-x:auto}.key-usage-list{min-width:280px}}
