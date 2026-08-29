@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -676,10 +677,11 @@ type ProjectUsage struct {
 	FreeModels  []UsageSlice  `json:"free_models"`
 }
 type MemberUsage struct {
-	UserID   string           `json:"user_id"`
-	UserName string           `json:"user_name"`
-	Credits  string           `json:"credits"`
-	Keys     []KeyMemberUsage `json:"keys"`
+	UserID     string           `json:"user_id"`
+	UserName   string           `json:"user_name"`
+	Credits    string           `json:"credits"`
+	Keys       []KeyMemberUsage `json:"keys"`
+	FreeModels []UsageSlice     `json:"free_models"`
 }
 type KeyMemberUsage struct {
 	ID         string `json:"id"`
@@ -718,7 +720,7 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 	if err != nil {
 		return v, err
 	}
-	defer rows.Close()
+	memberIndexes := make(map[uuid.UUID]int)
 	for rows.Next() {
 		var uid uuid.UUID
 		var m MemberUsage
@@ -729,6 +731,7 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 		m.UserID = uid.String()
 		m.Credits = domain.FormatCredits(credit)
 		m.Keys = []KeyMemberUsage{}
+		m.FreeModels = []UsageSlice{}
 		kr, err := s.db.QueryContext(ctx, `SELECT k.id,k.name,k.status,b.quota_milli,b.charged_milli FROM api_keys k JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$3 WHERE k.project_id=$1 AND k.owner_user_id=$2 AND (k.status IN ('approved','active') OR b.charged_milli>0) ORDER BY k.name`, projectID, uid, month)
 		if err != nil {
 			return v, err
@@ -752,9 +755,42 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 			m.Keys = append(m.Keys, ki)
 		}
 		kr.Close()
+		memberIndexes[uid] = len(v.Members)
 		v.Members = append(v.Members, m)
 	}
-	mr, err := s.db.QueryContext(ctx, `SELECT model_id,model_name,sum(charged_milli),sum(charged_count),sum(zero_cost_count) FROM monthly_usage_cube WHERE project_id=$1 AND month=$2 GROUP BY model_id,model_name ORDER BY sum(charged_milli) DESC`, projectID, month)
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return v, err
+	}
+	if err := rows.Close(); err != nil {
+		return v, err
+	}
+	fr, err := s.db.QueryContext(ctx, `SELECT user_id,model_id,model_name,sum(zero_cost_count) FROM monthly_usage_cube WHERE project_id=$1 AND month=$2 AND zero_cost_count>0 GROUP BY user_id,model_id,model_name HAVING sum(zero_cost_count)>0 ORDER BY user_id,sum(zero_cost_count) DESC,model_name`, projectID, month)
+	if err != nil {
+		return v, err
+	}
+	for fr.Next() {
+		var userID, modelID uuid.UUID
+		var name string
+		var calls int64
+		if err := fr.Scan(&userID, &modelID, &name, &calls); err != nil {
+			fr.Close()
+			return v, err
+		}
+		item := UsageSlice{ID: modelID.String(), Name: name, Credits: "0.000", Calls: calls}
+		if index, ok := memberIndexes[userID]; ok {
+			v.Members[index].FreeModels = append(v.Members[index].FreeModels, item)
+		}
+	}
+	if err := fr.Err(); err != nil {
+		fr.Close()
+		return v, err
+	}
+	if err := fr.Close(); err != nil {
+		return v, err
+	}
+	v.FreeModels = summarizeMemberFreeModels(v.Members)
+	mr, err := s.db.QueryContext(ctx, `SELECT model_id,model_name,sum(charged_milli),sum(charged_count) FROM monthly_usage_cube WHERE project_id=$1 AND month=$2 GROUP BY model_id,model_name ORDER BY sum(charged_milli) DESC,model_name`, projectID, month)
 	if err != nil {
 		return v, err
 	}
@@ -762,20 +798,38 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 	for mr.Next() {
 		var id uuid.UUID
 		var name string
-		var credits, calls, zero int64
-		if err := mr.Scan(&id, &name, &credits, &calls, &zero); err != nil {
+		var credits, calls int64
+		if err := mr.Scan(&id, &name, &credits, &calls); err != nil {
 			return v, err
 		}
 		item := UsageSlice{ID: id.String(), Name: name, Credits: domain.FormatCredits(credits), Calls: calls}
 		if credits > 0 {
 			v.Models = append(v.Models, item)
 		}
-		if zero > 0 {
-			item.Calls = zero
-			v.FreeModels = append(v.FreeModels, item)
-		}
 	}
 	return v, nil
+}
+
+func summarizeMemberFreeModels(members []MemberUsage) []UsageSlice {
+	totals := make(map[string]UsageSlice)
+	for _, member := range members {
+		for _, model := range member.FreeModels {
+			total := totals[model.ID]
+			total.ID, total.Name, total.Credits, total.Calls = model.ID, model.Name, "0.000", total.Calls+model.Calls
+			totals[model.ID] = total
+		}
+	}
+	result := make([]UsageSlice, 0, len(totals))
+	for _, item := range totals {
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Calls == result[j].Calls {
+			return result[i].Name < result[j].Name
+		}
+		return result[i].Calls > result[j].Calls
+	})
+	return result
 }
 
 type Cursor struct {
