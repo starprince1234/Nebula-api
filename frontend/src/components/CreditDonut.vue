@@ -34,7 +34,7 @@ function render() {
   chart?.setOption({
     animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     aria: { enabled: true, description: props.label },
-    tooltip: { trigger: 'item', valueFormatter: (value: number) => `${value.toFixed(3)} credits` },
+    tooltip: { trigger: 'item', confine: true, valueFormatter: (value: number) => `${value.toFixed(3)} credits` },
     legend: { show: false },
     series: [{ type: 'pie', radius: props.mini ? ['62%', '88%'] : ['58%', '82%'], silent: props.mini, label: { show: false }, data: chartSegments.value.map(item => ({ name: item.name, value: item.value, itemStyle: { color: item.color } })) }],
   }, true)
