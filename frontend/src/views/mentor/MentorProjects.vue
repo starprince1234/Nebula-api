@@ -6,7 +6,7 @@ import { APIError } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge.vue'
 import AppDialog from '../../components/AppDialog.vue'
 import LoadingRegion from '../../components/LoadingRegion.vue'
-import CreditDonut from '../../components/CreditDonut.vue'
+import CreditDonut, { type CreditSegment } from '../../components/CreditDonut.vue'
 import { useLoadState } from '../../composables/useLoadState'
 import { useToast } from '../../composables/useToast'
 
@@ -20,8 +20,8 @@ function percent(used:string,quotaValue:string){return Number(quotaValue)===0?nu
 function percentLabel(used:string,quotaValue:string){const value=percent(used,quotaValue);return value===null?'N/A':`${value.toFixed(1)}%`}
 function memberQuota(member:ProjectUsage['members'][number]){return member.keys.reduce((sum,key)=>sum+Number(key.allocation),0).toFixed(3)}
 function keyTrackWidth(member:ProjectUsage['members'][number],quotaValue:string){const maximum=Math.max(...member.keys.map(key=>Number(key.quota)),0);if(maximum===0)return 100;return Math.max(12,Number(quotaValue)/maximum*100)}
-function allocationSegments(usage:ProjectUsage){return usage.members.map(member=>({name:member.user_name,value:member.keys.reduce((sum,key)=>sum+Number(key.allocation),0)})).filter(item=>item.value>0).concat([{name:'可分配额度',value:Number(usage.available),color:'#dfe3ec'}])}
-function spendSegments(usage:ProjectUsage){return usage.members.map(member=>({name:member.user_name,value:Number(member.credits)})).filter(item=>item.value>0).concat([{name:'未消耗额度',value:Math.max(0,Number(usage.quota)-Number(usage.charged)),color:'#dfe3ec'}])}
+function allocationSegments(usage:ProjectUsage):CreditSegment[]{return[...usage.members.map(member=>({name:member.user_name,value:member.keys.reduce((sum,key)=>sum+Number(key.allocation),0)})).filter(item=>item.value>0),{name:'可分配额度',value:Number(usage.available),color:'#dfe3ec'}]}
+function spendSegments(usage:ProjectUsage):CreditSegment[]{return[...usage.members.map(member=>({name:member.user_name,value:Number(member.credits)})).filter(item=>item.value>0),{name:'未消耗额度',value:Math.max(0,Number(usage.quota)-Number(usage.charged)),color:'#dfe3ec'}]}
 function msg(e:unknown){return e instanceof APIError?e.message:'请求失败'}
 onMounted(load)
 </script>

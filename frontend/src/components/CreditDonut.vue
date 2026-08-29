@@ -7,8 +7,10 @@ import { SVGRenderer } from 'echarts/renderers'
 
 echarts.use([PieChart, TooltipComponent, LegendComponent, AriaComponent, SVGRenderer])
 
+export type CreditSegment = { name: string; value: number; color?: string }
+
 const props = withDefaults(defineProps<{
-  segments: Array<{ name: string; value: number; color?: string }>
+  segments: CreditSegment[]
   total: number
   label?: string
   mini?: boolean
