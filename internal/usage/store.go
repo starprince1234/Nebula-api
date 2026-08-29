@@ -297,7 +297,7 @@ func (s *Store) ApproveKey(ctx context.Context, teacherID, keyID uuid.UUID, quot
 	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET monthly_credit_quota_milli=$1,status='approved',updated_at=$2 WHERE id=$3 AND status='pending_teacher'`, quota, now, keyID); err != nil {
 		return uuid.Nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET allocated_milli=allocated_milli+$1,updated_at=$2 WHERE project_id=$3 AND month=$4`, quota, now, projectID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET allocated_milli=allocated_milli+$1,updated_at=$2 WHERE project_id=$3 AND month=$4`, quota, now, projectID, month); err != nil {
 		return uuid.Nil, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_month_credit_buckets(id,api_key_id,project_id,month,quota_milli,allocation_active,charged_milli,pending_milli,created_at,updated_at) VALUES(gen_random_uuid(),$1,$2,$3,$4,true,0,0,$5,$5) ON CONFLICT(api_key_id,month) DO UPDATE SET quota_milli=EXCLUDED.quota_milli,allocation_active=true,updated_at=EXCLUDED.updated_at`, keyID, projectID, month, quota, now); err != nil {

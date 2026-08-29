@@ -14,9 +14,10 @@ export class APIError extends Error {
   details: ApiErrorDetails | undefined
   status: number
   requestId?: string
+  serverMessage: string
   constructor(message: string, status: number, code = 'REQUEST_FAILED', details?: ApiErrorDetails, requestId?: string) {
-    super(message); this.status = status; this.code = code; this.details = details; this.requestId = requestId
-    this.message = detailsMessage(code, details) ?? translateServerMessage(message) ?? errorMessages[code] ?? message
+    super(message); this.status = status; this.code = code; this.details = details; this.requestId = requestId; this.serverMessage = message
+    this.message = actionableErrorMessage(code, message, details, requestId)
   }
 }
 
@@ -44,8 +45,25 @@ const errorMessages: Record<string, string> = {
   INVITATION_INVALID: '邀请链接无效或已过期',
   RATE_LIMITED: '操作过于频繁，请稍后再试',
   VERIFICATION_LOCKED: '验证码失败次数过多，请稍后再试',
-  DEPENDENCY_UNAVAILABLE: '服务暂时不可用，请稍后重试',
+  DEPENDENCY_UNAVAILABLE: '操作未完成，服务依赖暂时异常，请稍后重试',
   INTERNAL_ERROR: '服务器内部错误，请稍后重试',
+}
+
+function requestReference(requestId?: string): string {
+  return requestId ? `，并向管理员提供请求编号 ${requestId}` : ''
+}
+
+function actionableErrorMessage(code: string, message: string, details?: ApiErrorDetails, requestId?: string): string {
+  if (code === 'DEPENDENCY_UNAVAILABLE') {
+    if (!Array.isArray(details) && details?.operation === 'api_key_approval' && details.state_changed === false) {
+      return `终审未完成，额度和申请状态均未变更。请联系管理员并提供请求编号 ${requestId ?? '（响应未提供）'}`
+    }
+    return `${errorMessages.DEPENDENCY_UNAVAILABLE}${requestReference(requestId)}`
+  }
+  if (code === 'INTERNAL_ERROR') {
+    return `${errorMessages.INTERNAL_ERROR}，本次操作未完成${requestReference(requestId)}`
+  }
+  return detailsMessage(code, details) ?? translateServerMessage(message) ?? errorMessages[code] ?? message
 }
 
 function validationReason(reason: string): string {
@@ -124,7 +142,7 @@ function detailsMessage(code: string, details: ApiErrorDetails | undefined): str
 
 export function apiErrorMessage(error: unknown, fallback = '请求失败，请稍后重试'): string {
   if (!(error instanceof APIError)) return fallback
-  return detailsMessage(error.code, error.details) ?? translateServerMessage(error.message) ?? errorMessages[error.code] ?? (error.message || fallback)
+  return actionableErrorMessage(error.code, error.serverMessage, error.details, error.requestId) || fallback
 }
 
 async function parseEnvelope<T>(response: Response): Promise<Envelope<T>> {

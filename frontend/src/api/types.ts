@@ -30,7 +30,7 @@ export type MentorCandidate = { id: string; name: string; email: string; is_memb
 export type Session = { access_token: string; token_type: string; expires_in: number; user: User }
 export type PageMeta = { next_cursor?: string | null }
 export type Envelope<T> = { data: T; meta?: PageMeta; request_id?: string }
-export type ApiErrorDetails = { model_ids: string[] } | Array<{ field: string; reason: string }>
+export type ApiErrorDetails = { model_ids?: string[]; operation?: string; state_changed?: boolean } | Array<{ field: string; reason: string }>
 export type ApiError = { error?: { code?: string; message?: string; details?: ApiErrorDetails }; request_id?: string }
 
 export type OrganizationCreate = { name: string; description?: string; status?: ResourceStatus }

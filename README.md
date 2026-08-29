@@ -47,12 +47,12 @@ Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷
 | `redis` | `docker.m.daocloud.io/library/redis:8.2.8-alpine3.22` | 验证码、会话、邀请、SSE 与视频路由 | 不暴露 |
 | `migrate` | `nebula-api-backend:<VERSION>` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
 | `backend` | `nebula-api-backend:<VERSION>` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
-| `mihomo` | `dockerproxy.net/metacubex/mihomo:v1.19.30` | 生产配置获取与 Cloudflare edge 出站代理 | `127.0.0.1:7890/9090` |
+| `maintenance` | `nebula-api-backend:<VERSION>` | 月度 bucket 预建与过期 usage lease 恢复 | 不暴露 |
 | `cloudflared` | `docker.m.daocloud.io/cloudflare/cloudflared:2025.8.1` | Cloudflare Tunnel 到后端内部端口 | 不暴露宿主机端口 |
 
-PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络。生产 Mihomo 加入 `edge`，cloudflared 共享其网络命名空间，使 edge 长连接进入 Mihomo TUN；Mihomo 配置保存在服务器 `/opt/mihomo/config.yaml`，不会同步到仓库。Mihomo 在容器内监听全部接口以供 Docker 端口转发，但 `7890/9090` 只发布到宿主机 `127.0.0.1`，不会暴露公网。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统；仅 Mihomo 为创建 TUN 获得 `NET_ADMIN` 和 `/dev/net/tun`。
+PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络，cloudflared 直接加入 `edge` 网络访问 backend 并连接 Cloudflare edge，不再经过主机代理或 TUN。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。生产 PostgreSQL 使用仓库内版本化的 Docker 26.1.4 默认 seccomp profile，并将未知 syscall 的拒绝 errno 设为 `ENOSYS`，使旧版宿主机 libseccomp 能让 PostgreSQL 对新 syscall 安全降级到兼容实现，而不关闭 seccomp 隔离。
 
-项目 Docker 构建使用 `docker.m.daocloud.io/library` 与 `dockerproxy.net/library` 国内镜像前缀（前端 Node/Nginx 使用后者，已验证大层下载速度）；Go 依赖使用 `goproxy.cn`，前端 npm 依赖使用 `registry.npmmirror.com`。前端构建上下文通过 `frontend/.dockerignore` 排除本地 `node_modules` 与 `dist`。生产构建在云服务器执行；如需更换镜像，只修改两个 Dockerfile 与 Compose 中的镜像地址，不需要修改 Docker Desktop 全局 daemon 配置。
+项目 Docker 构建使用 `docker.m.daocloud.io/library` 与 `dockerproxy.net/library` 国内镜像前缀（前端 Node/Nginx 使用后者，已验证大层下载速度）；Go 依赖使用 `goproxy.cn`，前端 npm 依赖使用 `registry.npmmirror.com`。前端构建上下文通过 `frontend/.dockerignore` 排除本地 `node_modules` 与 `dist`。生产构建在云服务器执行，并显式启用 BuildKit；`nebula-go-mod` 与 `nebula-go-build` 两个 builder cache 分别复用 Go module 和未受影响 package 的编译结果，缓存不进入应用镜像、运行容器或业务数据卷。首次构建、Go 版本变化、依赖变化或 builder cache 被清理后仍会执行冷构建。如需更换镜像，只修改两个 Dockerfile 与 Compose 中的镜像地址，不需要修改 Docker Desktop 全局 daemon 配置。
 
 应用镜像版本由仓库根目录 `VERSION` 唯一维护，必须为完整 SemVer `X.X.X`；生产服务器按该版本构建 `nebula-api-backend:<version>`，Compose 禁止 `latest`。第三方镜像保持上游精确 patch tag，不重新包装成无意义的本地镜像。
 
@@ -75,9 +75,11 @@ frontend/
 scripts/
   ci-deploy.sh                    GitHub runner 的主机校验、源码同步和远端 Doppler 注入
   fetch-deploy-credentials.sh     GitHub runner 按名读取 Doppler SSH 部署凭据
-  fetch-production-configuration.sh  云服务器经本机代理按名读取生产配置
+  fetch-production-configuration.sh  云服务器直连 Doppler 按名读取生产配置
   compose.ps1                     固定 Doppler config、改写容器内 DSN 并调用 Compose
   deploy.sh                       服务器端生产配置校验、镜像构建、迁移和健康检查
+deploy/
+  docker-default-seccomp-v26.1.4-enosys.json  生产 PostgreSQL 兼容 seccomp profile
 internal/
   api/http/                        Gin 路由、DTO、middleware、响应映射
   controlplane/                    认证及学生/导师/老师业务用例
@@ -163,9 +165,9 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 `.github/workflows/deploy.yml` 在代码 push 到 `main` 后触发 `production` job。GitHub 只保存 Doppler `nebula-api/prd` 的只读 service token；服务器地址、端口、用户、密码、固定主机公钥和全部应用配置均从 Doppler 动态注入，不写入 workflow、仓库、构建参数或 `.env`。
 
-部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器也通过同一类按名 REST 查询读取生产应用配置，其中包括老师 bootstrap 和六组学生/导师测试账号；该请求固定使用服务器本机 `127.0.0.1:7890` 的 Mihomo 代理。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器以 `COMPOSE_PARALLEL_LIMIT=1` 逐个拉取第三方镜像，Go 构建固定单核且 Dockerfile 各阶段不并行；随后按 PostgreSQL、Redis、migrate、backend、Mihomo、Cloudflare Tunnel 的顺序逐个启动，每阶段通过健康检查并等待十秒后才进入下一阶段。Mihomo 的自动选择与故障转移组统一使用 HTTPS 健康检查，生产启动固定选择故障转移组；服务器验证内部 backend readiness 和 Tunnel edge 注册，GitHub Runner 再从公网验证 `https://api.lyn91r.cn/health/ready`。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
+部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器直连 Doppler，以同一类按名 REST 查询读取生产应用配置，其中包括老师 bootstrap 和六组学生/导师测试账号。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器以 `COMPOSE_PARALLEL_LIMIT=1` 逐个拉取第三方镜像，Go 构建固定单核且 Dockerfile 各阶段不并行，并通过持久化 BuildKit cache 复用 module 与未变化 package 的编译结果；随后按 PostgreSQL、Redis、migrate、backend、maintenance、Cloudflare Tunnel 的顺序逐个启动，每阶段通过健康检查并等待十秒后才进入下一阶段。服务器验证内部 backend readiness 和 Tunnel edge 注册，GitHub Runner 再从公网验证 `https://api.lyn91r.cn/health/ready`。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
 
-生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 只映射宿主机 loopback。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；cloudflared 固定使用 HTTP/2，并共享 Mihomo 网络命名空间，由 TUN 代理其到 Cloudflare edge 的长连接，同时按私网规则直连 backend。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。生产 PostgreSQL 同时加入隔离的 `data` 网络和仅该服务使用的 `management` 网络，并仅映射到服务器本机 `127.0.0.1:15432`，不接受公网连接。Windows DataGrip 使用 SSH tunnel 连接服务器后，将 PostgreSQL 数据源填写为 `127.0.0.1:15432`；不要把 `8.156.88.100:5432` 暴露到公网。
+生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 只映射宿主机 loopback。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；cloudflared 固定使用 HTTP/2，通过 `edge` 网络直连 backend 与 Cloudflare edge。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。生产 PostgreSQL 同时加入隔离的 `data` 网络和仅该服务使用的 `management` 网络，并仅映射到服务器本机 `127.0.0.1:15432`，不接受公网连接。Windows DataGrip 使用 SSH tunnel 连接服务器后，将 PostgreSQL 数据源填写为 `127.0.0.1:15432`；不要把服务器 `5432` 暴露到公网。
 
 ```powershell
 & "D:\PuTTY\plink.exe" -ssh -P 22 -L 8081:127.0.0.1:8081 root@<server-host>

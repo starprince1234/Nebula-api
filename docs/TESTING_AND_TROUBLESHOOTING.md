@@ -34,6 +34,7 @@ npm run build
 
 - 学生 `/student/usage`、导师项目用量、老师项目花费必须通过真实 HTTP JSON envelope 验证 snake_case 字段，禁止只构造前端对象。Go usage DTO 缺少 `json` tag 时，接口会返回 `ID/Quota/Models`，前端按 `id/quota/models` 读取后表现为空白或 `undefined.map`。
 - 模型广场必须展示 `credit_multiplier`；老师模型配置在倍率变化时必须要求 `multiplier_change_reason`。Key 申请、导师初审、老师终审分别验证三阶段额度字段。
+- 老师终审成功路径必须验证项目月 bucket 更新同时绑定 `project_id` 与当前上海月份；SQL 占位符与实参数量不一致时，pgx 会在事务内拒绝执行并完整回滚。前端遇到终审依赖错误时必须关闭确认弹窗，明确说明额度和申请状态未变更，并展示响应 `request_id` 供管理员排查。
 - 调用日志无数据时先区分真实空集和渲染失败：检查 `/mentor/call-logs` 的 `items`，再通过 fake upstream 发一笔测试调用，确认 `gateway_calls`、`monthly_usage_cube` 和适用协议的 `monitored_inputs` 同时更新。
 - 生产 Playwright E2E 仅使用专用测试身份与测试 Key；凭据不得写入源码、报告或截图。额度/倍率写操作只针对专用测试资源，并保留永久审计。
 - 导师项目详情的视觉验收必须检查：两张环图都有可见颜色图例；额度分配按成员的全部 Key 额度之和分段；成员明细采用横向卡片，每成员一张，左侧为成员身份，中间纵向排列多个 Key 的额度轨道/已用填充/右侧百分比，右侧显示该成员的 0x 免费模型请求次数表并保留 Key 状态；逐模型验证所有成员 `free_models.calls` 之和等于项目顶层 `free_models.calls`；窄屏应依次降为两列和单列。老师项目花费必须是按项目分行的表格，行内提供 mini-donut，展开后显示按模型拆分且带可见图例的大图。学生个人用量的每个 Key 环图也必须有可见模型/剩余额度图例。
@@ -63,6 +64,7 @@ npm run build
 - 控制面结构化错误码到 HTTP 状态码映射；
 - 安全配置长度、加密主密钥、开发 Cookie 行为，以及固定测试账号 Secret 的成套解析和角色校验。
 - 前端类型检查、生产构建、关键 API client 行为，以及初次加载/刷新状态分离、并发请求计数、相同操作去重和可访问骨架渲染。
+- 生产 Dockerfile 的 BuildKit 契约：部署显式启用 BuildKit，`go mod download` 使用持久化 module cache，三个 Go 二进制的串行编译同时使用 module cache 和 build cache。
 - 导师候选游标编解码、学生新模型元数据校验与并发复用规则、nullable 模型字段三态解析、老师驳回进度映射、模型 ID 去重和 1–100 数量校验。
 
 ### 2.2 本地依赖检查
@@ -98,7 +100,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 .\scripts\compose.ps1 logs --tail 100 backend
 ```
 
-本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`mihomo`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
+本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`maintenance`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
 
 ### 2.5 生产部署验证
 
@@ -108,10 +110,10 @@ push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确
 cd /opt/nebula-api
 docker compose --project-name nebula-api --file compose.production.yaml ps
 curl --fail http://127.0.0.1:8080/health/ready
-curl --fail --proxy http://127.0.0.1:7890 https://api.lyn91r.cn/health/ready
+curl --fail https://api.lyn91r.cn/health/ready
 ```
 
-期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`mihomo`、`cloudflared` 正在运行，`migrate` 成功退出，内部和公网 readiness 均返回 200。GitHub 日志不得出现 SSH 密码、Doppler token、DSN、代理节点或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
+期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`maintenance`、`cloudflared` 正在运行，`migrate` 成功退出，内部和公网 readiness 均返回 200。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
 
 Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成后，直接请求 history 路由应返回控制台 HTML，而不是 Vercel 404：
 
@@ -171,6 +173,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
 | 导师看不到待审 Key | 导师不是目标项目的 ACTIVE 负责成员，或已被其他导师处理 | 完成项目申请，或刷新状态 | 查项目成员关系和 Key 当前状态；首个有效初审胜出 |
 | 导师/老师重复审批得到 409 | 条件更新阻止并发重复状态迁移 | 刷新详情，不要重复提交 | 检查审计时间线和当前状态，不要直接改数据库 |
+| 老师终审返回 `503 DEPENDENCY_UNAVAILABLE`，页面提示终审未完成 | 终审事务的数据库操作失败；曾出现项目月 bucket 更新 SQL 使用 `$1..$4` 但只传 3 个参数，pgx 报 `mismatched param and argument count` | 保持终审事务向 bucket 更新完整传入额度、时间、项目 ID 和月份；失败时事务必须回滚，修复后重新终审 | 从响应复制 `request_id`，在 backend 日志中按该 ID 定位真实错误；运行 `go test ./internal/usage -run TestApproveKeyBindsProjectBucketMonth` 和 `cd frontend; npm run test -- src/api/client.test.ts` |
 | 老师驳回申请返回原因缺失 | 驳回请求没有填写非空审核意见；通过请求的审核意见可以省略 | 在驳回弹窗填写具体原因；通过时可以留空意见 | 期望错误码为 `REJECTION_REASON_REQUIRED`；通过请求空 body 应返回 `204` |
 | 老师审批导师项目申请提示导师关系异常 | 审批时发现导师未加入项目所属组织，或导师已经是项目成员；空 body 则可能是请求体解析错误 | `MENTOR_NOT_IN_ORGANIZATION`：在“组织管理”重新分配导师；`MENTOR_ALREADY_PROJECT_MEMBER`：无需重复审批并刷新列表 | 查看响应 `error.code`；核对 `organization_members`、`project_members` 和申请状态 |
 | 老师看不到 ACTIVE Key | 这是首期权限边界，不是数据丢失 | 由负责导师查看和撤销 | 老师接口只暴露 `pending_teacher` 摘要 |
@@ -201,18 +204,19 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | Doppler 启动提示密钥长度/格式不合格 | JWT/HMAC pepper 少于 32 UTF-8 bytes，或供应商主密钥不是恰好 32 bytes 的 Base64 | 重新生成满足契约的随机值并保存到 Doppler | 只输出长度/格式布尔结果，不输出密钥；三个 JWT/HMAC 值均至少 32 bytes，供应商 key 解码后必须恰好 32 bytes |
 | Compose 提示必须通过脚本运行 | 未设置 `NEBULA_VERSION` 或未完成 DSN 安全改写 | 使用 `.\scripts\compose.ps1 ...` 作为唯一入口 | 检查根目录 `VERSION` 是否为 `X.X.X`，不要手工复制 secret 到 shell |
 | 启动脚本拒绝 DATABASE_URL | Doppler DSN 指向外部 host、缺少账号密码或数据库名 | 将 `dev_personal` 配置为本地 loopback DSN，或明确确认后调整本地配置 | 只检查 host 类别和字段是否存在，不输出完整 DSN |
-| `postgres` 一直 unhealthy | 命名卷中的初始化账号与当前 Doppler DSN 不一致，或卷损坏 | 恢复创建该卷时的 Doppler 数据库配置；需要清空卷时先获得明确授权 | `.\scripts\compose.ps1 logs --tail 100 postgres`；禁止在工单粘贴密码 |
+| `postgres` 一直 unhealthy | 命名卷中的初始化账号与当前 Doppler DSN 不一致、卷损坏，或旧宿主机 libseccomp 将 PostgreSQL 新 syscall 错误返回为 `EPERM` | 恢复创建该卷时的 Doppler 数据库配置；生产必须保留版本化 ENOSYS seccomp profile；需要清空卷时先获得明确授权 | 查看 postgres 日志；若出现 `pwritev2`/`Operation not permitted`，运行隔离的 `pg_test_fsync` 验证 profile，禁止使用 `seccomp=unconfined` |
 | `redis` 一直 unhealthy | Redis 启动失败、AOF 损坏或 Docker 磁盘异常 | 根据 Redis 日志修复；不要擅自删除数据卷 | `.\scripts\compose.ps1 logs --tail 100 redis` 和 `docker system df` |
 | `migrate` exited (1) | PostgreSQL 未就绪、凭据不匹配、`citext`/Ent schema 创建失败 | 修正本地 DSN或数据库权限后重建一次性 service | `.\scripts\compose.ps1 logs --tail 100 migrate`；确认目标是 Docker 本地卷 |
 | `backend` 不启动 | migrate 未成功、Redis 不健康或 Doppler 必填配置错误 | 先恢复依赖，再重新 `up -d` backend | 按 postgres -> redis -> migrate -> backend 顺序查看 `ps` 和日志 |
 | backend 报测试账号配置或角色冲突 | 某组 `TEST_*_{NAME,EMAIL,PASSWORD}` 未成套填写、格式不合法，或该邮箱已属于另一角色 | 补齐 Doppler 三元组或使用角色正确且唯一的测试邮箱；禁止修改既有用户角色 | 根据错误中的变量前缀或通用角色冲突定位，不打印 Secret；生产必须配置三组学生和三组导师 |
 | `/health/live` 成功但 `/health/ready` 503 | 进程存活但 PostgreSQL 或 Redis ping 失败 | 修复显示为 unavailable 的依赖 | 响应只给依赖类别；进一步查看对应容器日志 |
-| 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的 TCP/7844 长连接不可达，或 Mihomo 持久化选择了已经失效的节点；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 生产 Compose 让 cloudflared 共享 Mihomo 网络命名空间并由 TUN 接管 edge 出站；健康检查固定使用 HTTPS，生产启动选择故障转移组；服务器等待 edge 注册，GitHub Runner 从公网验证 readiness | 检查 `/dev/net/tun`、`docker compose -p nebula-api -f compose.production.yaml logs --tail 100 mihomo cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running 或使用服务器自身的 `.cn -> DIRECT` 公网探针 |
+| 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的长连接不可达；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 恢复服务器到 Cloudflare edge 的直连网络；服务器等待 edge 注册，GitHub Runner 从公网验证 readiness | 检查 `docker compose -p nebula-api -f compose.production.yaml logs --tail 100 cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running |
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
-| 2C2G 服务器部署时 CPU、内存或磁盘 I/O 突增 | Docker BuildKit 并行执行多阶段构建，Go 编译使用全部核心，或 Compose 同时 pull/start 多个 service | 生产 Dockerfile 固定单核 Go 构建并让 runtime 阶段依赖 builder；部署脚本以 `COMPOSE_PARALLEL_LIMIT=1` 逐个 pull，并按 postgres -> redis -> migrate -> backend -> mihomo -> cloudflared 串行启动，每阶段间隔十秒 | Actions 日志应按阶段输出且同一时间只有一个 pull/build/start 操作；服务器可用 `docker stats --no-stream`、`uptime` 和 `iostat -xz 1 3` 观察，不要并发重跑 workflow |
+| 2C2G 服务器部署时 CPU、内存或磁盘 I/O 突增 | 首次冷构建、Go 版本或依赖变化导致缓存失效，Go 编译仍需计算资源，或 Compose 同时 pull/start 多个 service | 生产 Dockerfile 固定单核 Go 构建；BuildKit 使用稳定命名的 module/build cache 复用未变化 package；部署脚本以 `COMPOSE_PARALLEL_LIMIT=1` 逐个 pull，并按 postgres -> redis -> migrate -> backend -> maintenance -> cloudflared 串行启动，每阶段间隔十秒 | 运行 `go test ./scripts` 检查缓存契约；Actions 日志应显示 `persistent BuildKit caches` 且同一时间只有一个 pull/build/start 操作；服务器可用 `docker stats --no-stream`、`uptime` 和 `iostat -xz 1 3` 观察，不要并发重跑 workflow |
+| 后续发布仍反复下载全部 Go module 或全量编译 | Docker builder 首次运行、BuildKit 未启用、Go 版本/`go.mod`/`go.sum` 变化，或 builder cache 被人工清理 | 保持 `DOCKER_BUILDKIT=1` 和 Dockerfile 中的 `nebula-go-mod`/`nebula-go-build` cache mount；允许首次冷构建完成，后续构建自动复用 | 使用 `docker system df -v` 只读检查 Build Cache；不得在部署脚本中自动执行 `docker builder prune`，磁盘确有压力时必须先确认清理范围并获得授权 |
 | main push 后没有部署 | workflow 未进入 `production` environment，或 GitHub 缺少 `DOPPLER_TOKEN` | 检查 Actions 运行记录和 environment secret；不要把 token 改写到 workflow | `gh run list --workflow deploy.yml` 和 `gh secret list --env production`，只核对名称 |
-| 部署在读取 Doppler 配置时超时 | GitHub Runner 或云服务器到 Doppler API 的网络波动；旧的 CLI 完整配置下载特别容易受 dynamic secrets 影响 | 两端均使用 `curl` 的按名 REST 查询并对同一请求最多重试五次；服务器请求固定经 `127.0.0.1:7890` 的 Mihomo 代理，确认容器运行且端口仅监听 loopback | 查看 `Sync source and deploy` 日志、`docker compose -p nebula-api -f compose.production.yaml logs --tail 50 mihomo` 和 `ss -lntp '( sport = :7890 )'`；不要将生产配置复制到 GitHub secret |
+| 部署在读取 Doppler 配置时超时 | GitHub Runner 或云服务器到 Doppler API 的网络波动；旧的 CLI 完整配置下载特别容易受 dynamic secrets 影响 | 两端均使用 `curl` 的按名 REST 查询并对同一请求最多重试五次；生产服务器必须能直连 Doppler HTTPS API | 查看 `Sync source and deploy` 日志并在服务器执行不输出 secret 的 Doppler API 连通性检查；不要将生产配置复制到 GitHub secret |
 | 部署在 SSH 校验阶段失败 | Doppler 主机信息已更新但 `DEPLOY_SSH_KNOWN_HOSTS` 仍是旧主机公钥，或密码认证被禁用 | 在可信通道核对新服务器公钥并同时更新五个 `DEPLOY_SSH_*` 变量 | 不得关闭 `StrictHostKeyChecking`；不要在日志打印密码或完整 Doppler 配置 |
 | 远端镜像未更新 | 源码同步失败、服务器本地构建失败、磁盘不足或 Docker 服务异常 | 修正 SSH/Docker/构建网络问题后重新 push 新 commit | 检查 workflow 的 `Sync source and deploy` 日志、`docker image inspect nebula-api-backend:<version>`、`df -h /opt` 和 `docker system df`；不得删除无关项目镜像或卷 |
 | migrate 成功但应用健康检查超时 | backend 配置错误、依赖未健康、端口冲突或 frontend 未启动 | 按 postgres -> redis -> migrate -> backend -> frontend 顺序定位 | `cd /opt/nebula-api && docker compose -p nebula-api ps`；日志中不得输出 DSN 或 secret |

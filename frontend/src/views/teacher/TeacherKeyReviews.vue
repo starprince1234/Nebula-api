@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { teacherAPI } from '../../api/teacher'
 import type { ApiKey } from '../../api/types'
-import { APIError } from '../../api/client'
+import { APIError, apiErrorMessage } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge.vue'
 import AppDialog from '../../components/AppDialog.vue'
 import LoadingRegion from '../../components/LoadingRegion.vue'
@@ -13,7 +13,7 @@ const rows=ref<ApiKey[]>([]),selected=ref<ApiKey|null>(null),comment=ref(''),mon
 const filtered=computed(()=>rows.value.filter(key=>!query.value||`${key.applicant?.name} ${key.applicant?.email} ${key.project.name}`.toLowerCase().includes(query.value.toLowerCase()))),ready=computed(()=>Boolean(selected.value?.models.every(model=>model.status==='active'&&model.route_ready&&model.credit_multiplier!==null)))
 async function load(){await loadState.run(async()=>{try{rows.value=(await teacherAPI.keyReviews()).sort((a,b)=>a.created_at.localeCompare(b.created_at));error.value=''}catch(e){error.value=msg(e)}})}
 async function open(row:ApiKey){try{selected.value=await teacherAPI.keyReview(row.id);monthlyCredits.value=selected.value.mentor_monthly_credits??selected.value.requested_monthly_credits??'';comment.value=''}catch(e){error.value=msg(e)}}
-async function act(){if(!selected.value||!confirmation.value)return;const approve=confirmation.value==='approve';if(approve&&!monthlyCredits.value){error.value='终审通过必须填写最终月额度';return}if(!approve&&!comment.value.trim()){error.value='驳回必须填写原因';return}try{await teacherAPI.reviewKey(selected.value.id,approve,approve?monthlyCredits.value:undefined,comment.value||undefined);toast.success(approve?'终审已通过':'申请已驳回');selected.value=null;confirmation.value=null;await load()}catch(e){error.value=msg(e)}}
+async function act(){if(!selected.value||!confirmation.value)return;const approve=confirmation.value==='approve';if(approve&&!monthlyCredits.value){error.value='终审通过必须填写最终月额度';return}if(!approve&&!comment.value.trim()){error.value='驳回必须填写原因';return}try{await teacherAPI.reviewKey(selected.value.id,approve,approve?monthlyCredits.value:undefined,comment.value||undefined);toast.success(approve?'终审已通过':'申请已驳回');selected.value=null;confirmation.value=null;await load()}catch(e){confirmation.value=null;error.value=apiErrorMessage(e,approve?'终审未完成，请检查申请状态后重试':'驳回未完成，请检查申请状态后重试')}}
 function msg(e:unknown){return e instanceof APIError?e.message:'请求失败'}function refresh(){void load()}
 onMounted(()=>{void load();window.addEventListener('nebula:refresh',refresh)});onBeforeUnmount(()=>window.removeEventListener('nebula:refresh',refresh))
 </script>

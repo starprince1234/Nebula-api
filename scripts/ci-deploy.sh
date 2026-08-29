@@ -50,7 +50,8 @@ ssh_options=(
 )
 remote="$DEPLOY_SSH_USER@$DEPLOY_SSH_HOST"
 
-sshpass -e ssh "${ssh_options[@]}" "$remote" "mkdir -p '$remote_root'"
+sshpass -e ssh "${ssh_options[@]}" "$remote" \
+  "rm -rf -- '$remote_root' && mkdir -p '$remote_root'"
 tar \
   --exclude='./.git' \
   --exclude='./frontend/node_modules' \
@@ -60,8 +61,8 @@ tar \
   --exclude='./.env.*' \
   -czf - . | \
   sshpass -e ssh "${ssh_options[@]}" "$remote" \
-    "mkdir -p '$remote_root' && tar -xzf - -C '$remote_root'"
+    "tar -xzf - -C '$remote_root'"
 
 token_b64="$(printf '%s' "$DOPPLER_TOKEN" | base64 -w 0)"
 printf '%s\n' "$token_b64" | sshpass -e ssh "${ssh_options[@]}" "$remote" \
-  "IFS= read -r DOPPLER_TOKEN_B64 && export DOPPLER_TOKEN=\$(printf '%s' \"\$DOPPLER_TOKEN_B64\" | base64 -d) && export HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 ALL_PROXY=socks5h://127.0.0.1:7890 && exec bash '$remote_root/scripts/fetch-production-configuration.sh' bash '$remote_root/scripts/deploy.sh'"
+  "IFS= read -r DOPPLER_TOKEN_B64 && export DOPPLER_TOKEN=\$(printf '%s' \"\$DOPPLER_TOKEN_B64\" | base64 -d) && exec bash '$remote_root/scripts/fetch-production-configuration.sh' bash '$remote_root/scripts/deploy.sh'"

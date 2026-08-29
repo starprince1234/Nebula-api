@@ -1060,7 +1060,9 @@ func (s *Service) ReviewKeyAsTeacher(ctx context.Context, teacherID, keyID uuid.
 			if errors.As(approveErr, &appErr) {
 				return approveErr
 			}
-			return domain.WrapError(domain.CodeDependencyUnavailable, "approve API key allocation", approveErr)
+			dependencyErr := domain.WrapError(domain.CodeDependencyUnavailable, "approve API key allocation", approveErr)
+			dependencyErr.Details = map[string]any{"operation": "api_key_approval", "state_changed": false}
+			return dependencyErr
 		}
 		s.publishKeyStatus(ctx, ownerID, keyID, string(apikey.StatusApproved), s.now().UTC())
 		return nil

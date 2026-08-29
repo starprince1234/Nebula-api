@@ -408,7 +408,7 @@ data: {"revision":"01K2..."}
 
 老师只能读取 `pending_teacher` 申请。摘要包含申请学生的 `name/email`、组织、项目、模型状态和导师审核记录；不包含项目成员列表、历史 ACTIVE Key 或 Key hash。
 
-终审通过请求可省略 body，或传 `{"comment":"optional"}`。通过前必须再次校验全部模型及 ACTIVE binding；不满足时返回 `409 MODEL_NOT_READY` 和未就绪 `model_ids`。通过事务幂等创建学生的组织与项目成员关系，追加审核记录，并转为 `approved`。
+终审通过请求可省略 body，或传 `{"comment":"optional"}`。通过前必须再次校验全部模型及 ACTIVE binding；不满足时返回 `409 MODEL_NOT_READY` 和未就绪 `model_ids`。通过事务幂等创建学生的组织与项目成员关系，追加审核记录，并转为 `approved`。事务依赖失败返回 `503 DEPENDENCY_UNAVAILABLE`，`details` 固定包含 `{"operation":"api_key_approval","state_changed":false}`，表示本次终审已完整回滚；前端必须同时展示 `request_id` 供管理员定位日志。
 
 ## 8. 网关 API
 
@@ -530,7 +530,7 @@ Anthropic-compatible 示例：
 
 ## 10. 官方 Web 控制台消费约定
 
-仓库内 `frontend/` 是上述契约的官方 Vue 客户端。Vercel 项目的 Root Directory 为 `frontend`，生产页面使用 `https://www.lyn91r.cn`，并通过 `VITE_API_BASE_URL=https://api.lyn91r.cn` 调用 API；`frontend/vercel.json` 将 Vue Router history 路由统一回退到 `/index.html`，因此 `/login`、`/teacher/...` 等前端路由支持直接访问和刷新。本地 Vite 仍使用 `/api` 与 `/v1` 代理。生产 API 由 Cloudflare Tunnel 暴露为 `https://api.lyn91r.cn`，Tunnel Service 指向内部 `http://backend:8080`；cloudflared 的 edge 出站由同一网络命名空间中的 Mihomo TUN 承载，不改变公开路由或 HTTP 契约。控制面 CORS 只允许正式前端 Origin，并允许 credentials、Authorization、Content-Type 和 Last-Event-ID；Realtime WebSocket 同样校验正式前端 Origin。
+仓库内 `frontend/` 是上述契约的官方 Vue 客户端。Vercel 项目的 Root Directory 为 `frontend`，生产页面使用 `https://www.lyn91r.cn`，并通过 `VITE_API_BASE_URL=https://api.lyn91r.cn` 调用 API；`frontend/vercel.json` 将 Vue Router history 路由统一回退到 `/index.html`，因此 `/login`、`/teacher/...` 等前端路由支持直接访问和刷新。本地 Vite 仍使用 `/api` 与 `/v1` 代理。生产 API 由 Cloudflare Tunnel 暴露为 `https://api.lyn91r.cn`，Tunnel Service 指向内部 `http://backend:8080`；cloudflared 通过生产 `edge` 网络直接访问 backend 并连接 Cloudflare edge，不改变公开路由或 HTTP 契约。控制面 CORS 只允许正式前端 Origin，并允许 credentials、Authorization、Content-Type 和 Last-Event-ID；Realtime WebSocket 同样校验正式前端 Origin。
 
 - access token 只保存在 Pinia 内存中，不写入 localStorage、sessionStorage 或 URL。
 - refresh token 由 HttpOnly Cookie 管理，所有请求使用 `credentials: include`；并发 `401` 共享一次 refresh 请求，失败后返回登录页。

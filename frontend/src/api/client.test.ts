@@ -18,6 +18,7 @@ describe('API client', () => {
     expect(apiErrorMessage(new APIError('one or more models are not ready', 409, 'MODEL_NOT_READY', { model_ids: ['gpt-4.1', 'embedding-3'] }))).toContain('gpt-4.1、embedding-3')
     expect(apiErrorMessage(new APIError('json: unknown field "confirm"', 400, 'VALIDATION_ERROR', [{ field: 'body', reason: 'json: unknown field "confirm"' }]))).toContain('confirm')
     expect(apiErrorMessage(new APIError('email is already registered', 409, 'EMAIL_ALREADY_REGISTERED'))).toBe('该邮箱已注册，请直接登录')
+    expect(apiErrorMessage(new APIError('dependency failure', 503, 'DEPENDENCY_UNAVAILABLE', { operation: 'api_key_approval', state_changed: false }, 'request-123'))).toBe('终审未完成，额度和申请状态均未变更。请联系管理员并提供请求编号 request-123')
   })
 
   it('registers with only the fields accepted by the server DTO', async () => {

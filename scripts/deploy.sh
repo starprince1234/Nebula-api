@@ -7,6 +7,7 @@ readonly repository_root="/opt/nebula-api"
 readonly deployment_pause_seconds=10
 
 export COMPOSE_PARALLEL_LIMIT=1
+export DOCKER_BUILDKIT=1
 
 pause_between_stages() {
   printf 'Waiting %s seconds before the next deployment stage\n' "$deployment_pause_seconds"
@@ -194,35 +195,17 @@ if [[ -z "${CF_TUNNEL_TOKEN:-}" || "$CF_TUNNEL_TOKEN" == replace_with* ]]; then
 fi
 export TUNNEL_TOKEN="$CF_TUNNEL_TOKEN"
 
-if [[ ! -c /dev/net/tun ]]; then
-  printf '/dev/net/tun is required for the production Mihomo TUN\n' >&2
-  exit 1
-fi
-if ! python3 -c 'import yaml' >/dev/null 2>&1; then
-  printf 'Python PyYAML is required to configure the production Mihomo TUN\n' >&2
-  exit 1
-fi
-python3 scripts/configure-production-mihomo.py
-docker run --rm \
-  --volume /opt/mihomo:/root/.config/mihomo:ro \
-  dockerproxy.net/metacubex/mihomo:v1.19.30 \
-  -t -d /root/.config/mihomo
-
 compose=(docker compose --project-name "$compose_project" --file compose.production.yaml)
 "${compose[@]}" config --quiet
-for service in postgres redis mihomo cloudflared; do
+for service in postgres redis cloudflared; do
   printf 'Pulling production image for %s\n' "$service"
   "${compose[@]}" pull --quiet "$service"
   pause_between_stages
 done
 
-printf 'Building backend image with single-core Go compilation\n'
+printf 'Building backend image with single-core Go compilation and persistent BuildKit caches\n'
 "${compose[@]}" build backend
 pause_between_stages
-
-if docker container inspect mihomo >/dev/null 2>&1; then
-  docker container rm --force mihomo >/dev/null
-fi
 
 printf 'Starting postgres\n'
 "${compose[@]}" up -d --no-deps --force-recreate postgres
@@ -253,15 +236,9 @@ curl --fail --silent --show-error --noproxy '*' \
   http://127.0.0.1:8080/health/ready >/dev/null
 pause_between_stages
 
-printf 'Starting Mihomo\n'
-"${compose[@]}" up -d --no-build --no-deps --force-recreate mihomo
-for _ in $(seq 1 30); do
-  if python3 scripts/select-production-mihomo-group.py >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
-done
-python3 scripts/select-production-mihomo-group.py
+printf 'Starting maintenance worker\n'
+"${compose[@]}" up -d --no-build --no-deps --force-recreate maintenance
+wait_for_healthy_service maintenance
 pause_between_stages
 
 printf 'Starting Cloudflare Tunnel\n'
@@ -281,6 +258,6 @@ for _ in $(seq 1 36); do
 done
 
 "${compose[@]}" ps >&2
-"${compose[@]}" logs --tail 50 mihomo cloudflared >&2
+"${compose[@]}" logs --tail 50 cloudflared >&2
 printf 'Internal health or Cloudflare edge registration did not become ready within the staged deployment timeout\n' >&2
 exit 1

@@ -2,16 +2,21 @@ FROM docker.m.daocloud.io/library/golang:1.26.6-alpine3.24 AS builder
 ENV GOPROXY=https://goproxy.cn,direct
 ENV GOMAXPROCS=1
 ENV GOFLAGS=-p=1
+ENV GOMODCACHE=/go/pkg/mod
+ENV GOCACHE=/root/.cache/go-build
 WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,id=nebula-go-mod,target=/go/pkg/mod,sharing=locked \
+    go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
 
 ARG VERSION
-RUN test -n "$VERSION" && \
+RUN --mount=type=cache,id=nebula-go-mod,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=nebula-go-build,target=/root/.cache/go-build,sharing=locked \
+    test -n "$VERSION" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-server ./cmd/server && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-migrate ./cmd/migrate && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-maintenance ./cmd/maintenance

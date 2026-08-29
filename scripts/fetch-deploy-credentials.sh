@@ -30,7 +30,6 @@ curl \
   --silent \
   --show-error \
   --retry 5 \
-  --retry-all-errors \
   --retry-delay 5 \
   --connect-timeout 15 \
   --max-time 90 \
