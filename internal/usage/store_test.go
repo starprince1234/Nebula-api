@@ -118,3 +118,39 @@ func TestApproveKeyBindsProjectBucketMonth(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRunMaintenanceUsesTypedHeartbeatParameters(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+
+	store := NewStore(database)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT pg_try_advisory_lock($1)`)).
+		WithArgs(int64(7_823_409_118)).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_try_advisory_lock"}).AddRow(true))
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO project_month_credit_buckets`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(`INSERT INTO api_key_month_credit_buckets`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+	mock.ExpectQuery(`SELECT id,request_id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,multiplier_milli FROM gateway_calls`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "request_id", "month", "organization_id", "project_id", "user_id", "api_key_id", "model_id", "organization_name", "project_name", "user_name", "api_key_name", "model_name", "multiplier_milli"}))
+	mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO maintenance_state(id,name,last_success_at,last_error,created_at,updated_at) VALUES(gen_random_uuid(),'credit-maintenance',CASE WHEN $1::text='' THEN $2::timestamptz ELSE NULL END,NULLIF($1::text,''),$2::timestamptz,$2::timestamptz) ON CONFLICT(name) DO UPDATE SET last_success_at=CASE WHEN $1::text='' THEN $2::timestamptz ELSE maintenance_state.last_success_at END,last_error=NULLIF($1::text,''),updated_at=$2::timestamptz`)).
+		WithArgs("", sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_unlock($1)`)).
+		WithArgs(int64(7_823_409_118)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := store.RunMaintenance(context.Background(), false); err != nil {
+		t.Fatalf("run maintenance: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

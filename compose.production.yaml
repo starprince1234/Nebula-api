@@ -138,6 +138,7 @@ services:
     networks: [data]
     depends_on:
       migrate: {condition: service_completed_successfully}
+    healthcheck: {disable: true}
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     read_only: true

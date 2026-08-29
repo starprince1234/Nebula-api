@@ -77,7 +77,7 @@ func (s *Store) RunMaintenance(ctx context.Context, clean bool) error {
 	if err != nil {
 		message = sanitize(err.Error())
 	}
-	_, heartbeatErr := connection.ExecContext(ctx, `INSERT INTO maintenance_state(id,name,last_success_at,last_error,created_at,updated_at) VALUES(gen_random_uuid(),'credit-maintenance',CASE WHEN $1='' THEN $2 ELSE NULL END,NULLIF($1,''),$2,$2) ON CONFLICT(name) DO UPDATE SET last_success_at=CASE WHEN $1='' THEN $2 ELSE maintenance_state.last_success_at END,last_error=NULLIF($1,''),updated_at=$2`, message, now)
+	_, heartbeatErr := connection.ExecContext(ctx, `INSERT INTO maintenance_state(id,name,last_success_at,last_error,created_at,updated_at) VALUES(gen_random_uuid(),'credit-maintenance',CASE WHEN $1::text='' THEN $2::timestamptz ELSE NULL END,NULLIF($1::text,''),$2::timestamptz,$2::timestamptz) ON CONFLICT(name) DO UPDATE SET last_success_at=CASE WHEN $1::text='' THEN $2::timestamptz ELSE maintenance_state.last_success_at END,last_error=NULLIF($1::text,''),updated_at=$2::timestamptz`, message, now)
 	if err != nil {
 		return err
 	}
