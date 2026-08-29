@@ -6,6 +6,8 @@
 
 导师项目用量响应同时返回顶层 `free_models` 项目汇总和 `members[].free_models` 成员明细；两者的每个模型均包含 `id`、`name`、固定 `credits: "0.000"` 与 `calls`。同一模型的项目 `calls` 必须等于全部成员对应 `calls` 之和。
 
+`members[].keys[]` 同时返回 `models` 白名单摘要（`id`、`name`），供调用日志和输入监控按“项目 → 成员 → Key → 模型”进行级联筛选；下级为空表示当前上级范围内全部。
+
 本文档定义首期控制面 `/api/v1` 与模型网关 `/v1` 的已实现契约。Gin Handler、控制面 Service、Redis SSE、审批事务和网关运行逻辑均已落盘；实际运行依赖已初始化的 PostgreSQL、Redis 和有效环境配置。
 
 契约依据参考项目真实 Controller、Schema 与 Gateway 路由重新设计，不兼容旧 `/api/nebula/gateway`、无 `/v1` 路径别名或 internal usage/monitor 路由。

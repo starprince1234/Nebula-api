@@ -8,7 +8,7 @@ import (
 
 func TestUsageJSONContractUsesSnakeCase(t *testing.T) {
 	t.Parallel()
-	raw, err := json.Marshal(ProjectUsage{ProjectID: "project", ProjectName: "Project", Quota: "20.000", Members: []MemberUsage{{UserID: "user", UserName: "User", Keys: []KeyMemberUsage{{ID: "key", Quota: "2.000"}}, FreeModels: []UsageSlice{{ID: "model", Name: "Free", Credits: "0.000", Calls: 3}}}}, Models: []UsageSlice{}, FreeModels: []UsageSlice{{ID: "model", Name: "Free", Credits: "0.000", Calls: 3}}})
+	raw, err := json.Marshal(ProjectUsage{ProjectID: "project", ProjectName: "Project", Quota: "20.000", Members: []MemberUsage{{UserID: "user", UserName: "User", Keys: []KeyMemberUsage{{ID: "key", Quota: "2.000", Models: []UsageSlice{{ID: "model", Name: "Free"}}}}, FreeModels: []UsageSlice{{ID: "model", Name: "Free", Credits: "0.000", Calls: 3}}}}, Models: []UsageSlice{}, FreeModels: []UsageSlice{{ID: "model", Name: "Free", Credits: "0.000", Calls: 3}}})
 	if err != nil {
 		t.Fatal(err)
 	}

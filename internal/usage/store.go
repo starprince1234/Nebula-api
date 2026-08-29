@@ -684,12 +684,13 @@ type MemberUsage struct {
 	FreeModels []UsageSlice     `json:"free_models"`
 }
 type KeyMemberUsage struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Quota      string `json:"quota"`
-	Allocation string `json:"allocation"`
-	Used       string `json:"used"`
+	ID         string       `json:"id"`
+	Name       string       `json:"name"`
+	Status     string       `json:"status"`
+	Quota      string       `json:"quota"`
+	Allocation string       `json:"allocation"`
+	Used       string       `json:"used"`
+	Models     []UsageSlice `json:"models"`
 }
 
 func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month time.Time) (ProjectUsage, error) {
@@ -732,7 +733,7 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 		m.Credits = domain.FormatCredits(credit)
 		m.Keys = []KeyMemberUsage{}
 		m.FreeModels = []UsageSlice{}
-		kr, err := s.db.QueryContext(ctx, `SELECT k.id,k.name,k.status,b.quota_milli,b.charged_milli FROM api_keys k JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$3 WHERE k.project_id=$1 AND k.owner_user_id=$2 AND (k.status IN ('approved','active') OR b.charged_milli>0) ORDER BY k.name`, projectID, uid, month)
+		kr, err := s.db.QueryContext(ctx, `SELECT k.id,k.name,k.status,b.quota_milli,b.charged_milli FROM api_keys k JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$3 WHERE k.project_id=$1 AND k.owner_user_id=$2 AND (k.status IN ('approved','active') OR b.charged_milli>0 OR EXISTS(SELECT 1 FROM monthly_usage_cube c WHERE c.api_key_id=k.id AND c.month=$3)) ORDER BY k.name`, projectID, uid, month)
 		if err != nil {
 			return v, err
 		}
@@ -745,6 +746,7 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 				return v, err
 			}
 			ki.ID = kid.String()
+			ki.Models = []UsageSlice{}
 			ki.Quota = domain.FormatCredits(kq)
 			ki.Used = domain.FormatCredits(ku)
 			if ki.Status == "revoked" {
@@ -752,6 +754,27 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 			} else {
 				ki.Allocation = ki.Quota
 			}
+			modelRows, err := s.db.QueryContext(ctx, `SELECT m.id,m.display_name FROM api_key_models km JOIN models m ON m.id=km.model_id WHERE km.api_key_id=$1 ORDER BY m.display_name,m.id`, kid)
+			if err != nil {
+				kr.Close()
+				return v, err
+			}
+			for modelRows.Next() {
+				var modelID uuid.UUID
+				var modelName string
+				if err := modelRows.Scan(&modelID, &modelName); err != nil {
+					modelRows.Close()
+					kr.Close()
+					return v, err
+				}
+				ki.Models = append(ki.Models, UsageSlice{ID: modelID.String(), Name: modelName, Credits: "0.000"})
+			}
+			if err := modelRows.Err(); err != nil {
+				modelRows.Close()
+				kr.Close()
+				return v, err
+			}
+			modelRows.Close()
 			m.Keys = append(m.Keys, ki)
 		}
 		kr.Close()
