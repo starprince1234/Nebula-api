@@ -96,6 +96,11 @@ func IsCommon(v bool) predicate.Model {
 	return predicate.Model(sql.FieldEQ(FieldIsCommon, v))
 }
 
+// CreditMultiplierMilli applies equality check predicate on the "credit_multiplier_milli" field. It's identical to CreditMultiplierMilliEQ.
+func CreditMultiplierMilli(v int64) predicate.Model {
+	return predicate.Model(sql.FieldEQ(FieldCreditMultiplierMilli, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Model {
 	return predicate.Model(sql.FieldEQ(FieldCreatedAt, v))
@@ -529,6 +534,56 @@ func StatusIn(vs ...Status) predicate.Model {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Model {
 	return predicate.Model(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// CreditMultiplierMilliEQ applies the EQ predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliEQ(v int64) predicate.Model {
+	return predicate.Model(sql.FieldEQ(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliNEQ applies the NEQ predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliNEQ(v int64) predicate.Model {
+	return predicate.Model(sql.FieldNEQ(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliIn applies the In predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliIn(vs ...int64) predicate.Model {
+	return predicate.Model(sql.FieldIn(FieldCreditMultiplierMilli, vs...))
+}
+
+// CreditMultiplierMilliNotIn applies the NotIn predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliNotIn(vs ...int64) predicate.Model {
+	return predicate.Model(sql.FieldNotIn(FieldCreditMultiplierMilli, vs...))
+}
+
+// CreditMultiplierMilliGT applies the GT predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliGT(v int64) predicate.Model {
+	return predicate.Model(sql.FieldGT(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliGTE applies the GTE predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliGTE(v int64) predicate.Model {
+	return predicate.Model(sql.FieldGTE(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliLT applies the LT predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliLT(v int64) predicate.Model {
+	return predicate.Model(sql.FieldLT(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliLTE applies the LTE predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliLTE(v int64) predicate.Model {
+	return predicate.Model(sql.FieldLTE(FieldCreditMultiplierMilli, v))
+}
+
+// CreditMultiplierMilliIsNil applies the IsNil predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliIsNil() predicate.Model {
+	return predicate.Model(sql.FieldIsNull(FieldCreditMultiplierMilli))
+}
+
+// CreditMultiplierMilliNotNil applies the NotNil predicate on the "credit_multiplier_milli" field.
+func CreditMultiplierMilliNotNil() predicate.Model {
+	return predicate.Model(sql.FieldNotNull(FieldCreditMultiplierMilli))
 }
 
 // HasBindings applies the HasEdge predicate on the "bindings" edge.

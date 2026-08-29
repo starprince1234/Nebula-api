@@ -3,6 +3,7 @@ package controlplane
 import (
 	"time"
 
+	"github.com/starprince1234/Nebula-api/internal/domain"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent"
 )
 
@@ -23,14 +24,15 @@ type OrganizationView struct {
 }
 
 type ProjectView struct {
-	ID                string  `json:"id"`
-	OrganizationID    string  `json:"organization_id"`
-	Name              string  `json:"name"`
-	Description       *string `json:"description"`
-	Status            string  `json:"status"`
-	HasMentor         bool    `json:"has_mentor"`
-	IsResponsible     bool    `json:"is_responsible,omitempty"`
-	ApplicationStatus *string `json:"application_status,omitempty"`
+	ID                 string  `json:"id"`
+	OrganizationID     string  `json:"organization_id"`
+	Name               string  `json:"name"`
+	Description        *string `json:"description"`
+	Status             string  `json:"status"`
+	HasMentor          bool    `json:"has_mentor"`
+	IsResponsible      bool    `json:"is_responsible,omitempty"`
+	ApplicationStatus  *string `json:"application_status,omitempty"`
+	MonthlyCreditQuota string  `json:"monthly_credit_quota"`
 }
 
 type ModelView struct {
@@ -47,6 +49,7 @@ type ModelView struct {
 	IsCommon         bool     `json:"is_common"`
 	Status           string   `json:"status"`
 	RouteReady       bool     `json:"route_ready"`
+	CreditMultiplier *string  `json:"credit_multiplier"`
 }
 
 type MentorCandidateView struct {
@@ -69,19 +72,22 @@ type ProgressView struct {
 }
 
 type APIKeyView struct {
-	ID           string           `json:"id"`
-	Name         string           `json:"name"`
-	Status       string           `json:"status"`
-	Progress     ProgressView     `json:"progress"`
-	Applicant    UserView         `json:"applicant,omitempty"`
-	Organization OrganizationView `json:"organization"`
-	Project      ProjectView      `json:"project"`
-	Models       []ModelView      `json:"models"`
-	Audits       []AuditView      `json:"audits,omitempty"`
-	KeyPrefix    *string          `json:"key_prefix"`
-	ClaimedAt    *time.Time       `json:"claimed_at"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
+	ID                      string           `json:"id"`
+	Name                    string           `json:"name"`
+	Status                  string           `json:"status"`
+	Progress                ProgressView     `json:"progress"`
+	Applicant               UserView         `json:"applicant,omitempty"`
+	Organization            OrganizationView `json:"organization"`
+	Project                 ProjectView      `json:"project"`
+	Models                  []ModelView      `json:"models"`
+	Audits                  []AuditView      `json:"audits,omitempty"`
+	KeyPrefix               *string          `json:"key_prefix"`
+	ClaimedAt               *time.Time       `json:"claimed_at"`
+	CreatedAt               time.Time        `json:"created_at"`
+	UpdatedAt               time.Time        `json:"updated_at"`
+	RequestedMonthlyCredits string           `json:"requested_monthly_credits"`
+	MentorMonthlyCredits    *string          `json:"mentor_monthly_credits"`
+	MonthlyCredits          *string          `json:"monthly_credits"`
 }
 
 type SessionView struct {
@@ -144,11 +150,12 @@ func projectView(project *ent.Project, hasMentor bool) ProjectView {
 		ID: project.ID.String(), OrganizationID: project.OrganizationID.String(),
 		Name: project.Name, Description: project.Description,
 		Status: string(project.Status), HasMentor: hasMentor,
+		MonthlyCreditQuota: domain.FormatCredits(project.MonthlyCreditQuotaMilli),
 	}
 }
 
 func modelView(model *ent.Model) ModelView {
-	return ModelView{
+	view := ModelView{
 		ID: model.ID.String(), ModelID: model.ModelID, DisplayName: model.DisplayName,
 		Description: model.Description, Category: string(model.Category),
 		Capabilities: model.Capabilities, InputModalities: model.InputModalities,
@@ -156,4 +163,9 @@ func modelView(model *ent.Model) ModelView {
 		MaxOutputTokens: model.MaxOutputTokens, IsCommon: model.IsCommon,
 		Status: string(model.Status),
 	}
+	if model.CreditMultiplierMilli != nil {
+		value := domain.FormatCredits(*model.CreditMultiplierMilli)
+		view.CreditMultiplier = &value
+	}
+	return view
 }

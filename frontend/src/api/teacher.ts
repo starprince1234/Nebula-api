@@ -1,5 +1,5 @@
 import { get, page, patch, post } from './client'
-import type { ApiKey, Application, Binding, BindingCreate, BindingUpdate, MentorCandidate, Model, ModelCreate, ModelUpdate, Organization, OrganizationCreate, OrganizationUpdate, Project, ProjectCreate, ProjectUpdate, Provider, ProviderCreate, ProviderUpdate } from './types'
+import type { ApiKey, Application, Binding, BindingCreate, BindingUpdate, MentorCandidate, Model, ModelCreate, ModelUpdate, Organization, OrganizationCreate, OrganizationUpdate, Project, ProjectCreate, ProjectUpdate, Provider, ProviderCreate, ProviderUpdate, ProjectUsage } from './types'
 export const teacherAPI = {
   invite: (email: string) => post<{ invited: boolean }>('/api/v1/teacher/invitations', { email }),
   organizations: () => get<Organization[]>('/api/v1/teacher/organizations'),
@@ -8,6 +8,7 @@ export const teacherAPI = {
   mentorCandidates: (org: string, query = '', cursor = '', limit = 20) => page<MentorCandidate[]>(`/api/v1/teacher/organizations/${org}/mentor-candidates?${new URLSearchParams({ q: query, ...(cursor ? { cursor } : {}), limit: String(limit) })}`),
   assignMentor: (org: string, mentor: string) => post<void>(`/api/v1/teacher/organizations/${org}/mentors/${mentor}`),
   projects: (filters: { organization_id?: string; status?: string } = {}) => { const query = new URLSearchParams(filters); return get<Project[]>(`/api/v1/teacher/projects${query.size ? `?${query}` : ''}`) },
+  projectSpend: (query = '') => get<ProjectUsage[]>(`/api/v1/teacher/project-spend${query ? `?${query}` : ''}`),
   createProject: (body: ProjectCreate) => post<Project>('/api/v1/teacher/projects', body),
   updateProject: (id: string, body: ProjectUpdate) => patch<Project>(`/api/v1/teacher/projects/${id}`, body),
   mentorApplications: (status = 'pending') => get<Application[]>(`/api/v1/teacher/mentor-project-applications?status=${status}`),

@@ -35,8 +35,6 @@ func TestSupportedRoutesExcludeLegacyAliases(t *testing.T) {
 		{http.MethodGet, "/v1/videos/video-123/content"},
 		{http.MethodPost, "/v1/videos/video-123/remix"},
 		{http.MethodPost, "/v1/moderations"},
-		{http.MethodPost, "/v1/realtime/client_secrets"},
-		{http.MethodPost, "/v1/realtime/calls"},
 		{http.MethodPost, "/v1/messages"},
 		{http.MethodPost, "/v1beta/models/gemini-2.5-pro:generateContent"},
 		{http.MethodPost, "/v1beta/models/gemini-2.5-pro:streamGenerateContent"},
@@ -70,18 +68,17 @@ func TestJoinUpstreamURL(t *testing.T) {
 func TestAdapterForPath(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
-		"/v1/chat/completions":        "openai_compatible",
-		"/v1/responses":               "openai_responses",
-		"/v1/responses/compact":       "openai_responses",
-		"/v1/embeddings":              "openai_embeddings",
-		"/v1/images/generations":      "openai_images",
-		"/v1/audio/transcriptions":    "openai_audio",
-		"/v1/videos":                  "openai_video",
-		"/v1/realtime":                "openai_realtime",
-		"/v1/realtime/client_secrets": "openai_realtime",
-		"/v1/moderations":             "openai_moderations",
-		"/v1/messages":                "anthropic",
-		"/v2/rerank":                  "cohere_rerank_v2",
+		"/v1/chat/completions":     "openai_compatible",
+		"/v1/responses":            "openai_responses",
+		"/v1/responses/compact":    "openai_responses",
+		"/v1/embeddings":           "openai_embeddings",
+		"/v1/images/generations":   "openai_images",
+		"/v1/audio/transcriptions": "openai_audio",
+		"/v1/videos":               "openai_video",
+		"/v1/realtime":             "openai_realtime",
+		"/v1/moderations":          "openai_moderations",
+		"/v1/messages":             "anthropic",
+		"/v2/rerank":               "cohere_rerank_v2",
 		"/v1beta/models/gemini-2.5-pro:generateContent": "google_gemini_v1beta",
 	}
 	for requestPath, expected := range tests {
@@ -125,58 +122,6 @@ func TestCodexResponsesBodyAndHeadersArePreserved(t *testing.T) {
 	}
 }
 
-func TestRealtimeCallSessionModelRewritePreservesSDP(t *testing.T) {
-	t.Parallel()
-	var original bytes.Buffer
-	writer := multipart.NewWriter(&original)
-	if err := writer.WriteField("session", `{"type":"realtime","model":"public-realtime","audio":{"output":{"voice":"marin"}}}`); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.WriteField("sdp", "v=0\r\n"); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	replay, err := captureBody(io.NopCloser(bytes.NewReader(original.Bytes())), 1<<20)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer replay.Close()
-	model, err := extractRequestedModel("/v1/realtime/calls", writer.FormDataContentType(), replay)
-	if err != nil || model != "public-realtime" {
-		t.Fatalf("unexpected model %q, err=%v", model, err)
-	}
-	body, contentType, _, cleanup, err := rewriteUpstreamBody(writer.FormDataContentType(), replay, "gpt-realtime-upstream", modelbinding.AdapterOpenaiRealtime)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reader := multipart.NewReader(body, params["boundary"])
-	values := map[string]string{}
-	for {
-		part, err := reader.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		raw, err := io.ReadAll(part)
-		if err != nil {
-			t.Fatal(err)
-		}
-		values[part.FormName()] = string(raw)
-	}
-	if !strings.Contains(values["session"], `"model":"gpt-realtime-upstream"`) || values["sdp"] != "v=0\r\n" {
-		t.Fatalf("unexpected realtime multipart: %#v", values)
-	}
-}
-
 func TestOfficialVideoResourceRouting(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
@@ -208,31 +153,6 @@ func TestResponsesWebSocketModelRewritePreservesCodexFields(t *testing.T) {
 		if !bytes.Contains(rewritten, []byte(field)) {
 			t.Fatalf("Responses WebSocket field %s was lost: %s", field, rewritten)
 		}
-	}
-}
-
-func TestRealtimeClientSecretNestedModelRewrite(t *testing.T) {
-	t.Parallel()
-	replay, err := captureBody(io.NopCloser(strings.NewReader(`{"expires_after":{"anchor":"created_at","seconds":600},"session":{"type":"realtime","model":"public-realtime","instructions":"hello"}}`)), 4096)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer replay.Close()
-	model, err := extractRequestedModel("/v1/realtime/client_secrets", "application/json", replay)
-	if err != nil || model != "public-realtime" {
-		t.Fatalf("unexpected model %q, err=%v", model, err)
-	}
-	body, _, _, cleanup, err := rewriteUpstreamBody("application/json", replay, "gpt-realtime-upstream", modelbinding.AdapterOpenaiRealtime)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	raw, err := io.ReadAll(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(raw, []byte(`"model":"gpt-realtime-upstream"`)) || !bytes.Contains(raw, []byte(`"seconds":600`)) || !bytes.Contains(raw, []byte(`"instructions":"hello"`)) {
-		t.Fatalf("unexpected client secret body: %s", raw)
 	}
 }
 

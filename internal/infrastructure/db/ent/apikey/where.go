@@ -101,6 +101,21 @@ func RevokedAt(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldRevokedAt, v))
 }
 
+// RequestedMonthlyCreditQuotaMilli applies equality check predicate on the "requested_monthly_credit_quota_milli" field. It's identical to RequestedMonthlyCreditQuotaMilliEQ.
+func RequestedMonthlyCreditQuotaMilli(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilli applies equality check predicate on the "mentor_monthly_credit_quota_milli" field. It's identical to MentorMonthlyCreditQuotaMilliEQ.
+func MentorMonthlyCreditQuotaMilli(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilli applies equality check predicate on the "monthly_credit_quota_milli" field. It's identical to MonthlyCreditQuotaMilliEQ.
+func MonthlyCreditQuotaMilli(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldCreatedAt, v))
@@ -531,6 +546,146 @@ func RevokedAtNotNil() predicate.APIKey {
 	return predicate.APIKey(sql.FieldNotNull(FieldRevokedAt))
 }
 
+// RequestedMonthlyCreditQuotaMilliEQ applies the EQ predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// RequestedMonthlyCreditQuotaMilliNEQ applies the NEQ predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// RequestedMonthlyCreditQuotaMilliIn applies the In predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldRequestedMonthlyCreditQuotaMilli, vs...))
+}
+
+// RequestedMonthlyCreditQuotaMilliNotIn applies the NotIn predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldRequestedMonthlyCreditQuotaMilli, vs...))
+}
+
+// RequestedMonthlyCreditQuotaMilliGT applies the GT predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// RequestedMonthlyCreditQuotaMilliGTE applies the GTE predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// RequestedMonthlyCreditQuotaMilliLT applies the LT predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// RequestedMonthlyCreditQuotaMilliLTE applies the LTE predicate on the "requested_monthly_credit_quota_milli" field.
+func RequestedMonthlyCreditQuotaMilliLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldRequestedMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliEQ applies the EQ predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliNEQ applies the NEQ predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliIn applies the In predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldMentorMonthlyCreditQuotaMilli, vs...))
+}
+
+// MentorMonthlyCreditQuotaMilliNotIn applies the NotIn predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldMentorMonthlyCreditQuotaMilli, vs...))
+}
+
+// MentorMonthlyCreditQuotaMilliGT applies the GT predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliGTE applies the GTE predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliLT applies the LT predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliLTE applies the LTE predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldMentorMonthlyCreditQuotaMilli, v))
+}
+
+// MentorMonthlyCreditQuotaMilliIsNil applies the IsNil predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliIsNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldIsNull(FieldMentorMonthlyCreditQuotaMilli))
+}
+
+// MentorMonthlyCreditQuotaMilliNotNil applies the NotNil predicate on the "mentor_monthly_credit_quota_milli" field.
+func MentorMonthlyCreditQuotaMilliNotNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotNull(FieldMentorMonthlyCreditQuotaMilli))
+}
+
+// MonthlyCreditQuotaMilliEQ applies the EQ predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliNEQ applies the NEQ predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliIn applies the In predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldMonthlyCreditQuotaMilli, vs...))
+}
+
+// MonthlyCreditQuotaMilliNotIn applies the NotIn predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldMonthlyCreditQuotaMilli, vs...))
+}
+
+// MonthlyCreditQuotaMilliGT applies the GT predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliGTE applies the GTE predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliLT applies the LT predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliLTE applies the LTE predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliIsNil applies the IsNil predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliIsNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldIsNull(FieldMonthlyCreditQuotaMilli))
+}
+
+// MonthlyCreditQuotaMilliNotNil applies the NotNil predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliNotNil() predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotNull(FieldMonthlyCreditQuotaMilli))
+}
+
 // HasOwner applies the HasEdge predicate on the "owner" edge.
 func HasOwner() predicate.APIKey {
 	return predicate.APIKey(func(s *sql.Selector) {
@@ -615,6 +770,29 @@ func HasAudits() predicate.APIKey {
 func HasAuditsWith(preds ...predicate.APIKeyAudit) predicate.APIKey {
 	return predicate.APIKey(func(s *sql.Selector) {
 		step := newAuditsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCreditBuckets applies the HasEdge predicate on the "credit_buckets" edge.
+func HasCreditBuckets() predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, CreditBucketsTable, CreditBucketsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCreditBucketsWith applies the HasEdge predicate on the "credit_buckets" edge with a given conditions (other predicates).
+func HasCreditBucketsWith(preds ...predicate.APIKeyMonthCreditBucket) predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := newCreditBucketsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

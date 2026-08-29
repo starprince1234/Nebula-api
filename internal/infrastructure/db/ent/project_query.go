@@ -15,25 +15,29 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organization"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/predicate"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmonthcreditbucket"
 )
 
 // ProjectQuery is the builder for querying Project entities.
 type ProjectQuery struct {
 	config
-	ctx                    *QueryContext
-	order                  []project.OrderOption
-	inters                 []Interceptor
-	predicates             []predicate.Project
-	withOrganization       *OrganizationQuery
-	withMemberships        *ProjectMemberQuery
-	withMentorApplications *MentorProjectApplicationQuery
-	withAPIKeys            *APIKeyQuery
-	modifiers              []func(*sql.Selector)
+	ctx                     *QueryContext
+	order                   []project.OrderOption
+	inters                  []Interceptor
+	predicates              []predicate.Project
+	withOrganization        *OrganizationQuery
+	withMemberships         *ProjectMemberQuery
+	withMentorApplications  *MentorProjectApplicationQuery
+	withAPIKeys             *APIKeyQuery
+	withCreditBuckets       *ProjectMonthCreditBucketQuery
+	withAPIKeyCreditBuckets *APIKeyMonthCreditBucketQuery
+	modifiers               []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -151,6 +155,50 @@ func (_q *ProjectQuery) QueryAPIKeys() *APIKeyQuery {
 			sqlgraph.From(project.Table, project.FieldID, selector),
 			sqlgraph.To(apikey.Table, apikey.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, project.APIKeysTable, project.APIKeysColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCreditBuckets chains the current query on the "credit_buckets" edge.
+func (_q *ProjectQuery) QueryCreditBuckets() *ProjectMonthCreditBucketQuery {
+	query := (&ProjectMonthCreditBucketClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(project.Table, project.FieldID, selector),
+			sqlgraph.To(projectmonthcreditbucket.Table, projectmonthcreditbucket.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, project.CreditBucketsTable, project.CreditBucketsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAPIKeyCreditBuckets chains the current query on the "api_key_credit_buckets" edge.
+func (_q *ProjectQuery) QueryAPIKeyCreditBuckets() *APIKeyMonthCreditBucketQuery {
+	query := (&APIKeyMonthCreditBucketClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(project.Table, project.FieldID, selector),
+			sqlgraph.To(apikeymonthcreditbucket.Table, apikeymonthcreditbucket.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, project.APIKeyCreditBucketsTable, project.APIKeyCreditBucketsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -345,15 +393,17 @@ func (_q *ProjectQuery) Clone() *ProjectQuery {
 		return nil
 	}
 	return &ProjectQuery{
-		config:                 _q.config,
-		ctx:                    _q.ctx.Clone(),
-		order:                  append([]project.OrderOption{}, _q.order...),
-		inters:                 append([]Interceptor{}, _q.inters...),
-		predicates:             append([]predicate.Project{}, _q.predicates...),
-		withOrganization:       _q.withOrganization.Clone(),
-		withMemberships:        _q.withMemberships.Clone(),
-		withMentorApplications: _q.withMentorApplications.Clone(),
-		withAPIKeys:            _q.withAPIKeys.Clone(),
+		config:                  _q.config,
+		ctx:                     _q.ctx.Clone(),
+		order:                   append([]project.OrderOption{}, _q.order...),
+		inters:                  append([]Interceptor{}, _q.inters...),
+		predicates:              append([]predicate.Project{}, _q.predicates...),
+		withOrganization:        _q.withOrganization.Clone(),
+		withMemberships:         _q.withMemberships.Clone(),
+		withMentorApplications:  _q.withMentorApplications.Clone(),
+		withAPIKeys:             _q.withAPIKeys.Clone(),
+		withCreditBuckets:       _q.withCreditBuckets.Clone(),
+		withAPIKeyCreditBuckets: _q.withAPIKeyCreditBuckets.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -401,6 +451,28 @@ func (_q *ProjectQuery) WithAPIKeys(opts ...func(*APIKeyQuery)) *ProjectQuery {
 		opt(query)
 	}
 	_q.withAPIKeys = query
+	return _q
+}
+
+// WithCreditBuckets tells the query-builder to eager-load the nodes that are connected to
+// the "credit_buckets" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ProjectQuery) WithCreditBuckets(opts ...func(*ProjectMonthCreditBucketQuery)) *ProjectQuery {
+	query := (&ProjectMonthCreditBucketClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCreditBuckets = query
+	return _q
+}
+
+// WithAPIKeyCreditBuckets tells the query-builder to eager-load the nodes that are connected to
+// the "api_key_credit_buckets" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ProjectQuery) WithAPIKeyCreditBuckets(opts ...func(*APIKeyMonthCreditBucketQuery)) *ProjectQuery {
+	query := (&APIKeyMonthCreditBucketClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withAPIKeyCreditBuckets = query
 	return _q
 }
 
@@ -482,11 +554,13 @@ func (_q *ProjectQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Proj
 	var (
 		nodes       = []*Project{}
 		_spec       = _q.querySpec()
-		loadedTypes = [4]bool{
+		loadedTypes = [6]bool{
 			_q.withOrganization != nil,
 			_q.withMemberships != nil,
 			_q.withMentorApplications != nil,
 			_q.withAPIKeys != nil,
+			_q.withCreditBuckets != nil,
+			_q.withAPIKeyCreditBuckets != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -536,6 +610,24 @@ func (_q *ProjectQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Proj
 		if err := _q.loadAPIKeys(ctx, query, nodes,
 			func(n *Project) { n.Edges.APIKeys = []*APIKey{} },
 			func(n *Project, e *APIKey) { n.Edges.APIKeys = append(n.Edges.APIKeys, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCreditBuckets; query != nil {
+		if err := _q.loadCreditBuckets(ctx, query, nodes,
+			func(n *Project) { n.Edges.CreditBuckets = []*ProjectMonthCreditBucket{} },
+			func(n *Project, e *ProjectMonthCreditBucket) {
+				n.Edges.CreditBuckets = append(n.Edges.CreditBuckets, e)
+			}); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withAPIKeyCreditBuckets; query != nil {
+		if err := _q.loadAPIKeyCreditBuckets(ctx, query, nodes,
+			func(n *Project) { n.Edges.APIKeyCreditBuckets = []*APIKeyMonthCreditBucket{} },
+			func(n *Project, e *APIKeyMonthCreditBucket) {
+				n.Edges.APIKeyCreditBuckets = append(n.Edges.APIKeyCreditBuckets, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -646,6 +738,66 @@ func (_q *ProjectQuery) loadAPIKeys(ctx context.Context, query *APIKeyQuery, nod
 	}
 	query.Where(predicate.APIKey(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(project.APIKeysColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.ProjectID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "project_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *ProjectQuery) loadCreditBuckets(ctx context.Context, query *ProjectMonthCreditBucketQuery, nodes []*Project, init func(*Project), assign func(*Project, *ProjectMonthCreditBucket)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Project)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(projectmonthcreditbucket.FieldProjectID)
+	}
+	query.Where(predicate.ProjectMonthCreditBucket(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(project.CreditBucketsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.ProjectID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "project_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *ProjectQuery) loadAPIKeyCreditBuckets(ctx context.Context, query *APIKeyMonthCreditBucketQuery, nodes []*Project, init func(*Project), assign func(*Project, *APIKeyMonthCreditBucket)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Project)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(apikeymonthcreditbucket.FieldProjectID)
+	}
+	query.Where(predicate.APIKeyMonthCreditBucket(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(project.APIKeyCreditBucketsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

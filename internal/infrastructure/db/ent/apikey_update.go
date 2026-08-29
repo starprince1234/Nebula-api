@@ -15,6 +15,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeyaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymodel"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/predicate"
 )
 
@@ -137,6 +138,81 @@ func (_u *APIKeyUpdate) ClearRevokedAt() *APIKeyUpdate {
 	return _u
 }
 
+// SetRequestedMonthlyCreditQuotaMilli sets the "requested_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) SetRequestedMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.ResetRequestedMonthlyCreditQuotaMilli()
+	_u.mutation.SetRequestedMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableRequestedMonthlyCreditQuotaMilli sets the "requested_monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableRequestedMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetRequestedMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddRequestedMonthlyCreditQuotaMilli adds value to the "requested_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) AddRequestedMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.AddRequestedMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetMentorMonthlyCreditQuotaMilli sets the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) SetMentorMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.ResetMentorMonthlyCreditQuotaMilli()
+	_u.mutation.SetMentorMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableMentorMonthlyCreditQuotaMilli sets the "mentor_monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableMentorMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetMentorMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddMentorMonthlyCreditQuotaMilli adds value to the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) AddMentorMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.AddMentorMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// ClearMentorMonthlyCreditQuotaMilli clears the value of the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) ClearMentorMonthlyCreditQuotaMilli() *APIKeyUpdate {
+	_u.mutation.ClearMentorMonthlyCreditQuotaMilli()
+	return _u
+}
+
+// SetMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) SetMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.ResetMonthlyCreditQuotaMilli()
+	_u.mutation.SetMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddMonthlyCreditQuotaMilli adds value to the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) AddMonthlyCreditQuotaMilli(v int64) *APIKeyUpdate {
+	_u.mutation.AddMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// ClearMonthlyCreditQuotaMilli clears the value of the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdate) ClearMonthlyCreditQuotaMilli() *APIKeyUpdate {
+	_u.mutation.ClearMonthlyCreditQuotaMilli()
+	return _u
+}
+
 // AddModelIDs adds the "models" edge to the APIKeyModel entity by IDs.
 func (_u *APIKeyUpdate) AddModelIDs(ids ...uuid.UUID) *APIKeyUpdate {
 	_u.mutation.AddModelIDs(ids...)
@@ -165,6 +241,21 @@ func (_u *APIKeyUpdate) AddAudits(v ...*APIKeyAudit) *APIKeyUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAuditIDs(ids...)
+}
+
+// AddCreditBucketIDs adds the "credit_buckets" edge to the APIKeyMonthCreditBucket entity by IDs.
+func (_u *APIKeyUpdate) AddCreditBucketIDs(ids ...uuid.UUID) *APIKeyUpdate {
+	_u.mutation.AddCreditBucketIDs(ids...)
+	return _u
+}
+
+// AddCreditBuckets adds the "credit_buckets" edges to the APIKeyMonthCreditBucket entity.
+func (_u *APIKeyUpdate) AddCreditBuckets(v ...*APIKeyMonthCreditBucket) *APIKeyUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCreditBucketIDs(ids...)
 }
 
 // Mutation returns the APIKeyMutation object of the builder.
@@ -212,6 +303,27 @@ func (_u *APIKeyUpdate) RemoveAudits(v ...*APIKeyAudit) *APIKeyUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuditIDs(ids...)
+}
+
+// ClearCreditBuckets clears all "credit_buckets" edges to the APIKeyMonthCreditBucket entity.
+func (_u *APIKeyUpdate) ClearCreditBuckets() *APIKeyUpdate {
+	_u.mutation.ClearCreditBuckets()
+	return _u
+}
+
+// RemoveCreditBucketIDs removes the "credit_buckets" edge to APIKeyMonthCreditBucket entities by IDs.
+func (_u *APIKeyUpdate) RemoveCreditBucketIDs(ids ...uuid.UUID) *APIKeyUpdate {
+	_u.mutation.RemoveCreditBucketIDs(ids...)
+	return _u
+}
+
+// RemoveCreditBuckets removes "credit_buckets" edges to APIKeyMonthCreditBucket entities.
+func (_u *APIKeyUpdate) RemoveCreditBuckets(v ...*APIKeyMonthCreditBucket) *APIKeyUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCreditBucketIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -267,6 +379,21 @@ func (_u *APIKeyUpdate) check() error {
 			return &ValidationError{Name: "key_prefix", err: fmt.Errorf(`ent: validator failed for field "APIKey.key_prefix": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.RequestedMonthlyCreditQuotaMilli(); ok {
+		if err := apikey.RequestedMonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "requested_monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.requested_monthly_credit_quota_milli": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MentorMonthlyCreditQuotaMilli(); ok {
+		if err := apikey.MentorMonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "mentor_monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.mentor_monthly_credit_quota_milli": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MonthlyCreditQuotaMilli(); ok {
+		if err := apikey.MonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.monthly_credit_quota_milli": %w`, err)}
+		}
+	}
 	if _u.mutation.OwnerCleared() && len(_u.mutation.OwnerIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "APIKey.owner"`)
 	}
@@ -320,6 +447,30 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.RevokedAtCleared() {
 		_spec.ClearField(apikey.FieldRevokedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RequestedMonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldRequestedMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRequestedMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldRequestedMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.MentorMonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMentorMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.MentorMonthlyCreditQuotaMilliCleared() {
+		_spec.ClearField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.MonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.MonthlyCreditQuotaMilliCleared() {
+		_spec.ClearField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64)
 	}
 	if _u.mutation.ModelsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -404,6 +555,51 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikeyaudit.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CreditBucketsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCreditBucketsIDs(); len(nodes) > 0 && !_u.mutation.CreditBucketsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CreditBucketsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {
@@ -537,6 +733,81 @@ func (_u *APIKeyUpdateOne) ClearRevokedAt() *APIKeyUpdateOne {
 	return _u
 }
 
+// SetRequestedMonthlyCreditQuotaMilli sets the "requested_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) SetRequestedMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetRequestedMonthlyCreditQuotaMilli()
+	_u.mutation.SetRequestedMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableRequestedMonthlyCreditQuotaMilli sets the "requested_monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableRequestedMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetRequestedMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddRequestedMonthlyCreditQuotaMilli adds value to the "requested_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) AddRequestedMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddRequestedMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetMentorMonthlyCreditQuotaMilli sets the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) SetMentorMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetMentorMonthlyCreditQuotaMilli()
+	_u.mutation.SetMentorMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableMentorMonthlyCreditQuotaMilli sets the "mentor_monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableMentorMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetMentorMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddMentorMonthlyCreditQuotaMilli adds value to the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) AddMentorMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddMentorMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// ClearMentorMonthlyCreditQuotaMilli clears the value of the "mentor_monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) ClearMentorMonthlyCreditQuotaMilli() *APIKeyUpdateOne {
+	_u.mutation.ClearMentorMonthlyCreditQuotaMilli()
+	return _u
+}
+
+// SetMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) SetMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetMonthlyCreditQuotaMilli()
+	_u.mutation.SetMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// SetNillableMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableMonthlyCreditQuotaMilli(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetMonthlyCreditQuotaMilli(*v)
+	}
+	return _u
+}
+
+// AddMonthlyCreditQuotaMilli adds value to the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) AddMonthlyCreditQuotaMilli(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddMonthlyCreditQuotaMilli(v)
+	return _u
+}
+
+// ClearMonthlyCreditQuotaMilli clears the value of the "monthly_credit_quota_milli" field.
+func (_u *APIKeyUpdateOne) ClearMonthlyCreditQuotaMilli() *APIKeyUpdateOne {
+	_u.mutation.ClearMonthlyCreditQuotaMilli()
+	return _u
+}
+
 // AddModelIDs adds the "models" edge to the APIKeyModel entity by IDs.
 func (_u *APIKeyUpdateOne) AddModelIDs(ids ...uuid.UUID) *APIKeyUpdateOne {
 	_u.mutation.AddModelIDs(ids...)
@@ -565,6 +836,21 @@ func (_u *APIKeyUpdateOne) AddAudits(v ...*APIKeyAudit) *APIKeyUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAuditIDs(ids...)
+}
+
+// AddCreditBucketIDs adds the "credit_buckets" edge to the APIKeyMonthCreditBucket entity by IDs.
+func (_u *APIKeyUpdateOne) AddCreditBucketIDs(ids ...uuid.UUID) *APIKeyUpdateOne {
+	_u.mutation.AddCreditBucketIDs(ids...)
+	return _u
+}
+
+// AddCreditBuckets adds the "credit_buckets" edges to the APIKeyMonthCreditBucket entity.
+func (_u *APIKeyUpdateOne) AddCreditBuckets(v ...*APIKeyMonthCreditBucket) *APIKeyUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCreditBucketIDs(ids...)
 }
 
 // Mutation returns the APIKeyMutation object of the builder.
@@ -612,6 +898,27 @@ func (_u *APIKeyUpdateOne) RemoveAudits(v ...*APIKeyAudit) *APIKeyUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAuditIDs(ids...)
+}
+
+// ClearCreditBuckets clears all "credit_buckets" edges to the APIKeyMonthCreditBucket entity.
+func (_u *APIKeyUpdateOne) ClearCreditBuckets() *APIKeyUpdateOne {
+	_u.mutation.ClearCreditBuckets()
+	return _u
+}
+
+// RemoveCreditBucketIDs removes the "credit_buckets" edge to APIKeyMonthCreditBucket entities by IDs.
+func (_u *APIKeyUpdateOne) RemoveCreditBucketIDs(ids ...uuid.UUID) *APIKeyUpdateOne {
+	_u.mutation.RemoveCreditBucketIDs(ids...)
+	return _u
+}
+
+// RemoveCreditBuckets removes "credit_buckets" edges to APIKeyMonthCreditBucket entities.
+func (_u *APIKeyUpdateOne) RemoveCreditBuckets(v ...*APIKeyMonthCreditBucket) *APIKeyUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCreditBucketIDs(ids...)
 }
 
 // Where appends a list predicates to the APIKeyUpdate builder.
@@ -678,6 +985,21 @@ func (_u *APIKeyUpdateOne) check() error {
 	if v, ok := _u.mutation.KeyPrefix(); ok {
 		if err := apikey.KeyPrefixValidator(v); err != nil {
 			return &ValidationError{Name: "key_prefix", err: fmt.Errorf(`ent: validator failed for field "APIKey.key_prefix": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.RequestedMonthlyCreditQuotaMilli(); ok {
+		if err := apikey.RequestedMonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "requested_monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.requested_monthly_credit_quota_milli": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MentorMonthlyCreditQuotaMilli(); ok {
+		if err := apikey.MentorMonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "mentor_monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.mentor_monthly_credit_quota_milli": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.MonthlyCreditQuotaMilli(); ok {
+		if err := apikey.MonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "APIKey.monthly_credit_quota_milli": %w`, err)}
 		}
 	}
 	if _u.mutation.OwnerCleared() && len(_u.mutation.OwnerIDs()) > 0 {
@@ -750,6 +1072,30 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if _u.mutation.RevokedAtCleared() {
 		_spec.ClearField(apikey.FieldRevokedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.RequestedMonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldRequestedMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRequestedMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldRequestedMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.MentorMonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMentorMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.MentorMonthlyCreditQuotaMilliCleared() {
+		_spec.ClearField(apikey.FieldMentorMonthlyCreditQuotaMilli, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.MonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedMonthlyCreditQuotaMilli(); ok {
+		_spec.AddField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.MonthlyCreditQuotaMilliCleared() {
+		_spec.ClearField(apikey.FieldMonthlyCreditQuotaMilli, field.TypeInt64)
 	}
 	if _u.mutation.ModelsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -834,6 +1180,51 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikeyaudit.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CreditBucketsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCreditBucketsIDs(); len(nodes) > 0 && !_u.mutation.CreditBucketsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CreditBucketsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.CreditBucketsTable,
+			Columns: []string{apikey.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

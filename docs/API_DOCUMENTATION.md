@@ -386,7 +386,7 @@ data: {"revision":"01K2..."}
 | `openai_images` | `/v1/images/generations`、`/v1/images/edits`、`/v1/images/variations` | OpenAI Images |
 | `openai_audio` | `/v1/audio/transcriptions`、`/v1/audio/translations`、`/v1/audio/speech` | OpenAI Audio |
 | `openai_video` | `/v1/videos`、资源查询、内容下载和 remix | OpenAI Videos |
-| `openai_realtime` | `/v1/realtime`、`/v1/realtime/client_secrets`、`/v1/realtime/calls` | OpenAI Realtime |
+| `openai_realtime` | `/v1/realtime` | OpenAI Realtime WebSocket |
 | `openai_moderations` | `/v1/moderations` | OpenAI Moderations |
 | `anthropic` | `/v1/messages` | Anthropic Messages |
 | `cohere_rerank_v2` | `/v2/rerank` | Cohere Rerank v2 `/v2/rerank` |
@@ -436,8 +436,6 @@ data: {"revision":"01K2..."}
 | Google Gemini | POST | `/v1beta/models/{model}:embedContent` | JSON |
 | Google Gemini | POST | `/v1beta/models/{model}:batchEmbedContents` | JSON |
 | OpenAI Realtime | WS | `/v1/realtime` | WebSocket 双向事件 |
-| OpenAI Realtime | POST | `/v1/realtime/client_secrets` | JSON，`session.model` 用于 Binding 路由 |
-| OpenAI Realtime | POST | `/v1/realtime/calls` | multipart/form-data，`session` JSON 中的 model 用于路由；SDP 原样透传 |
 
 不提供旧 `/api/nebula/gateway/*`、`/models`、`/chat/completions`、`/messages` 等别名，也不提供 health、usage、monitor 或 provider internal 路由作为公共 API。
 
@@ -464,12 +462,13 @@ data: {"revision":"01K2..."}
 - Key 必须为 `active`，所请求 `model` 必须位于 `api_key_models` 白名单，模型、binding 和 provider 均须为 `active`。
 - `/v1/models` 仅返回当前 Key 白名单中当前可路由的模型。
 
-网关不实现余额、计费、额度、RPM、Token 限制或用量记录。
+网关按模型倍率执行月度 credit 额度检查与调用记录；目录查询、视频状态查询和内容下载不计费。
 
 ### 8.3 代理与故障切换
 
 - 保持协议原生 request/response、状态码、SSE 事件、multipart 文件和 WebSocket frame，不使用控制面 envelope。每类协议只选择同协议 adapter，不做跨协议 DTO 转换。
 - `/v1/responses/compact` 是独立无状态 compact：网关不得裁剪返回 `output`，也不得解析或替换 opaque `encrypted_content`；Codex CLI 使用的 tools、reasoning、text、prompt cache 与 service tier 字段仅改写顶层 model。
+- Responses 与 Realtime WebSocket 的每个 `response.create` 都是独立计费操作；额度不足时发送协议内 error event 并保持连接。
 - Videos 创建成功后，Redis 保存 `video_id -> binding_id`；查询、内容下载和 remix 必须回到创建该资源的上游，不能按 priority 重新选择供应商。
 - OpenAI 和 Cohere 请求体中的公共 `model` 会替换为 Binding 的上游模型名；Gemini 的路径模型会替换为上游模型名，`batchEmbedContents.requests[*].model` 同步改写为 `models/{upstream_model_name}`。
 - 候选 binding 按 `priority ASC, id ASC` 排序。
@@ -505,13 +504,23 @@ Anthropic-compatible 示例：
 }
 ```
 
-## 9. 明确排除项
+## 9. 用量与监控接口
 
-- 不实现个人主页、额度设置、计费、余额、用量统计、通知中心或模型价格。
+学生使用 `GET /api/v1/student/usage?month=YYYY-MM` 查看每个 API Key 的模型 credit 分解。
+
+导师使用 `GET /api/v1/mentor/projects/{project_id}/usage` 查看项目额度分配、成员 Key 进度与实际开销；`GET /api/v1/mentor/call-logs` 和 `GET /api/v1/mentor/input-monitor` 使用游标分页与项目范围授权。完整输入仅在详情读取时返回并写访问审计。
+
+导师可通过 `PATCH /api/v1/mentor/api-keys/{api_key_id}/monthly-credit-quota` 调整负责项目内 Key 的月额度，请求包含 `monthly_credits` 与必填 `reason`。
+
+老师使用 `GET /api/v1/teacher/project-spend` 查看按模型聚合的项目花费和 0 倍率模型调用次数。额度拒绝返回 429 以及 `api_key_quota_exceeded` 或 `project_quota_exceeded`。
+
+## 10. 明确排除项
+
+- 不实现余额、RPM、Token 限制、通知中心或模型价格。
 - 不提供老师浏览项目成员或 ACTIVE Key 的接口。
 - 不提供资源删除接口。
 - 不代理 Files、Uploads、Batches、Fine-tuning 或 Assistants/Threads 等有状态资源 API；这些接口没有可在每个请求中稳定取得的公开 model，若未来纳入必须新增资源 ID 到 Binding 的完整归属状态与授权契约，不能按默认 Binding 猜测上游。
-- 不提供旧路由兼容层、别名、双写、internal usage/monitor 路由或历史数据迁移。
+- 不提供旧路由兼容层、别名、双写或 internal usage/monitor 路由。
 
 ## 10. 官方 Web 控制台消费约定
 

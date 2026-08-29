@@ -20,7 +20,7 @@ Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、�
 - 认证 SSE 推送 Key 状态与全局常用模型变化。
 - 标准 OpenAI Chat/Responses（含 Codex CLI HTTP/WebSocket 与 compact）、Embeddings、Images、Audio、Videos、Realtime、Moderations，Anthropic Messages、Cohere Rerank v2 与 Google Gemini `v1beta` 网关；Binding adapter 按协议独立路由，避免不同请求格式误用同一上游。
 
-首期不包含计费、余额、额度、RPM、Token 限制、用量记录、通知中心、模型价格、智能路由、资源删除 API 或旧路由兼容层。
+平台按模型倍率消耗 credits，提供项目/Key 月度额度、学生个人用量、导师调用日志与输入监控、老师项目花费；不包含余额、RPM、Token 限制、通知中心、模型价格、智能路由、资源删除 API 或旧路由兼容层。
 
 ## 技术栈
 

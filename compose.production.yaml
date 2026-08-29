@@ -128,6 +128,19 @@ services:
     init: true
     restart: unless-stopped
 
+  maintenance:
+    <<: *application-image
+    entrypoint: ["/app/nebula-maintenance"]
+    environment:
+      DATABASE_URL:
+    networks: [data]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    restart: unless-stopped
+
   mihomo:
     image: dockerproxy.net/metacubex/mihomo:v1.19.30
     command: ["-d", "/root/.config/mihomo"]

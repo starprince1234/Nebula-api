@@ -200,7 +200,7 @@ func (s *Service) MentorKeyReview(ctx context.Context, mentorID, keyID uuid.UUID
 	))
 }
 
-func (s *Service) ReviewKeyAsMentor(ctx context.Context, mentorID, keyID uuid.UUID, approve bool, comment string) error {
+func (s *Service) ReviewKeyAsMentor(ctx context.Context, mentorID, keyID uuid.UUID, approve bool, comment string, monthly ...int64) error {
 	action := "mentor_approved"
 	nextStatus := apikey.StatusPendingTeacher
 	auditAction := apikeyaudit.ActionMentorApproved
@@ -228,6 +228,11 @@ func (s *Service) ReviewKeyAsMentor(ctx context.Context, mentorID, keyID uuid.UU
 	if err != nil {
 		return domain.WrapError(domain.CodeDependencyUnavailable, "query API key", err)
 	}
+	if approve && len(monthly) > 0 {
+		if monthly[0] < 0 {
+			return domain.NewError(domain.CodeValidation, "monthly credits must be non-negative")
+		}
+	}
 	responsible, err := tx.ProjectMember.Query().Where(
 		projectmember.ProjectIDEQ(key.ProjectID),
 		projectmember.UserIDEQ(mentorID),
@@ -237,6 +242,14 @@ func (s *Service) ReviewKeyAsMentor(ctx context.Context, mentorID, keyID uuid.UU
 	}
 	if !responsible {
 		return domain.NewError(domain.CodeNotFound, "API key application not found")
+	}
+	if approve && len(monthly) > 0 {
+		if monthly[0] < 0 || monthly[0] > 1_000_000_000_000 {
+			return domain.NewError(domain.CodeValidation, "monthly credits are out of range")
+		}
+		if _, err := tx.APIKey.UpdateOneID(keyID).SetMentorMonthlyCreditQuotaMilli(monthly[0]).Save(ctx); err != nil {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "set mentor quota", err)
+		}
 	}
 	updated, err := tx.APIKey.Update().Where(
 		apikey.IDEQ(keyID),

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/starprince1234/Nebula-api/internal/controlplane"
+	"github.com/starprince1234/Nebula-api/internal/domain"
 )
 
 func (s *Server) studentOrganizations(c *gin.Context) {
@@ -40,11 +41,12 @@ func (s *Server) studentModels(c *gin.Context) {
 
 func (s *Server) submitAPIKey(c *gin.Context) {
 	var input struct {
-		Name            string   `json:"name" binding:"required"`
-		OrganizationID  string   `json:"organization_id" binding:"required"`
-		ProjectID       string   `json:"project_id" binding:"required"`
-		ModelIDs        []string `json:"model_ids"`
-		RequestedModels []struct {
+		Name                    string   `json:"name" binding:"required"`
+		OrganizationID          string   `json:"organization_id" binding:"required"`
+		ProjectID               string   `json:"project_id" binding:"required"`
+		ModelIDs                []string `json:"model_ids"`
+		RequestedMonthlyCredits string   `json:"requested_monthly_credits" binding:"required"`
+		RequestedModels         []struct {
 			ModelID          string   `json:"model_id" binding:"required"`
 			DisplayName      string   `json:"display_name" binding:"required"`
 			Description      *string  `json:"description"`
@@ -69,6 +71,11 @@ func (s *Server) submitAPIKey(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	requestedCredits, err := domain.ParseCredits(input.RequestedMonthlyCredits)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
 	requested := make([]controlplane.RequestedModelInput, 0, len(input.RequestedModels))
 	for _, item := range input.RequestedModels {
 		requested = append(requested, controlplane.RequestedModelInput{
@@ -81,6 +88,7 @@ func (s *Server) submitAPIKey(c *gin.Context) {
 	view, err := s.service.SubmitAPIKey(c.Request.Context(), identity(c).UserID, controlplane.SubmitAPIKeyInput{
 		Name: input.Name, OrganizationID: organizationID, ProjectID: projectID,
 		ModelIDs: input.ModelIDs, RequestedModels: requested,
+		RequestedMonthlyCredits: requestedCredits,
 	})
 	if err != nil {
 		writeError(c, err)

@@ -81,6 +81,11 @@ func Description(v string) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldDescription, v))
 }
 
+// MonthlyCreditQuotaMilli applies equality check predicate on the "monthly_credit_quota_milli" field. It's identical to MonthlyCreditQuotaMilliEQ.
+func MonthlyCreditQuotaMilli(v int64) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Project {
 	return predicate.Project(sql.FieldEQ(FieldCreatedAt, v))
@@ -341,6 +346,46 @@ func StatusNotIn(vs ...Status) predicate.Project {
 	return predicate.Project(sql.FieldNotIn(FieldStatus, vs...))
 }
 
+// MonthlyCreditQuotaMilliEQ applies the EQ predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliEQ(v int64) predicate.Project {
+	return predicate.Project(sql.FieldEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliNEQ applies the NEQ predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliNEQ(v int64) predicate.Project {
+	return predicate.Project(sql.FieldNEQ(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliIn applies the In predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliIn(vs ...int64) predicate.Project {
+	return predicate.Project(sql.FieldIn(FieldMonthlyCreditQuotaMilli, vs...))
+}
+
+// MonthlyCreditQuotaMilliNotIn applies the NotIn predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliNotIn(vs ...int64) predicate.Project {
+	return predicate.Project(sql.FieldNotIn(FieldMonthlyCreditQuotaMilli, vs...))
+}
+
+// MonthlyCreditQuotaMilliGT applies the GT predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliGT(v int64) predicate.Project {
+	return predicate.Project(sql.FieldGT(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliGTE applies the GTE predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliGTE(v int64) predicate.Project {
+	return predicate.Project(sql.FieldGTE(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliLT applies the LT predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliLT(v int64) predicate.Project {
+	return predicate.Project(sql.FieldLT(FieldMonthlyCreditQuotaMilli, v))
+}
+
+// MonthlyCreditQuotaMilliLTE applies the LTE predicate on the "monthly_credit_quota_milli" field.
+func MonthlyCreditQuotaMilliLTE(v int64) predicate.Project {
+	return predicate.Project(sql.FieldLTE(FieldMonthlyCreditQuotaMilli, v))
+}
+
 // HasOrganization applies the HasEdge predicate on the "organization" edge.
 func HasOrganization() predicate.Project {
 	return predicate.Project(func(s *sql.Selector) {
@@ -425,6 +470,52 @@ func HasAPIKeys() predicate.Project {
 func HasAPIKeysWith(preds ...predicate.APIKey) predicate.Project {
 	return predicate.Project(func(s *sql.Selector) {
 		step := newAPIKeysStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasCreditBuckets applies the HasEdge predicate on the "credit_buckets" edge.
+func HasCreditBuckets() predicate.Project {
+	return predicate.Project(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, CreditBucketsTable, CreditBucketsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasCreditBucketsWith applies the HasEdge predicate on the "credit_buckets" edge with a given conditions (other predicates).
+func HasCreditBucketsWith(preds ...predicate.ProjectMonthCreditBucket) predicate.Project {
+	return predicate.Project(func(s *sql.Selector) {
+		step := newCreditBucketsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAPIKeyCreditBuckets applies the HasEdge predicate on the "api_key_credit_buckets" edge.
+func HasAPIKeyCreditBuckets() predicate.Project {
+	return predicate.Project(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, APIKeyCreditBucketsTable, APIKeyCreditBucketsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAPIKeyCreditBucketsWith applies the HasEdge predicate on the "api_key_credit_buckets" edge with a given conditions (other predicates).
+func HasAPIKeyCreditBucketsWith(preds ...predicate.APIKeyMonthCreditBucket) predicate.Project {
+	return predicate.Project(func(s *sql.Selector) {
+		step := newAPIKeyCreditBucketsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

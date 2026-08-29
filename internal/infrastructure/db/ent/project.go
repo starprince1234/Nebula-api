@@ -31,6 +31,8 @@ type Project struct {
 	Description *string `json:"description,omitempty"`
 	// Status holds the value of the "status" field.
 	Status project.Status `json:"status,omitempty"`
+	// MonthlyCreditQuotaMilli holds the value of the "monthly_credit_quota_milli" field.
+	MonthlyCreditQuotaMilli int64 `json:"monthly_credit_quota_milli,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProjectQuery when eager-loading is set.
 	Edges        ProjectEdges `json:"edges"`
@@ -47,9 +49,13 @@ type ProjectEdges struct {
 	MentorApplications []*MentorProjectApplication `json:"mentor_applications,omitempty"`
 	// APIKeys holds the value of the api_keys edge.
 	APIKeys []*APIKey `json:"api_keys,omitempty"`
+	// CreditBuckets holds the value of the credit_buckets edge.
+	CreditBuckets []*ProjectMonthCreditBucket `json:"credit_buckets,omitempty"`
+	// APIKeyCreditBuckets holds the value of the api_key_credit_buckets edge.
+	APIKeyCreditBuckets []*APIKeyMonthCreditBucket `json:"api_key_credit_buckets,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [6]bool
 }
 
 // OrganizationOrErr returns the Organization value or an error if the edge
@@ -90,11 +96,31 @@ func (e ProjectEdges) APIKeysOrErr() ([]*APIKey, error) {
 	return nil, &NotLoadedError{edge: "api_keys"}
 }
 
+// CreditBucketsOrErr returns the CreditBuckets value or an error if the edge
+// was not loaded in eager-loading.
+func (e ProjectEdges) CreditBucketsOrErr() ([]*ProjectMonthCreditBucket, error) {
+	if e.loadedTypes[4] {
+		return e.CreditBuckets, nil
+	}
+	return nil, &NotLoadedError{edge: "credit_buckets"}
+}
+
+// APIKeyCreditBucketsOrErr returns the APIKeyCreditBuckets value or an error if the edge
+// was not loaded in eager-loading.
+func (e ProjectEdges) APIKeyCreditBucketsOrErr() ([]*APIKeyMonthCreditBucket, error) {
+	if e.loadedTypes[5] {
+		return e.APIKeyCreditBuckets, nil
+	}
+	return nil, &NotLoadedError{edge: "api_key_credit_buckets"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Project) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case project.FieldMonthlyCreditQuotaMilli:
+			values[i] = new(sql.NullInt64)
 		case project.FieldName, project.FieldDescription, project.FieldStatus:
 			values[i] = new(sql.NullString)
 		case project.FieldCreatedAt, project.FieldUpdatedAt:
@@ -159,6 +185,12 @@ func (_m *Project) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = project.Status(value.String)
 			}
+		case project.FieldMonthlyCreditQuotaMilli:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field monthly_credit_quota_milli", values[i])
+			} else if value.Valid {
+				_m.MonthlyCreditQuotaMilli = value.Int64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -190,6 +222,16 @@ func (_m *Project) QueryMentorApplications() *MentorProjectApplicationQuery {
 // QueryAPIKeys queries the "api_keys" edge of the Project entity.
 func (_m *Project) QueryAPIKeys() *APIKeyQuery {
 	return NewProjectClient(_m.config).QueryAPIKeys(_m)
+}
+
+// QueryCreditBuckets queries the "credit_buckets" edge of the Project entity.
+func (_m *Project) QueryCreditBuckets() *ProjectMonthCreditBucketQuery {
+	return NewProjectClient(_m.config).QueryCreditBuckets(_m)
+}
+
+// QueryAPIKeyCreditBuckets queries the "api_key_credit_buckets" edge of the Project entity.
+func (_m *Project) QueryAPIKeyCreditBuckets() *APIKeyMonthCreditBucketQuery {
+	return NewProjectClient(_m.config).QueryAPIKeyCreditBuckets(_m)
 }
 
 // Update returns a builder for updating this Project.
@@ -234,6 +276,9 @@ func (_m *Project) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("monthly_credit_quota_milli=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MonthlyCreditQuotaMilli))
 	builder.WriteByte(')')
 	return builder.String()
 }

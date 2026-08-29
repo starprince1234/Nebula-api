@@ -32,6 +32,7 @@ func (Project) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "citext"}),
 		field.String("description").Optional().Nillable().MaxLen(1024),
 		field.Enum("status").Values("active", "inactive").Default("active"),
+		field.Int64("monthly_credit_quota_milli").Default(20_000_000).NonNegative().Max(1_000_000_000_000),
 	}
 }
 
@@ -47,6 +48,8 @@ func (Project) Edges() []ent.Edge {
 		edge.To("memberships", ProjectMember.Type),
 		edge.To("mentor_applications", MentorProjectApplication.Type),
 		edge.To("api_keys", APIKey.Type),
+		edge.To("credit_buckets", ProjectMonthCreditBucket.Type),
+		edge.To("api_key_credit_buckets", APIKeyMonthCreditBucket.Type),
 	}
 }
 

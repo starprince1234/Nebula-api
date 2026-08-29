@@ -19,14 +19,24 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeyaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymodel"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelmultiplieraudit"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monitoredinput"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monthlyusagecube"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organization"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organizationmember"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/promptaccessaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 )
 
@@ -41,12 +51,26 @@ type Client struct {
 	APIKeyAudit *APIKeyAuditClient
 	// APIKeyModel is the client for interacting with the APIKeyModel builders.
 	APIKeyModel *APIKeyModelClient
+	// APIKeyMonthCreditBucket is the client for interacting with the APIKeyMonthCreditBucket builders.
+	APIKeyMonthCreditBucket *APIKeyMonthCreditBucketClient
+	// GatewayCall is the client for interacting with the GatewayCall builders.
+	GatewayCall *GatewayCallClient
+	// GatewayCallAttempt is the client for interacting with the GatewayCallAttempt builders.
+	GatewayCallAttempt *GatewayCallAttemptClient
+	// MaintenanceState is the client for interacting with the MaintenanceState builders.
+	MaintenanceState *MaintenanceStateClient
 	// MentorProjectApplication is the client for interacting with the MentorProjectApplication builders.
 	MentorProjectApplication *MentorProjectApplicationClient
 	// Model is the client for interacting with the Model builders.
 	Model *ModelClient
 	// ModelBinding is the client for interacting with the ModelBinding builders.
 	ModelBinding *ModelBindingClient
+	// ModelMultiplierAudit is the client for interacting with the ModelMultiplierAudit builders.
+	ModelMultiplierAudit *ModelMultiplierAuditClient
+	// MonitoredInput is the client for interacting with the MonitoredInput builders.
+	MonitoredInput *MonitoredInputClient
+	// MonthlyUsageCube is the client for interacting with the MonthlyUsageCube builders.
+	MonthlyUsageCube *MonthlyUsageCubeClient
 	// Organization is the client for interacting with the Organization builders.
 	Organization *OrganizationClient
 	// OrganizationMember is the client for interacting with the OrganizationMember builders.
@@ -55,8 +79,14 @@ type Client struct {
 	Project *ProjectClient
 	// ProjectMember is the client for interacting with the ProjectMember builders.
 	ProjectMember *ProjectMemberClient
+	// ProjectMonthCreditBucket is the client for interacting with the ProjectMonthCreditBucket builders.
+	ProjectMonthCreditBucket *ProjectMonthCreditBucketClient
+	// PromptAccessAudit is the client for interacting with the PromptAccessAudit builders.
+	PromptAccessAudit *PromptAccessAuditClient
 	// Provider is the client for interacting with the Provider builders.
 	Provider *ProviderClient
+	// QuotaAdjustmentAudit is the client for interacting with the QuotaAdjustmentAudit builders.
+	QuotaAdjustmentAudit *QuotaAdjustmentAuditClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -73,14 +103,24 @@ func (c *Client) init() {
 	c.APIKey = NewAPIKeyClient(c.config)
 	c.APIKeyAudit = NewAPIKeyAuditClient(c.config)
 	c.APIKeyModel = NewAPIKeyModelClient(c.config)
+	c.APIKeyMonthCreditBucket = NewAPIKeyMonthCreditBucketClient(c.config)
+	c.GatewayCall = NewGatewayCallClient(c.config)
+	c.GatewayCallAttempt = NewGatewayCallAttemptClient(c.config)
+	c.MaintenanceState = NewMaintenanceStateClient(c.config)
 	c.MentorProjectApplication = NewMentorProjectApplicationClient(c.config)
 	c.Model = NewModelClient(c.config)
 	c.ModelBinding = NewModelBindingClient(c.config)
+	c.ModelMultiplierAudit = NewModelMultiplierAuditClient(c.config)
+	c.MonitoredInput = NewMonitoredInputClient(c.config)
+	c.MonthlyUsageCube = NewMonthlyUsageCubeClient(c.config)
 	c.Organization = NewOrganizationClient(c.config)
 	c.OrganizationMember = NewOrganizationMemberClient(c.config)
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
+	c.ProjectMonthCreditBucket = NewProjectMonthCreditBucketClient(c.config)
+	c.PromptAccessAudit = NewPromptAccessAuditClient(c.config)
 	c.Provider = NewProviderClient(c.config)
+	c.QuotaAdjustmentAudit = NewQuotaAdjustmentAuditClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -177,14 +217,24 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyAudit:              NewAPIKeyAuditClient(cfg),
 		APIKeyModel:              NewAPIKeyModelClient(cfg),
+		APIKeyMonthCreditBucket:  NewAPIKeyMonthCreditBucketClient(cfg),
+		GatewayCall:              NewGatewayCallClient(cfg),
+		GatewayCallAttempt:       NewGatewayCallAttemptClient(cfg),
+		MaintenanceState:         NewMaintenanceStateClient(cfg),
 		MentorProjectApplication: NewMentorProjectApplicationClient(cfg),
 		Model:                    NewModelClient(cfg),
 		ModelBinding:             NewModelBindingClient(cfg),
+		ModelMultiplierAudit:     NewModelMultiplierAuditClient(cfg),
+		MonitoredInput:           NewMonitoredInputClient(cfg),
+		MonthlyUsageCube:         NewMonthlyUsageCubeClient(cfg),
 		Organization:             NewOrganizationClient(cfg),
 		OrganizationMember:       NewOrganizationMemberClient(cfg),
 		Project:                  NewProjectClient(cfg),
 		ProjectMember:            NewProjectMemberClient(cfg),
+		ProjectMonthCreditBucket: NewProjectMonthCreditBucketClient(cfg),
+		PromptAccessAudit:        NewPromptAccessAuditClient(cfg),
 		Provider:                 NewProviderClient(cfg),
+		QuotaAdjustmentAudit:     NewQuotaAdjustmentAuditClient(cfg),
 		User:                     NewUserClient(cfg),
 	}, nil
 }
@@ -208,14 +258,24 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		APIKey:                   NewAPIKeyClient(cfg),
 		APIKeyAudit:              NewAPIKeyAuditClient(cfg),
 		APIKeyModel:              NewAPIKeyModelClient(cfg),
+		APIKeyMonthCreditBucket:  NewAPIKeyMonthCreditBucketClient(cfg),
+		GatewayCall:              NewGatewayCallClient(cfg),
+		GatewayCallAttempt:       NewGatewayCallAttemptClient(cfg),
+		MaintenanceState:         NewMaintenanceStateClient(cfg),
 		MentorProjectApplication: NewMentorProjectApplicationClient(cfg),
 		Model:                    NewModelClient(cfg),
 		ModelBinding:             NewModelBindingClient(cfg),
+		ModelMultiplierAudit:     NewModelMultiplierAuditClient(cfg),
+		MonitoredInput:           NewMonitoredInputClient(cfg),
+		MonthlyUsageCube:         NewMonthlyUsageCubeClient(cfg),
 		Organization:             NewOrganizationClient(cfg),
 		OrganizationMember:       NewOrganizationMemberClient(cfg),
 		Project:                  NewProjectClient(cfg),
 		ProjectMember:            NewProjectMemberClient(cfg),
+		ProjectMonthCreditBucket: NewProjectMonthCreditBucketClient(cfg),
+		PromptAccessAudit:        NewPromptAccessAuditClient(cfg),
 		Provider:                 NewProviderClient(cfg),
+		QuotaAdjustmentAudit:     NewQuotaAdjustmentAuditClient(cfg),
 		User:                     NewUserClient(cfg),
 	}, nil
 }
@@ -246,9 +306,12 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.MentorProjectApplication, c.Model,
-		c.ModelBinding, c.Organization, c.OrganizationMember, c.Project,
-		c.ProjectMember, c.Provider, c.User,
+		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.APIKeyMonthCreditBucket,
+		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState,
+		c.MentorProjectApplication, c.Model, c.ModelBinding, c.ModelMultiplierAudit,
+		c.MonitoredInput, c.MonthlyUsageCube, c.Organization, c.OrganizationMember,
+		c.Project, c.ProjectMember, c.ProjectMonthCreditBucket, c.PromptAccessAudit,
+		c.Provider, c.QuotaAdjustmentAudit, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -258,9 +321,12 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.MentorProjectApplication, c.Model,
-		c.ModelBinding, c.Organization, c.OrganizationMember, c.Project,
-		c.ProjectMember, c.Provider, c.User,
+		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.APIKeyMonthCreditBucket,
+		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState,
+		c.MentorProjectApplication, c.Model, c.ModelBinding, c.ModelMultiplierAudit,
+		c.MonitoredInput, c.MonthlyUsageCube, c.Organization, c.OrganizationMember,
+		c.Project, c.ProjectMember, c.ProjectMonthCreditBucket, c.PromptAccessAudit,
+		c.Provider, c.QuotaAdjustmentAudit, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -275,12 +341,26 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.APIKeyAudit.mutate(ctx, m)
 	case *APIKeyModelMutation:
 		return c.APIKeyModel.mutate(ctx, m)
+	case *APIKeyMonthCreditBucketMutation:
+		return c.APIKeyMonthCreditBucket.mutate(ctx, m)
+	case *GatewayCallMutation:
+		return c.GatewayCall.mutate(ctx, m)
+	case *GatewayCallAttemptMutation:
+		return c.GatewayCallAttempt.mutate(ctx, m)
+	case *MaintenanceStateMutation:
+		return c.MaintenanceState.mutate(ctx, m)
 	case *MentorProjectApplicationMutation:
 		return c.MentorProjectApplication.mutate(ctx, m)
 	case *ModelMutation:
 		return c.Model.mutate(ctx, m)
 	case *ModelBindingMutation:
 		return c.ModelBinding.mutate(ctx, m)
+	case *ModelMultiplierAuditMutation:
+		return c.ModelMultiplierAudit.mutate(ctx, m)
+	case *MonitoredInputMutation:
+		return c.MonitoredInput.mutate(ctx, m)
+	case *MonthlyUsageCubeMutation:
+		return c.MonthlyUsageCube.mutate(ctx, m)
 	case *OrganizationMutation:
 		return c.Organization.mutate(ctx, m)
 	case *OrganizationMemberMutation:
@@ -289,8 +369,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Project.mutate(ctx, m)
 	case *ProjectMemberMutation:
 		return c.ProjectMember.mutate(ctx, m)
+	case *ProjectMonthCreditBucketMutation:
+		return c.ProjectMonthCreditBucket.mutate(ctx, m)
+	case *PromptAccessAuditMutation:
+		return c.PromptAccessAudit.mutate(ctx, m)
 	case *ProviderMutation:
 		return c.Provider.mutate(ctx, m)
+	case *QuotaAdjustmentAuditMutation:
+		return c.QuotaAdjustmentAudit.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
@@ -463,6 +549,22 @@ func (c *APIKeyClient) QueryAudits(_m *APIKey) *APIKeyAuditQuery {
 			sqlgraph.From(apikey.Table, apikey.FieldID, id),
 			sqlgraph.To(apikeyaudit.Table, apikeyaudit.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, apikey.AuditsTable, apikey.AuditsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCreditBuckets queries the credit_buckets edge of a APIKey.
+func (c *APIKeyClient) QueryCreditBuckets(_m *APIKey) *APIKeyMonthCreditBucketQuery {
+	query := (&APIKeyMonthCreditBucketClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikey.Table, apikey.FieldID, id),
+			sqlgraph.To(apikeymonthcreditbucket.Table, apikeymonthcreditbucket.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, apikey.CreditBucketsTable, apikey.CreditBucketsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -822,6 +924,618 @@ func (c *APIKeyModelClient) mutate(ctx context.Context, m *APIKeyModelMutation) 
 		return (&APIKeyModelDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown APIKeyModel mutation op: %q", m.Op())
+	}
+}
+
+// APIKeyMonthCreditBucketClient is a client for the APIKeyMonthCreditBucket schema.
+type APIKeyMonthCreditBucketClient struct {
+	config
+}
+
+// NewAPIKeyMonthCreditBucketClient returns a client for the APIKeyMonthCreditBucket from the given config.
+func NewAPIKeyMonthCreditBucketClient(c config) *APIKeyMonthCreditBucketClient {
+	return &APIKeyMonthCreditBucketClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `apikeymonthcreditbucket.Hooks(f(g(h())))`.
+func (c *APIKeyMonthCreditBucketClient) Use(hooks ...Hook) {
+	c.hooks.APIKeyMonthCreditBucket = append(c.hooks.APIKeyMonthCreditBucket, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `apikeymonthcreditbucket.Intercept(f(g(h())))`.
+func (c *APIKeyMonthCreditBucketClient) Intercept(interceptors ...Interceptor) {
+	c.inters.APIKeyMonthCreditBucket = append(c.inters.APIKeyMonthCreditBucket, interceptors...)
+}
+
+// Create returns a builder for creating a APIKeyMonthCreditBucket entity.
+func (c *APIKeyMonthCreditBucketClient) Create() *APIKeyMonthCreditBucketCreate {
+	mutation := newAPIKeyMonthCreditBucketMutation(c.config, OpCreate)
+	return &APIKeyMonthCreditBucketCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of APIKeyMonthCreditBucket entities.
+func (c *APIKeyMonthCreditBucketClient) CreateBulk(builders ...*APIKeyMonthCreditBucketCreate) *APIKeyMonthCreditBucketCreateBulk {
+	return &APIKeyMonthCreditBucketCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *APIKeyMonthCreditBucketClient) MapCreateBulk(slice any, setFunc func(*APIKeyMonthCreditBucketCreate, int)) *APIKeyMonthCreditBucketCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &APIKeyMonthCreditBucketCreateBulk{err: fmt.Errorf("calling to APIKeyMonthCreditBucketClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*APIKeyMonthCreditBucketCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &APIKeyMonthCreditBucketCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for APIKeyMonthCreditBucket.
+func (c *APIKeyMonthCreditBucketClient) Update() *APIKeyMonthCreditBucketUpdate {
+	mutation := newAPIKeyMonthCreditBucketMutation(c.config, OpUpdate)
+	return &APIKeyMonthCreditBucketUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *APIKeyMonthCreditBucketClient) UpdateOne(_m *APIKeyMonthCreditBucket) *APIKeyMonthCreditBucketUpdateOne {
+	mutation := newAPIKeyMonthCreditBucketMutation(c.config, OpUpdateOne, withAPIKeyMonthCreditBucket(_m))
+	return &APIKeyMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *APIKeyMonthCreditBucketClient) UpdateOneID(id uuid.UUID) *APIKeyMonthCreditBucketUpdateOne {
+	mutation := newAPIKeyMonthCreditBucketMutation(c.config, OpUpdateOne, withAPIKeyMonthCreditBucketID(id))
+	return &APIKeyMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for APIKeyMonthCreditBucket.
+func (c *APIKeyMonthCreditBucketClient) Delete() *APIKeyMonthCreditBucketDelete {
+	mutation := newAPIKeyMonthCreditBucketMutation(c.config, OpDelete)
+	return &APIKeyMonthCreditBucketDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *APIKeyMonthCreditBucketClient) DeleteOne(_m *APIKeyMonthCreditBucket) *APIKeyMonthCreditBucketDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *APIKeyMonthCreditBucketClient) DeleteOneID(id uuid.UUID) *APIKeyMonthCreditBucketDeleteOne {
+	builder := c.Delete().Where(apikeymonthcreditbucket.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &APIKeyMonthCreditBucketDeleteOne{builder}
+}
+
+// Query returns a query builder for APIKeyMonthCreditBucket.
+func (c *APIKeyMonthCreditBucketClient) Query() *APIKeyMonthCreditBucketQuery {
+	return &APIKeyMonthCreditBucketQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAPIKeyMonthCreditBucket},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a APIKeyMonthCreditBucket entity by its id.
+func (c *APIKeyMonthCreditBucketClient) Get(ctx context.Context, id uuid.UUID) (*APIKeyMonthCreditBucket, error) {
+	return c.Query().Where(apikeymonthcreditbucket.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *APIKeyMonthCreditBucketClient) GetX(ctx context.Context, id uuid.UUID) *APIKeyMonthCreditBucket {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAPIKey queries the api_key edge of a APIKeyMonthCreditBucket.
+func (c *APIKeyMonthCreditBucketClient) QueryAPIKey(_m *APIKeyMonthCreditBucket) *APIKeyQuery {
+	query := (&APIKeyClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikeymonthcreditbucket.Table, apikeymonthcreditbucket.FieldID, id),
+			sqlgraph.To(apikey.Table, apikey.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, apikeymonthcreditbucket.APIKeyTable, apikeymonthcreditbucket.APIKeyColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryProject queries the project edge of a APIKeyMonthCreditBucket.
+func (c *APIKeyMonthCreditBucketClient) QueryProject(_m *APIKeyMonthCreditBucket) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(apikeymonthcreditbucket.Table, apikeymonthcreditbucket.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, apikeymonthcreditbucket.ProjectTable, apikeymonthcreditbucket.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *APIKeyMonthCreditBucketClient) Hooks() []Hook {
+	return c.hooks.APIKeyMonthCreditBucket
+}
+
+// Interceptors returns the client interceptors.
+func (c *APIKeyMonthCreditBucketClient) Interceptors() []Interceptor {
+	return c.inters.APIKeyMonthCreditBucket
+}
+
+func (c *APIKeyMonthCreditBucketClient) mutate(ctx context.Context, m *APIKeyMonthCreditBucketMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&APIKeyMonthCreditBucketCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&APIKeyMonthCreditBucketUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&APIKeyMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&APIKeyMonthCreditBucketDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown APIKeyMonthCreditBucket mutation op: %q", m.Op())
+	}
+}
+
+// GatewayCallClient is a client for the GatewayCall schema.
+type GatewayCallClient struct {
+	config
+}
+
+// NewGatewayCallClient returns a client for the GatewayCall from the given config.
+func NewGatewayCallClient(c config) *GatewayCallClient {
+	return &GatewayCallClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `gatewaycall.Hooks(f(g(h())))`.
+func (c *GatewayCallClient) Use(hooks ...Hook) {
+	c.hooks.GatewayCall = append(c.hooks.GatewayCall, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `gatewaycall.Intercept(f(g(h())))`.
+func (c *GatewayCallClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GatewayCall = append(c.inters.GatewayCall, interceptors...)
+}
+
+// Create returns a builder for creating a GatewayCall entity.
+func (c *GatewayCallClient) Create() *GatewayCallCreate {
+	mutation := newGatewayCallMutation(c.config, OpCreate)
+	return &GatewayCallCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GatewayCall entities.
+func (c *GatewayCallClient) CreateBulk(builders ...*GatewayCallCreate) *GatewayCallCreateBulk {
+	return &GatewayCallCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GatewayCallClient) MapCreateBulk(slice any, setFunc func(*GatewayCallCreate, int)) *GatewayCallCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GatewayCallCreateBulk{err: fmt.Errorf("calling to GatewayCallClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GatewayCallCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GatewayCallCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GatewayCall.
+func (c *GatewayCallClient) Update() *GatewayCallUpdate {
+	mutation := newGatewayCallMutation(c.config, OpUpdate)
+	return &GatewayCallUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GatewayCallClient) UpdateOne(_m *GatewayCall) *GatewayCallUpdateOne {
+	mutation := newGatewayCallMutation(c.config, OpUpdateOne, withGatewayCall(_m))
+	return &GatewayCallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GatewayCallClient) UpdateOneID(id uuid.UUID) *GatewayCallUpdateOne {
+	mutation := newGatewayCallMutation(c.config, OpUpdateOne, withGatewayCallID(id))
+	return &GatewayCallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GatewayCall.
+func (c *GatewayCallClient) Delete() *GatewayCallDelete {
+	mutation := newGatewayCallMutation(c.config, OpDelete)
+	return &GatewayCallDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GatewayCallClient) DeleteOne(_m *GatewayCall) *GatewayCallDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GatewayCallClient) DeleteOneID(id uuid.UUID) *GatewayCallDeleteOne {
+	builder := c.Delete().Where(gatewaycall.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GatewayCallDeleteOne{builder}
+}
+
+// Query returns a query builder for GatewayCall.
+func (c *GatewayCallClient) Query() *GatewayCallQuery {
+	return &GatewayCallQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGatewayCall},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GatewayCall entity by its id.
+func (c *GatewayCallClient) Get(ctx context.Context, id uuid.UUID) (*GatewayCall, error) {
+	return c.Query().Where(gatewaycall.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GatewayCallClient) GetX(ctx context.Context, id uuid.UUID) *GatewayCall {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryAttempts queries the attempts edge of a GatewayCall.
+func (c *GatewayCallClient) QueryAttempts(_m *GatewayCall) *GatewayCallAttemptQuery {
+	query := (&GatewayCallAttemptClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(gatewaycall.Table, gatewaycall.FieldID, id),
+			sqlgraph.To(gatewaycallattempt.Table, gatewaycallattempt.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, gatewaycall.AttemptsTable, gatewaycall.AttemptsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMonitoredInput queries the monitored_input edge of a GatewayCall.
+func (c *GatewayCallClient) QueryMonitoredInput(_m *GatewayCall) *MonitoredInputQuery {
+	query := (&MonitoredInputClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(gatewaycall.Table, gatewaycall.FieldID, id),
+			sqlgraph.To(monitoredinput.Table, monitoredinput.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, gatewaycall.MonitoredInputTable, gatewaycall.MonitoredInputColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GatewayCallClient) Hooks() []Hook {
+	return c.hooks.GatewayCall
+}
+
+// Interceptors returns the client interceptors.
+func (c *GatewayCallClient) Interceptors() []Interceptor {
+	return c.inters.GatewayCall
+}
+
+func (c *GatewayCallClient) mutate(ctx context.Context, m *GatewayCallMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GatewayCallCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GatewayCallUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GatewayCallUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GatewayCallDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GatewayCall mutation op: %q", m.Op())
+	}
+}
+
+// GatewayCallAttemptClient is a client for the GatewayCallAttempt schema.
+type GatewayCallAttemptClient struct {
+	config
+}
+
+// NewGatewayCallAttemptClient returns a client for the GatewayCallAttempt from the given config.
+func NewGatewayCallAttemptClient(c config) *GatewayCallAttemptClient {
+	return &GatewayCallAttemptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `gatewaycallattempt.Hooks(f(g(h())))`.
+func (c *GatewayCallAttemptClient) Use(hooks ...Hook) {
+	c.hooks.GatewayCallAttempt = append(c.hooks.GatewayCallAttempt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `gatewaycallattempt.Intercept(f(g(h())))`.
+func (c *GatewayCallAttemptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.GatewayCallAttempt = append(c.inters.GatewayCallAttempt, interceptors...)
+}
+
+// Create returns a builder for creating a GatewayCallAttempt entity.
+func (c *GatewayCallAttemptClient) Create() *GatewayCallAttemptCreate {
+	mutation := newGatewayCallAttemptMutation(c.config, OpCreate)
+	return &GatewayCallAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of GatewayCallAttempt entities.
+func (c *GatewayCallAttemptClient) CreateBulk(builders ...*GatewayCallAttemptCreate) *GatewayCallAttemptCreateBulk {
+	return &GatewayCallAttemptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *GatewayCallAttemptClient) MapCreateBulk(slice any, setFunc func(*GatewayCallAttemptCreate, int)) *GatewayCallAttemptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &GatewayCallAttemptCreateBulk{err: fmt.Errorf("calling to GatewayCallAttemptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*GatewayCallAttemptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &GatewayCallAttemptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for GatewayCallAttempt.
+func (c *GatewayCallAttemptClient) Update() *GatewayCallAttemptUpdate {
+	mutation := newGatewayCallAttemptMutation(c.config, OpUpdate)
+	return &GatewayCallAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *GatewayCallAttemptClient) UpdateOne(_m *GatewayCallAttempt) *GatewayCallAttemptUpdateOne {
+	mutation := newGatewayCallAttemptMutation(c.config, OpUpdateOne, withGatewayCallAttempt(_m))
+	return &GatewayCallAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *GatewayCallAttemptClient) UpdateOneID(id uuid.UUID) *GatewayCallAttemptUpdateOne {
+	mutation := newGatewayCallAttemptMutation(c.config, OpUpdateOne, withGatewayCallAttemptID(id))
+	return &GatewayCallAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for GatewayCallAttempt.
+func (c *GatewayCallAttemptClient) Delete() *GatewayCallAttemptDelete {
+	mutation := newGatewayCallAttemptMutation(c.config, OpDelete)
+	return &GatewayCallAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *GatewayCallAttemptClient) DeleteOne(_m *GatewayCallAttempt) *GatewayCallAttemptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *GatewayCallAttemptClient) DeleteOneID(id uuid.UUID) *GatewayCallAttemptDeleteOne {
+	builder := c.Delete().Where(gatewaycallattempt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &GatewayCallAttemptDeleteOne{builder}
+}
+
+// Query returns a query builder for GatewayCallAttempt.
+func (c *GatewayCallAttemptClient) Query() *GatewayCallAttemptQuery {
+	return &GatewayCallAttemptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeGatewayCallAttempt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a GatewayCallAttempt entity by its id.
+func (c *GatewayCallAttemptClient) Get(ctx context.Context, id uuid.UUID) (*GatewayCallAttempt, error) {
+	return c.Query().Where(gatewaycallattempt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *GatewayCallAttemptClient) GetX(ctx context.Context, id uuid.UUID) *GatewayCallAttempt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCall queries the call edge of a GatewayCallAttempt.
+func (c *GatewayCallAttemptClient) QueryCall(_m *GatewayCallAttempt) *GatewayCallQuery {
+	query := (&GatewayCallClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(gatewaycallattempt.Table, gatewaycallattempt.FieldID, id),
+			sqlgraph.To(gatewaycall.Table, gatewaycall.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, gatewaycallattempt.CallTable, gatewaycallattempt.CallColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *GatewayCallAttemptClient) Hooks() []Hook {
+	return c.hooks.GatewayCallAttempt
+}
+
+// Interceptors returns the client interceptors.
+func (c *GatewayCallAttemptClient) Interceptors() []Interceptor {
+	return c.inters.GatewayCallAttempt
+}
+
+func (c *GatewayCallAttemptClient) mutate(ctx context.Context, m *GatewayCallAttemptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&GatewayCallAttemptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&GatewayCallAttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&GatewayCallAttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&GatewayCallAttemptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown GatewayCallAttempt mutation op: %q", m.Op())
+	}
+}
+
+// MaintenanceStateClient is a client for the MaintenanceState schema.
+type MaintenanceStateClient struct {
+	config
+}
+
+// NewMaintenanceStateClient returns a client for the MaintenanceState from the given config.
+func NewMaintenanceStateClient(c config) *MaintenanceStateClient {
+	return &MaintenanceStateClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `maintenancestate.Hooks(f(g(h())))`.
+func (c *MaintenanceStateClient) Use(hooks ...Hook) {
+	c.hooks.MaintenanceState = append(c.hooks.MaintenanceState, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `maintenancestate.Intercept(f(g(h())))`.
+func (c *MaintenanceStateClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MaintenanceState = append(c.inters.MaintenanceState, interceptors...)
+}
+
+// Create returns a builder for creating a MaintenanceState entity.
+func (c *MaintenanceStateClient) Create() *MaintenanceStateCreate {
+	mutation := newMaintenanceStateMutation(c.config, OpCreate)
+	return &MaintenanceStateCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MaintenanceState entities.
+func (c *MaintenanceStateClient) CreateBulk(builders ...*MaintenanceStateCreate) *MaintenanceStateCreateBulk {
+	return &MaintenanceStateCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MaintenanceStateClient) MapCreateBulk(slice any, setFunc func(*MaintenanceStateCreate, int)) *MaintenanceStateCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MaintenanceStateCreateBulk{err: fmt.Errorf("calling to MaintenanceStateClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MaintenanceStateCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MaintenanceStateCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MaintenanceState.
+func (c *MaintenanceStateClient) Update() *MaintenanceStateUpdate {
+	mutation := newMaintenanceStateMutation(c.config, OpUpdate)
+	return &MaintenanceStateUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MaintenanceStateClient) UpdateOne(_m *MaintenanceState) *MaintenanceStateUpdateOne {
+	mutation := newMaintenanceStateMutation(c.config, OpUpdateOne, withMaintenanceState(_m))
+	return &MaintenanceStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MaintenanceStateClient) UpdateOneID(id uuid.UUID) *MaintenanceStateUpdateOne {
+	mutation := newMaintenanceStateMutation(c.config, OpUpdateOne, withMaintenanceStateID(id))
+	return &MaintenanceStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MaintenanceState.
+func (c *MaintenanceStateClient) Delete() *MaintenanceStateDelete {
+	mutation := newMaintenanceStateMutation(c.config, OpDelete)
+	return &MaintenanceStateDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MaintenanceStateClient) DeleteOne(_m *MaintenanceState) *MaintenanceStateDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MaintenanceStateClient) DeleteOneID(id uuid.UUID) *MaintenanceStateDeleteOne {
+	builder := c.Delete().Where(maintenancestate.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MaintenanceStateDeleteOne{builder}
+}
+
+// Query returns a query builder for MaintenanceState.
+func (c *MaintenanceStateClient) Query() *MaintenanceStateQuery {
+	return &MaintenanceStateQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMaintenanceState},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MaintenanceState entity by its id.
+func (c *MaintenanceStateClient) Get(ctx context.Context, id uuid.UUID) (*MaintenanceState, error) {
+	return c.Query().Where(maintenancestate.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MaintenanceStateClient) GetX(ctx context.Context, id uuid.UUID) *MaintenanceState {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MaintenanceStateClient) Hooks() []Hook {
+	return c.hooks.MaintenanceState
+}
+
+// Interceptors returns the client interceptors.
+func (c *MaintenanceStateClient) Interceptors() []Interceptor {
+	return c.inters.MaintenanceState
+}
+
+func (c *MaintenanceStateClient) mutate(ctx context.Context, m *MaintenanceStateMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MaintenanceStateCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MaintenanceStateUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MaintenanceStateUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MaintenanceStateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MaintenanceState mutation op: %q", m.Op())
 	}
 }
 
@@ -1336,6 +2050,421 @@ func (c *ModelBindingClient) mutate(ctx context.Context, m *ModelBindingMutation
 	}
 }
 
+// ModelMultiplierAuditClient is a client for the ModelMultiplierAudit schema.
+type ModelMultiplierAuditClient struct {
+	config
+}
+
+// NewModelMultiplierAuditClient returns a client for the ModelMultiplierAudit from the given config.
+func NewModelMultiplierAuditClient(c config) *ModelMultiplierAuditClient {
+	return &ModelMultiplierAuditClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `modelmultiplieraudit.Hooks(f(g(h())))`.
+func (c *ModelMultiplierAuditClient) Use(hooks ...Hook) {
+	c.hooks.ModelMultiplierAudit = append(c.hooks.ModelMultiplierAudit, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `modelmultiplieraudit.Intercept(f(g(h())))`.
+func (c *ModelMultiplierAuditClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ModelMultiplierAudit = append(c.inters.ModelMultiplierAudit, interceptors...)
+}
+
+// Create returns a builder for creating a ModelMultiplierAudit entity.
+func (c *ModelMultiplierAuditClient) Create() *ModelMultiplierAuditCreate {
+	mutation := newModelMultiplierAuditMutation(c.config, OpCreate)
+	return &ModelMultiplierAuditCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ModelMultiplierAudit entities.
+func (c *ModelMultiplierAuditClient) CreateBulk(builders ...*ModelMultiplierAuditCreate) *ModelMultiplierAuditCreateBulk {
+	return &ModelMultiplierAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ModelMultiplierAuditClient) MapCreateBulk(slice any, setFunc func(*ModelMultiplierAuditCreate, int)) *ModelMultiplierAuditCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ModelMultiplierAuditCreateBulk{err: fmt.Errorf("calling to ModelMultiplierAuditClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ModelMultiplierAuditCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ModelMultiplierAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ModelMultiplierAudit.
+func (c *ModelMultiplierAuditClient) Update() *ModelMultiplierAuditUpdate {
+	mutation := newModelMultiplierAuditMutation(c.config, OpUpdate)
+	return &ModelMultiplierAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ModelMultiplierAuditClient) UpdateOne(_m *ModelMultiplierAudit) *ModelMultiplierAuditUpdateOne {
+	mutation := newModelMultiplierAuditMutation(c.config, OpUpdateOne, withModelMultiplierAudit(_m))
+	return &ModelMultiplierAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ModelMultiplierAuditClient) UpdateOneID(id uuid.UUID) *ModelMultiplierAuditUpdateOne {
+	mutation := newModelMultiplierAuditMutation(c.config, OpUpdateOne, withModelMultiplierAuditID(id))
+	return &ModelMultiplierAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ModelMultiplierAudit.
+func (c *ModelMultiplierAuditClient) Delete() *ModelMultiplierAuditDelete {
+	mutation := newModelMultiplierAuditMutation(c.config, OpDelete)
+	return &ModelMultiplierAuditDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ModelMultiplierAuditClient) DeleteOne(_m *ModelMultiplierAudit) *ModelMultiplierAuditDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ModelMultiplierAuditClient) DeleteOneID(id uuid.UUID) *ModelMultiplierAuditDeleteOne {
+	builder := c.Delete().Where(modelmultiplieraudit.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ModelMultiplierAuditDeleteOne{builder}
+}
+
+// Query returns a query builder for ModelMultiplierAudit.
+func (c *ModelMultiplierAuditClient) Query() *ModelMultiplierAuditQuery {
+	return &ModelMultiplierAuditQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeModelMultiplierAudit},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ModelMultiplierAudit entity by its id.
+func (c *ModelMultiplierAuditClient) Get(ctx context.Context, id uuid.UUID) (*ModelMultiplierAudit, error) {
+	return c.Query().Where(modelmultiplieraudit.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ModelMultiplierAuditClient) GetX(ctx context.Context, id uuid.UUID) *ModelMultiplierAudit {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ModelMultiplierAuditClient) Hooks() []Hook {
+	return c.hooks.ModelMultiplierAudit
+}
+
+// Interceptors returns the client interceptors.
+func (c *ModelMultiplierAuditClient) Interceptors() []Interceptor {
+	return c.inters.ModelMultiplierAudit
+}
+
+func (c *ModelMultiplierAuditClient) mutate(ctx context.Context, m *ModelMultiplierAuditMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ModelMultiplierAuditCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ModelMultiplierAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ModelMultiplierAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ModelMultiplierAuditDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ModelMultiplierAudit mutation op: %q", m.Op())
+	}
+}
+
+// MonitoredInputClient is a client for the MonitoredInput schema.
+type MonitoredInputClient struct {
+	config
+}
+
+// NewMonitoredInputClient returns a client for the MonitoredInput from the given config.
+func NewMonitoredInputClient(c config) *MonitoredInputClient {
+	return &MonitoredInputClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `monitoredinput.Hooks(f(g(h())))`.
+func (c *MonitoredInputClient) Use(hooks ...Hook) {
+	c.hooks.MonitoredInput = append(c.hooks.MonitoredInput, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `monitoredinput.Intercept(f(g(h())))`.
+func (c *MonitoredInputClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MonitoredInput = append(c.inters.MonitoredInput, interceptors...)
+}
+
+// Create returns a builder for creating a MonitoredInput entity.
+func (c *MonitoredInputClient) Create() *MonitoredInputCreate {
+	mutation := newMonitoredInputMutation(c.config, OpCreate)
+	return &MonitoredInputCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MonitoredInput entities.
+func (c *MonitoredInputClient) CreateBulk(builders ...*MonitoredInputCreate) *MonitoredInputCreateBulk {
+	return &MonitoredInputCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MonitoredInputClient) MapCreateBulk(slice any, setFunc func(*MonitoredInputCreate, int)) *MonitoredInputCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MonitoredInputCreateBulk{err: fmt.Errorf("calling to MonitoredInputClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MonitoredInputCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MonitoredInputCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MonitoredInput.
+func (c *MonitoredInputClient) Update() *MonitoredInputUpdate {
+	mutation := newMonitoredInputMutation(c.config, OpUpdate)
+	return &MonitoredInputUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MonitoredInputClient) UpdateOne(_m *MonitoredInput) *MonitoredInputUpdateOne {
+	mutation := newMonitoredInputMutation(c.config, OpUpdateOne, withMonitoredInput(_m))
+	return &MonitoredInputUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MonitoredInputClient) UpdateOneID(id uuid.UUID) *MonitoredInputUpdateOne {
+	mutation := newMonitoredInputMutation(c.config, OpUpdateOne, withMonitoredInputID(id))
+	return &MonitoredInputUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MonitoredInput.
+func (c *MonitoredInputClient) Delete() *MonitoredInputDelete {
+	mutation := newMonitoredInputMutation(c.config, OpDelete)
+	return &MonitoredInputDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MonitoredInputClient) DeleteOne(_m *MonitoredInput) *MonitoredInputDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MonitoredInputClient) DeleteOneID(id uuid.UUID) *MonitoredInputDeleteOne {
+	builder := c.Delete().Where(monitoredinput.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MonitoredInputDeleteOne{builder}
+}
+
+// Query returns a query builder for MonitoredInput.
+func (c *MonitoredInputClient) Query() *MonitoredInputQuery {
+	return &MonitoredInputQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMonitoredInput},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MonitoredInput entity by its id.
+func (c *MonitoredInputClient) Get(ctx context.Context, id uuid.UUID) (*MonitoredInput, error) {
+	return c.Query().Where(monitoredinput.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MonitoredInputClient) GetX(ctx context.Context, id uuid.UUID) *MonitoredInput {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryCall queries the call edge of a MonitoredInput.
+func (c *MonitoredInputClient) QueryCall(_m *MonitoredInput) *GatewayCallQuery {
+	query := (&GatewayCallClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(monitoredinput.Table, monitoredinput.FieldID, id),
+			sqlgraph.To(gatewaycall.Table, gatewaycall.FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, true, monitoredinput.CallTable, monitoredinput.CallColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MonitoredInputClient) Hooks() []Hook {
+	return c.hooks.MonitoredInput
+}
+
+// Interceptors returns the client interceptors.
+func (c *MonitoredInputClient) Interceptors() []Interceptor {
+	return c.inters.MonitoredInput
+}
+
+func (c *MonitoredInputClient) mutate(ctx context.Context, m *MonitoredInputMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MonitoredInputCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MonitoredInputUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MonitoredInputUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MonitoredInputDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MonitoredInput mutation op: %q", m.Op())
+	}
+}
+
+// MonthlyUsageCubeClient is a client for the MonthlyUsageCube schema.
+type MonthlyUsageCubeClient struct {
+	config
+}
+
+// NewMonthlyUsageCubeClient returns a client for the MonthlyUsageCube from the given config.
+func NewMonthlyUsageCubeClient(c config) *MonthlyUsageCubeClient {
+	return &MonthlyUsageCubeClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `monthlyusagecube.Hooks(f(g(h())))`.
+func (c *MonthlyUsageCubeClient) Use(hooks ...Hook) {
+	c.hooks.MonthlyUsageCube = append(c.hooks.MonthlyUsageCube, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `monthlyusagecube.Intercept(f(g(h())))`.
+func (c *MonthlyUsageCubeClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MonthlyUsageCube = append(c.inters.MonthlyUsageCube, interceptors...)
+}
+
+// Create returns a builder for creating a MonthlyUsageCube entity.
+func (c *MonthlyUsageCubeClient) Create() *MonthlyUsageCubeCreate {
+	mutation := newMonthlyUsageCubeMutation(c.config, OpCreate)
+	return &MonthlyUsageCubeCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MonthlyUsageCube entities.
+func (c *MonthlyUsageCubeClient) CreateBulk(builders ...*MonthlyUsageCubeCreate) *MonthlyUsageCubeCreateBulk {
+	return &MonthlyUsageCubeCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MonthlyUsageCubeClient) MapCreateBulk(slice any, setFunc func(*MonthlyUsageCubeCreate, int)) *MonthlyUsageCubeCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MonthlyUsageCubeCreateBulk{err: fmt.Errorf("calling to MonthlyUsageCubeClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MonthlyUsageCubeCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MonthlyUsageCubeCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MonthlyUsageCube.
+func (c *MonthlyUsageCubeClient) Update() *MonthlyUsageCubeUpdate {
+	mutation := newMonthlyUsageCubeMutation(c.config, OpUpdate)
+	return &MonthlyUsageCubeUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MonthlyUsageCubeClient) UpdateOne(_m *MonthlyUsageCube) *MonthlyUsageCubeUpdateOne {
+	mutation := newMonthlyUsageCubeMutation(c.config, OpUpdateOne, withMonthlyUsageCube(_m))
+	return &MonthlyUsageCubeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MonthlyUsageCubeClient) UpdateOneID(id uuid.UUID) *MonthlyUsageCubeUpdateOne {
+	mutation := newMonthlyUsageCubeMutation(c.config, OpUpdateOne, withMonthlyUsageCubeID(id))
+	return &MonthlyUsageCubeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MonthlyUsageCube.
+func (c *MonthlyUsageCubeClient) Delete() *MonthlyUsageCubeDelete {
+	mutation := newMonthlyUsageCubeMutation(c.config, OpDelete)
+	return &MonthlyUsageCubeDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MonthlyUsageCubeClient) DeleteOne(_m *MonthlyUsageCube) *MonthlyUsageCubeDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MonthlyUsageCubeClient) DeleteOneID(id uuid.UUID) *MonthlyUsageCubeDeleteOne {
+	builder := c.Delete().Where(monthlyusagecube.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MonthlyUsageCubeDeleteOne{builder}
+}
+
+// Query returns a query builder for MonthlyUsageCube.
+func (c *MonthlyUsageCubeClient) Query() *MonthlyUsageCubeQuery {
+	return &MonthlyUsageCubeQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMonthlyUsageCube},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MonthlyUsageCube entity by its id.
+func (c *MonthlyUsageCubeClient) Get(ctx context.Context, id uuid.UUID) (*MonthlyUsageCube, error) {
+	return c.Query().Where(monthlyusagecube.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MonthlyUsageCubeClient) GetX(ctx context.Context, id uuid.UUID) *MonthlyUsageCube {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MonthlyUsageCubeClient) Hooks() []Hook {
+	return c.hooks.MonthlyUsageCube
+}
+
+// Interceptors returns the client interceptors.
+func (c *MonthlyUsageCubeClient) Interceptors() []Interceptor {
+	return c.inters.MonthlyUsageCube
+}
+
+func (c *MonthlyUsageCubeClient) mutate(ctx context.Context, m *MonthlyUsageCubeMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MonthlyUsageCubeCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MonthlyUsageCubeUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MonthlyUsageCubeUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MonthlyUsageCubeDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MonthlyUsageCube mutation op: %q", m.Op())
+	}
+}
+
 // OrganizationClient is a client for the Organization schema.
 type OrganizationClient struct {
 	config
@@ -1838,6 +2967,38 @@ func (c *ProjectClient) QueryAPIKeys(_m *Project) *APIKeyQuery {
 	return query
 }
 
+// QueryCreditBuckets queries the credit_buckets edge of a Project.
+func (c *ProjectClient) QueryCreditBuckets(_m *Project) *ProjectMonthCreditBucketQuery {
+	query := (&ProjectMonthCreditBucketClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(project.Table, project.FieldID, id),
+			sqlgraph.To(projectmonthcreditbucket.Table, projectmonthcreditbucket.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, project.CreditBucketsTable, project.CreditBucketsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAPIKeyCreditBuckets queries the api_key_credit_buckets edge of a Project.
+func (c *ProjectClient) QueryAPIKeyCreditBuckets(_m *Project) *APIKeyMonthCreditBucketQuery {
+	query := (&APIKeyMonthCreditBucketClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(project.Table, project.FieldID, id),
+			sqlgraph.To(apikeymonthcreditbucket.Table, apikeymonthcreditbucket.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, project.APIKeyCreditBucketsTable, project.APIKeyCreditBucketsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *ProjectClient) Hooks() []Hook {
 	return c.hooks.Project
@@ -2028,6 +3189,288 @@ func (c *ProjectMemberClient) mutate(ctx context.Context, m *ProjectMemberMutati
 	}
 }
 
+// ProjectMonthCreditBucketClient is a client for the ProjectMonthCreditBucket schema.
+type ProjectMonthCreditBucketClient struct {
+	config
+}
+
+// NewProjectMonthCreditBucketClient returns a client for the ProjectMonthCreditBucket from the given config.
+func NewProjectMonthCreditBucketClient(c config) *ProjectMonthCreditBucketClient {
+	return &ProjectMonthCreditBucketClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `projectmonthcreditbucket.Hooks(f(g(h())))`.
+func (c *ProjectMonthCreditBucketClient) Use(hooks ...Hook) {
+	c.hooks.ProjectMonthCreditBucket = append(c.hooks.ProjectMonthCreditBucket, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `projectmonthcreditbucket.Intercept(f(g(h())))`.
+func (c *ProjectMonthCreditBucketClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ProjectMonthCreditBucket = append(c.inters.ProjectMonthCreditBucket, interceptors...)
+}
+
+// Create returns a builder for creating a ProjectMonthCreditBucket entity.
+func (c *ProjectMonthCreditBucketClient) Create() *ProjectMonthCreditBucketCreate {
+	mutation := newProjectMonthCreditBucketMutation(c.config, OpCreate)
+	return &ProjectMonthCreditBucketCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ProjectMonthCreditBucket entities.
+func (c *ProjectMonthCreditBucketClient) CreateBulk(builders ...*ProjectMonthCreditBucketCreate) *ProjectMonthCreditBucketCreateBulk {
+	return &ProjectMonthCreditBucketCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ProjectMonthCreditBucketClient) MapCreateBulk(slice any, setFunc func(*ProjectMonthCreditBucketCreate, int)) *ProjectMonthCreditBucketCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ProjectMonthCreditBucketCreateBulk{err: fmt.Errorf("calling to ProjectMonthCreditBucketClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ProjectMonthCreditBucketCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ProjectMonthCreditBucketCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ProjectMonthCreditBucket.
+func (c *ProjectMonthCreditBucketClient) Update() *ProjectMonthCreditBucketUpdate {
+	mutation := newProjectMonthCreditBucketMutation(c.config, OpUpdate)
+	return &ProjectMonthCreditBucketUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ProjectMonthCreditBucketClient) UpdateOne(_m *ProjectMonthCreditBucket) *ProjectMonthCreditBucketUpdateOne {
+	mutation := newProjectMonthCreditBucketMutation(c.config, OpUpdateOne, withProjectMonthCreditBucket(_m))
+	return &ProjectMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ProjectMonthCreditBucketClient) UpdateOneID(id uuid.UUID) *ProjectMonthCreditBucketUpdateOne {
+	mutation := newProjectMonthCreditBucketMutation(c.config, OpUpdateOne, withProjectMonthCreditBucketID(id))
+	return &ProjectMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ProjectMonthCreditBucket.
+func (c *ProjectMonthCreditBucketClient) Delete() *ProjectMonthCreditBucketDelete {
+	mutation := newProjectMonthCreditBucketMutation(c.config, OpDelete)
+	return &ProjectMonthCreditBucketDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ProjectMonthCreditBucketClient) DeleteOne(_m *ProjectMonthCreditBucket) *ProjectMonthCreditBucketDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ProjectMonthCreditBucketClient) DeleteOneID(id uuid.UUID) *ProjectMonthCreditBucketDeleteOne {
+	builder := c.Delete().Where(projectmonthcreditbucket.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ProjectMonthCreditBucketDeleteOne{builder}
+}
+
+// Query returns a query builder for ProjectMonthCreditBucket.
+func (c *ProjectMonthCreditBucketClient) Query() *ProjectMonthCreditBucketQuery {
+	return &ProjectMonthCreditBucketQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeProjectMonthCreditBucket},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ProjectMonthCreditBucket entity by its id.
+func (c *ProjectMonthCreditBucketClient) Get(ctx context.Context, id uuid.UUID) (*ProjectMonthCreditBucket, error) {
+	return c.Query().Where(projectmonthcreditbucket.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ProjectMonthCreditBucketClient) GetX(ctx context.Context, id uuid.UUID) *ProjectMonthCreditBucket {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryProject queries the project edge of a ProjectMonthCreditBucket.
+func (c *ProjectMonthCreditBucketClient) QueryProject(_m *ProjectMonthCreditBucket) *ProjectQuery {
+	query := (&ProjectClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(projectmonthcreditbucket.Table, projectmonthcreditbucket.FieldID, id),
+			sqlgraph.To(project.Table, project.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, projectmonthcreditbucket.ProjectTable, projectmonthcreditbucket.ProjectColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ProjectMonthCreditBucketClient) Hooks() []Hook {
+	return c.hooks.ProjectMonthCreditBucket
+}
+
+// Interceptors returns the client interceptors.
+func (c *ProjectMonthCreditBucketClient) Interceptors() []Interceptor {
+	return c.inters.ProjectMonthCreditBucket
+}
+
+func (c *ProjectMonthCreditBucketClient) mutate(ctx context.Context, m *ProjectMonthCreditBucketMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ProjectMonthCreditBucketCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ProjectMonthCreditBucketUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ProjectMonthCreditBucketUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ProjectMonthCreditBucketDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ProjectMonthCreditBucket mutation op: %q", m.Op())
+	}
+}
+
+// PromptAccessAuditClient is a client for the PromptAccessAudit schema.
+type PromptAccessAuditClient struct {
+	config
+}
+
+// NewPromptAccessAuditClient returns a client for the PromptAccessAudit from the given config.
+func NewPromptAccessAuditClient(c config) *PromptAccessAuditClient {
+	return &PromptAccessAuditClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `promptaccessaudit.Hooks(f(g(h())))`.
+func (c *PromptAccessAuditClient) Use(hooks ...Hook) {
+	c.hooks.PromptAccessAudit = append(c.hooks.PromptAccessAudit, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `promptaccessaudit.Intercept(f(g(h())))`.
+func (c *PromptAccessAuditClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PromptAccessAudit = append(c.inters.PromptAccessAudit, interceptors...)
+}
+
+// Create returns a builder for creating a PromptAccessAudit entity.
+func (c *PromptAccessAuditClient) Create() *PromptAccessAuditCreate {
+	mutation := newPromptAccessAuditMutation(c.config, OpCreate)
+	return &PromptAccessAuditCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PromptAccessAudit entities.
+func (c *PromptAccessAuditClient) CreateBulk(builders ...*PromptAccessAuditCreate) *PromptAccessAuditCreateBulk {
+	return &PromptAccessAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PromptAccessAuditClient) MapCreateBulk(slice any, setFunc func(*PromptAccessAuditCreate, int)) *PromptAccessAuditCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PromptAccessAuditCreateBulk{err: fmt.Errorf("calling to PromptAccessAuditClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PromptAccessAuditCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PromptAccessAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PromptAccessAudit.
+func (c *PromptAccessAuditClient) Update() *PromptAccessAuditUpdate {
+	mutation := newPromptAccessAuditMutation(c.config, OpUpdate)
+	return &PromptAccessAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PromptAccessAuditClient) UpdateOne(_m *PromptAccessAudit) *PromptAccessAuditUpdateOne {
+	mutation := newPromptAccessAuditMutation(c.config, OpUpdateOne, withPromptAccessAudit(_m))
+	return &PromptAccessAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PromptAccessAuditClient) UpdateOneID(id uuid.UUID) *PromptAccessAuditUpdateOne {
+	mutation := newPromptAccessAuditMutation(c.config, OpUpdateOne, withPromptAccessAuditID(id))
+	return &PromptAccessAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PromptAccessAudit.
+func (c *PromptAccessAuditClient) Delete() *PromptAccessAuditDelete {
+	mutation := newPromptAccessAuditMutation(c.config, OpDelete)
+	return &PromptAccessAuditDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PromptAccessAuditClient) DeleteOne(_m *PromptAccessAudit) *PromptAccessAuditDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PromptAccessAuditClient) DeleteOneID(id uuid.UUID) *PromptAccessAuditDeleteOne {
+	builder := c.Delete().Where(promptaccessaudit.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PromptAccessAuditDeleteOne{builder}
+}
+
+// Query returns a query builder for PromptAccessAudit.
+func (c *PromptAccessAuditClient) Query() *PromptAccessAuditQuery {
+	return &PromptAccessAuditQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePromptAccessAudit},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PromptAccessAudit entity by its id.
+func (c *PromptAccessAuditClient) Get(ctx context.Context, id uuid.UUID) (*PromptAccessAudit, error) {
+	return c.Query().Where(promptaccessaudit.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PromptAccessAuditClient) GetX(ctx context.Context, id uuid.UUID) *PromptAccessAudit {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PromptAccessAuditClient) Hooks() []Hook {
+	return c.hooks.PromptAccessAudit
+}
+
+// Interceptors returns the client interceptors.
+func (c *PromptAccessAuditClient) Interceptors() []Interceptor {
+	return c.inters.PromptAccessAudit
+}
+
+func (c *PromptAccessAuditClient) mutate(ctx context.Context, m *PromptAccessAuditMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PromptAccessAuditCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PromptAccessAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PromptAccessAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PromptAccessAuditDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PromptAccessAudit mutation op: %q", m.Op())
+	}
+}
+
 // ProviderClient is a client for the Provider schema.
 type ProviderClient struct {
 	config
@@ -2174,6 +3617,139 @@ func (c *ProviderClient) mutate(ctx context.Context, m *ProviderMutation) (Value
 		return (&ProviderDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Provider mutation op: %q", m.Op())
+	}
+}
+
+// QuotaAdjustmentAuditClient is a client for the QuotaAdjustmentAudit schema.
+type QuotaAdjustmentAuditClient struct {
+	config
+}
+
+// NewQuotaAdjustmentAuditClient returns a client for the QuotaAdjustmentAudit from the given config.
+func NewQuotaAdjustmentAuditClient(c config) *QuotaAdjustmentAuditClient {
+	return &QuotaAdjustmentAuditClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `quotaadjustmentaudit.Hooks(f(g(h())))`.
+func (c *QuotaAdjustmentAuditClient) Use(hooks ...Hook) {
+	c.hooks.QuotaAdjustmentAudit = append(c.hooks.QuotaAdjustmentAudit, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `quotaadjustmentaudit.Intercept(f(g(h())))`.
+func (c *QuotaAdjustmentAuditClient) Intercept(interceptors ...Interceptor) {
+	c.inters.QuotaAdjustmentAudit = append(c.inters.QuotaAdjustmentAudit, interceptors...)
+}
+
+// Create returns a builder for creating a QuotaAdjustmentAudit entity.
+func (c *QuotaAdjustmentAuditClient) Create() *QuotaAdjustmentAuditCreate {
+	mutation := newQuotaAdjustmentAuditMutation(c.config, OpCreate)
+	return &QuotaAdjustmentAuditCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of QuotaAdjustmentAudit entities.
+func (c *QuotaAdjustmentAuditClient) CreateBulk(builders ...*QuotaAdjustmentAuditCreate) *QuotaAdjustmentAuditCreateBulk {
+	return &QuotaAdjustmentAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *QuotaAdjustmentAuditClient) MapCreateBulk(slice any, setFunc func(*QuotaAdjustmentAuditCreate, int)) *QuotaAdjustmentAuditCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &QuotaAdjustmentAuditCreateBulk{err: fmt.Errorf("calling to QuotaAdjustmentAuditClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*QuotaAdjustmentAuditCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &QuotaAdjustmentAuditCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for QuotaAdjustmentAudit.
+func (c *QuotaAdjustmentAuditClient) Update() *QuotaAdjustmentAuditUpdate {
+	mutation := newQuotaAdjustmentAuditMutation(c.config, OpUpdate)
+	return &QuotaAdjustmentAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *QuotaAdjustmentAuditClient) UpdateOne(_m *QuotaAdjustmentAudit) *QuotaAdjustmentAuditUpdateOne {
+	mutation := newQuotaAdjustmentAuditMutation(c.config, OpUpdateOne, withQuotaAdjustmentAudit(_m))
+	return &QuotaAdjustmentAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *QuotaAdjustmentAuditClient) UpdateOneID(id uuid.UUID) *QuotaAdjustmentAuditUpdateOne {
+	mutation := newQuotaAdjustmentAuditMutation(c.config, OpUpdateOne, withQuotaAdjustmentAuditID(id))
+	return &QuotaAdjustmentAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for QuotaAdjustmentAudit.
+func (c *QuotaAdjustmentAuditClient) Delete() *QuotaAdjustmentAuditDelete {
+	mutation := newQuotaAdjustmentAuditMutation(c.config, OpDelete)
+	return &QuotaAdjustmentAuditDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *QuotaAdjustmentAuditClient) DeleteOne(_m *QuotaAdjustmentAudit) *QuotaAdjustmentAuditDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *QuotaAdjustmentAuditClient) DeleteOneID(id uuid.UUID) *QuotaAdjustmentAuditDeleteOne {
+	builder := c.Delete().Where(quotaadjustmentaudit.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &QuotaAdjustmentAuditDeleteOne{builder}
+}
+
+// Query returns a query builder for QuotaAdjustmentAudit.
+func (c *QuotaAdjustmentAuditClient) Query() *QuotaAdjustmentAuditQuery {
+	return &QuotaAdjustmentAuditQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeQuotaAdjustmentAudit},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a QuotaAdjustmentAudit entity by its id.
+func (c *QuotaAdjustmentAuditClient) Get(ctx context.Context, id uuid.UUID) (*QuotaAdjustmentAudit, error) {
+	return c.Query().Where(quotaadjustmentaudit.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *QuotaAdjustmentAuditClient) GetX(ctx context.Context, id uuid.UUID) *QuotaAdjustmentAudit {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *QuotaAdjustmentAuditClient) Hooks() []Hook {
+	return c.hooks.QuotaAdjustmentAudit
+}
+
+// Interceptors returns the client interceptors.
+func (c *QuotaAdjustmentAuditClient) Interceptors() []Interceptor {
+	return c.inters.QuotaAdjustmentAudit
+}
+
+func (c *QuotaAdjustmentAuditClient) mutate(ctx context.Context, m *QuotaAdjustmentAuditMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&QuotaAdjustmentAuditCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&QuotaAdjustmentAuditUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&QuotaAdjustmentAuditUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&QuotaAdjustmentAuditDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown QuotaAdjustmentAudit mutation op: %q", m.Op())
 	}
 }
 
@@ -2409,13 +3985,19 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		APIKey, APIKeyAudit, APIKeyModel, MentorProjectApplication, Model, ModelBinding,
-		Organization, OrganizationMember, Project, ProjectMember, Provider,
+		APIKey, APIKeyAudit, APIKeyModel, APIKeyMonthCreditBucket, GatewayCall,
+		GatewayCallAttempt, MaintenanceState, MentorProjectApplication, Model,
+		ModelBinding, ModelMultiplierAudit, MonitoredInput, MonthlyUsageCube,
+		Organization, OrganizationMember, Project, ProjectMember,
+		ProjectMonthCreditBucket, PromptAccessAudit, Provider, QuotaAdjustmentAudit,
 		User []ent.Hook
 	}
 	inters struct {
-		APIKey, APIKeyAudit, APIKeyModel, MentorProjectApplication, Model, ModelBinding,
-		Organization, OrganizationMember, Project, ProjectMember, Provider,
+		APIKey, APIKeyAudit, APIKeyModel, APIKeyMonthCreditBucket, GatewayCall,
+		GatewayCallAttempt, MaintenanceState, MentorProjectApplication, Model,
+		ModelBinding, ModelMultiplierAudit, MonitoredInput, MonthlyUsageCube,
+		Organization, OrganizationMember, Project, ProjectMember,
+		ProjectMonthCreditBucket, PromptAccessAudit, Provider, QuotaAdjustmentAudit,
 		User []ent.Interceptor
 	}
 )

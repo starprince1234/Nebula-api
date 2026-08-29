@@ -18,12 +18,26 @@ type Tx struct {
 	APIKeyAudit *APIKeyAuditClient
 	// APIKeyModel is the client for interacting with the APIKeyModel builders.
 	APIKeyModel *APIKeyModelClient
+	// APIKeyMonthCreditBucket is the client for interacting with the APIKeyMonthCreditBucket builders.
+	APIKeyMonthCreditBucket *APIKeyMonthCreditBucketClient
+	// GatewayCall is the client for interacting with the GatewayCall builders.
+	GatewayCall *GatewayCallClient
+	// GatewayCallAttempt is the client for interacting with the GatewayCallAttempt builders.
+	GatewayCallAttempt *GatewayCallAttemptClient
+	// MaintenanceState is the client for interacting with the MaintenanceState builders.
+	MaintenanceState *MaintenanceStateClient
 	// MentorProjectApplication is the client for interacting with the MentorProjectApplication builders.
 	MentorProjectApplication *MentorProjectApplicationClient
 	// Model is the client for interacting with the Model builders.
 	Model *ModelClient
 	// ModelBinding is the client for interacting with the ModelBinding builders.
 	ModelBinding *ModelBindingClient
+	// ModelMultiplierAudit is the client for interacting with the ModelMultiplierAudit builders.
+	ModelMultiplierAudit *ModelMultiplierAuditClient
+	// MonitoredInput is the client for interacting with the MonitoredInput builders.
+	MonitoredInput *MonitoredInputClient
+	// MonthlyUsageCube is the client for interacting with the MonthlyUsageCube builders.
+	MonthlyUsageCube *MonthlyUsageCubeClient
 	// Organization is the client for interacting with the Organization builders.
 	Organization *OrganizationClient
 	// OrganizationMember is the client for interacting with the OrganizationMember builders.
@@ -32,8 +46,14 @@ type Tx struct {
 	Project *ProjectClient
 	// ProjectMember is the client for interacting with the ProjectMember builders.
 	ProjectMember *ProjectMemberClient
+	// ProjectMonthCreditBucket is the client for interacting with the ProjectMonthCreditBucket builders.
+	ProjectMonthCreditBucket *ProjectMonthCreditBucketClient
+	// PromptAccessAudit is the client for interacting with the PromptAccessAudit builders.
+	PromptAccessAudit *PromptAccessAuditClient
 	// Provider is the client for interacting with the Provider builders.
 	Provider *ProviderClient
+	// QuotaAdjustmentAudit is the client for interacting with the QuotaAdjustmentAudit builders.
+	QuotaAdjustmentAudit *QuotaAdjustmentAuditClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -170,14 +190,24 @@ func (tx *Tx) init() {
 	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.APIKeyAudit = NewAPIKeyAuditClient(tx.config)
 	tx.APIKeyModel = NewAPIKeyModelClient(tx.config)
+	tx.APIKeyMonthCreditBucket = NewAPIKeyMonthCreditBucketClient(tx.config)
+	tx.GatewayCall = NewGatewayCallClient(tx.config)
+	tx.GatewayCallAttempt = NewGatewayCallAttemptClient(tx.config)
+	tx.MaintenanceState = NewMaintenanceStateClient(tx.config)
 	tx.MentorProjectApplication = NewMentorProjectApplicationClient(tx.config)
 	tx.Model = NewModelClient(tx.config)
 	tx.ModelBinding = NewModelBindingClient(tx.config)
+	tx.ModelMultiplierAudit = NewModelMultiplierAuditClient(tx.config)
+	tx.MonitoredInput = NewMonitoredInputClient(tx.config)
+	tx.MonthlyUsageCube = NewMonthlyUsageCubeClient(tx.config)
 	tx.Organization = NewOrganizationClient(tx.config)
 	tx.OrganizationMember = NewOrganizationMemberClient(tx.config)
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
+	tx.ProjectMonthCreditBucket = NewProjectMonthCreditBucketClient(tx.config)
+	tx.PromptAccessAudit = NewPromptAccessAuditClient(tx.config)
 	tx.Provider = NewProviderClient(tx.config)
+	tx.QuotaAdjustmentAudit = NewQuotaAdjustmentAuditClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 

@@ -20,7 +20,7 @@
 | 软删除 | 不使用 `deleted_at` |
 | 凭据 | 用户密码仅保存强密码哈希；供应商凭据加密后保存；API Key 明文只在领取时返回一次 |
 
-首期明确不创建计费、余额、额度、用量、通知、模型市场价格、智能路由、验证码、refresh session、老师邀请或 SSE 事件表。验证码、refresh session、老师邀请和 SSE 事件存放在 Redis。
+系统创建项目/Key 月度 credit bucket、调用日志、月度用量聚合、输入监控与治理审计表；余额、RPM、Token 限制、模型市场价格、通知和智能路由不在本期范围。验证码、refresh session、老师邀请和 SSE 事件存放在 Redis。
 
 ## 3. 枚举
 
@@ -302,15 +302,19 @@ Redis 不是业务权威数据源。客户端 SSE 断线重连后必须重新调
 - `migrate` service 在 PostgreSQL 健康后执行 `CREATE EXTENSION IF NOT EXISTS citext` 和 Ent schema create；它不负责历史数据迁移或回滚。
 - 普通 `docker compose down` 不删除命名卷；`down -v` 会永久删除本地数据库和 Redis 数据，属于需明确授权的破坏性操作。
 
-## 9. 相比参考项目删除的结构
+## 9. 用量与监控表
+
+`project_month_credit_buckets` 与 `api_key_month_credit_buckets` 按北京时间月份保存额度、分配、charged 和 pending；`monthly_usage_cube` 永久保存项目、用户、Key、模型维度聚合。`gateway_calls`/`gateway_call_attempts` 保存 365 天原始调用与供应商尝试，`monitored_inputs` 保存 90 天完整文本。访问审计、额度调整审计和倍率调整审计永久保留。
+
+## 10. 相比参考项目删除的结构
 
 - 用户：删除第三方 SSO、权限位掩码、额度、余额、计费和软删除字段。
 - 组织：删除 `code`，名称作为唯一的人类可读标识。
 - 项目：删除 code、type、owner、预算及用量字段。
 - 供应商：删除接口类型、超时、自定义 Header JSON；协议适配下沉到模型 binding。
 - 模型：删除市场价格、智能路由和计费字段。
-- API Key：删除 JSON allowlist、额度、RPM、Token 限制、用量统计；模型白名单规范化为关联表。
-- 全部删除：billing、quota、usage、notification、soft-delete、internal usage/monitor 相关表。
+- API Key：删除 JSON allowlist、RPM、Token 限制；模型白名单规范化为关联表，新增月度 credit 额度。
+- 全部删除：余额 billing、RPM/Token 限制、notification、soft-delete、internal usage/monitor 路由相关旧结构；新的 credit usage 表见上一节。
 
 官方控制台的工作区路由名称仅用于前端导航，并与中文页面标题分离；该路由契约不增加数据库表、字段、索引、枚举或迁移。
 

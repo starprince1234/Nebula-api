@@ -18,11 +18,12 @@ import (
 )
 
 type SubmitAPIKeyInput struct {
-	Name            string
-	OrganizationID  uuid.UUID
-	ProjectID       uuid.UUID
-	ModelIDs        []string
-	RequestedModels []RequestedModelInput
+	Name                    string
+	OrganizationID          uuid.UUID
+	ProjectID               uuid.UUID
+	ModelIDs                []string
+	RequestedModels         []RequestedModelInput
+	RequestedMonthlyCredits int64
 }
 
 type RequestedModelInput struct {
@@ -177,6 +178,9 @@ func (s *Service) SubmitAPIKey(ctx context.Context, studentID uuid.UUID, input S
 	if !hasMentor {
 		return APIKeyView{}, domain.NewError(domain.CodeProjectNoMentor, "project has no active mentor")
 	}
+	if input.RequestedMonthlyCredits < 0 || input.RequestedMonthlyCredits > targetProject.MonthlyCreditQuotaMilli {
+		return APIKeyView{}, domain.NewError(domain.CodeValidation, "requested monthly credits exceed project quota")
+	}
 
 	modelRows := make([]*ent.Model, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
@@ -218,6 +222,7 @@ func (s *Service) SubmitAPIKey(ctx context.Context, studentID uuid.UUID, input S
 		SetProjectID(targetProject.ID).
 		SetName(name).
 		SetStatus(apikey.StatusPendingMentor).
+		SetRequestedMonthlyCreditQuotaMilli(input.RequestedMonthlyCredits).
 		Save(ctx)
 	if ent.IsConstraintError(err) {
 		return APIKeyView{}, domain.NewError(domain.CodeNameConflict, "API key name is already in use")

@@ -42,6 +42,8 @@ const (
 	FieldIsCommon = "is_common"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldCreditMultiplierMilli holds the string denoting the credit_multiplier_milli field in the database.
+	FieldCreditMultiplierMilli = "credit_multiplier_milli"
 	// EdgeBindings holds the string denoting the bindings edge name in mutations.
 	EdgeBindings = "bindings"
 	// EdgeAPIKeyModels holds the string denoting the api_key_models edge name in mutations.
@@ -80,6 +82,7 @@ var Columns = []string{
 	FieldMaxOutputTokens,
 	FieldIsCommon,
 	FieldStatus,
+	FieldCreditMultiplierMilli,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -117,6 +120,8 @@ var (
 	MaxOutputTokensValidator func(int) error
 	// DefaultIsCommon holds the default value on creation for the "is_common" field.
 	DefaultIsCommon bool
+	// CreditMultiplierMilliValidator is a validator for the "credit_multiplier_milli" field. It is called by the builders before save.
+	CreditMultiplierMilliValidator func(int64) error
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -235,6 +240,11 @@ func ByIsCommon(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByCreditMultiplierMilli orders the results by the credit_multiplier_milli field.
+func ByCreditMultiplierMilli(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreditMultiplierMilli, opts...).ToFunc()
 }
 
 // ByBindingsCount orders the results by bindings count.

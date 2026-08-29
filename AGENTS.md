@@ -6,7 +6,7 @@ Nebula 是从零重构的现代 AI API 中转站。首期只实现三类用户�
 
 只读参考项目为 `D:\VScodeProjects\NebulaCloud\nebula-ai`。参考项目用于核对真实业务和协议行为，禁止修改、复制或直接兼容其代码、旧表、旧路由和历史技术债。
 
-首期明确排除计费、余额、额度、RPM、Token 限制、用量记录、通知中心、模型价格、智能路由、软删除、旧路由别名和 internal usage/monitor API。
+平台实现按模型倍率计费、项目与 API Key 月度 credit 额度、月度用量聚合、调用日志和导师输入监控；不实现余额、RPM、Token 限制、通知中心、模型价格、智能路由、软删除、旧路由别名或 internal usage/monitor API。
 
 ## 2. 权威文档与强制同步
 

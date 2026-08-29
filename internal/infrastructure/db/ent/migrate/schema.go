@@ -20,6 +20,9 @@ var (
 		{Name: "key_prefix", Type: field.TypeString, Nullable: true, Size: 32},
 		{Name: "claimed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "revoked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "requested_monthly_credit_quota_milli", Type: field.TypeInt64},
+		{Name: "mentor_monthly_credit_quota_milli", Type: field.TypeInt64, Nullable: true},
+		{Name: "monthly_credit_quota_milli", Type: field.TypeInt64, Nullable: true},
 		{Name: "project_id", Type: field.TypeUUID},
 		{Name: "owner_user_id", Type: field.TypeUUID},
 	}
@@ -31,13 +34,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "api_keys_projects_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[9]},
+				Columns:    []*schema.Column{APIKeysColumns[12]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "api_keys_users_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[10]},
+				Columns:    []*schema.Column{APIKeysColumns[13]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -46,7 +49,7 @@ var (
 			{
 				Name:    "apikey_owner_user_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{APIKeysColumns[10], APIKeysColumns[3]},
+				Columns: []*schema.Column{APIKeysColumns[13], APIKeysColumns[3]},
 				Annotation: &entsql.IndexAnnotation{
 					Where: "status IN ('pending_mentor', 'pending_teacher', 'approved', 'active')",
 				},
@@ -54,12 +57,12 @@ var (
 			{
 				Name:    "apikey_owner_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[10], APIKeysColumns[1]},
+				Columns: []*schema.Column{APIKeysColumns[13], APIKeysColumns[1]},
 			},
 			{
 				Name:    "apikey_project_id_status_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[9], APIKeysColumns[4], APIKeysColumns[1]},
+				Columns: []*schema.Column{APIKeysColumns[12], APIKeysColumns[4], APIKeysColumns[1]},
 			},
 			{
 				Name:    "apikey_status_created_at",
@@ -148,6 +151,160 @@ var (
 			},
 		},
 	}
+	// APIKeyMonthCreditBucketsColumns holds the columns for the "api_key_month_credit_buckets" table.
+	APIKeyMonthCreditBucketsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "month", Type: field.TypeTime},
+		{Name: "quota_milli", Type: field.TypeInt64},
+		{Name: "allocation_active", Type: field.TypeBool, Default: true},
+		{Name: "charged_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "pending_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "api_key_id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID},
+	}
+	// APIKeyMonthCreditBucketsTable holds the schema information for the "api_key_month_credit_buckets" table.
+	APIKeyMonthCreditBucketsTable = &schema.Table{
+		Name:       "api_key_month_credit_buckets",
+		Columns:    APIKeyMonthCreditBucketsColumns,
+		PrimaryKey: []*schema.Column{APIKeyMonthCreditBucketsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "api_key_month_credit_buckets_api_keys_credit_buckets",
+				Columns:    []*schema.Column{APIKeyMonthCreditBucketsColumns[8]},
+				RefColumns: []*schema.Column{APIKeysColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "api_key_month_credit_buckets_projects_api_key_credit_buckets",
+				Columns:    []*schema.Column{APIKeyMonthCreditBucketsColumns[9]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "apikeymonthcreditbucket_api_key_id_month",
+				Unique:  true,
+				Columns: []*schema.Column{APIKeyMonthCreditBucketsColumns[8], APIKeyMonthCreditBucketsColumns[3]},
+			},
+			{
+				Name:    "apikeymonthcreditbucket_project_id_month",
+				Unique:  false,
+				Columns: []*schema.Column{APIKeyMonthCreditBucketsColumns[9], APIKeyMonthCreditBucketsColumns[3]},
+			},
+		},
+	}
+	// GatewayCallsColumns holds the columns for the "gateway_calls" table.
+	GatewayCallsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "request_id", Type: field.TypeString, Size: 128},
+		{Name: "month", Type: field.TypeTime},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "api_key_id", Type: field.TypeUUID},
+		{Name: "model_id", Type: field.TypeUUID},
+		{Name: "provider_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "organization_name", Type: field.TypeString, Size: 128},
+		{Name: "project_name", Type: field.TypeString, Size: 128},
+		{Name: "user_name", Type: field.TypeString, Size: 64},
+		{Name: "api_key_name", Type: field.TypeString, Size: 128},
+		{Name: "model_name", Type: field.TypeString, Size: 256},
+		{Name: "provider_name", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "protocol", Type: field.TypeString, Size: 64},
+		{Name: "request_path", Type: field.TypeString, Size: 512},
+		{Name: "multiplier_milli", Type: field.TypeInt64},
+		{Name: "credit_milli", Type: field.TypeInt64},
+		{Name: "billing_state", Type: field.TypeEnum, Enums: []string{"pending", "charged", "failed"}, Default: "pending"},
+		{Name: "outcome", Type: field.TypeEnum, Enums: []string{"pending", "succeeded", "upstream_failed", "quota_rejected", "outcome_unknown"}, Default: "pending"},
+		{Name: "error_category", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "error_message", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "lease_expires_at", Type: field.TypeTime, Nullable: true},
+		{Name: "sent_at", Type: field.TypeTime, Nullable: true},
+		{Name: "finalized_at", Type: field.TypeTime, Nullable: true},
+	}
+	// GatewayCallsTable holds the schema information for the "gateway_calls" table.
+	GatewayCallsTable = &schema.Table{
+		Name:       "gateway_calls",
+		Columns:    GatewayCallsColumns,
+		PrimaryKey: []*schema.Column{GatewayCallsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "gatewaycall_project_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayCallsColumns[5], GatewayCallsColumns[1]},
+			},
+			{
+				Name:    "gatewaycall_api_key_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayCallsColumns[7], GatewayCallsColumns[1]},
+			},
+			{
+				Name:    "gatewaycall_billing_state_lease_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayCallsColumns[20], GatewayCallsColumns[24]},
+			},
+			{
+				Name:    "gatewaycall_created_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayCallsColumns[1], GatewayCallsColumns[0]},
+			},
+		},
+	}
+	// GatewayCallAttemptsColumns holds the columns for the "gateway_call_attempts" table.
+	GatewayCallAttemptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "provider_id", Type: field.TypeUUID},
+		{Name: "binding_id", Type: field.TypeUUID},
+		{Name: "provider_name", Type: field.TypeString, Size: 128},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"connecting", "succeeded", "failed"}},
+		{Name: "http_status", Type: field.TypeInt, Nullable: true},
+		{Name: "error_category", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "error_message", Type: field.TypeString, Nullable: true, Size: 1000},
+		{Name: "latency_ms", Type: field.TypeInt64, Default: 0},
+		{Name: "completed_at", Type: field.TypeTime, Nullable: true},
+		{Name: "call_id", Type: field.TypeUUID},
+	}
+	// GatewayCallAttemptsTable holds the schema information for the "gateway_call_attempts" table.
+	GatewayCallAttemptsTable = &schema.Table{
+		Name:       "gateway_call_attempts",
+		Columns:    GatewayCallAttemptsColumns,
+		PrimaryKey: []*schema.Column{GatewayCallAttemptsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "gateway_call_attempts_gateway_calls_attempts",
+				Columns:    []*schema.Column{GatewayCallAttemptsColumns[11]},
+				RefColumns: []*schema.Column{GatewayCallsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "gatewaycallattempt_call_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{GatewayCallAttemptsColumns[11], GatewayCallAttemptsColumns[1]},
+			},
+		},
+	}
+	// MaintenanceStateColumns holds the columns for the "maintenance_state" table.
+	MaintenanceStateColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "name", Type: field.TypeString, Unique: true, Size: 64},
+		{Name: "last_success_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 1000},
+	}
+	// MaintenanceStateTable holds the schema information for the "maintenance_state" table.
+	MaintenanceStateTable = &schema.Table{
+		Name:       "maintenance_state",
+		Columns:    MaintenanceStateColumns,
+		PrimaryKey: []*schema.Column{MaintenanceStateColumns[0]},
+	}
 	// MentorProjectApplicationsColumns holds the columns for the "mentor_project_applications" table.
 	MentorProjectApplicationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -221,6 +378,7 @@ var (
 		{Name: "max_output_tokens", Type: field.TypeInt, Nullable: true},
 		{Name: "is_common", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending_configuration", "active", "inactive"}, Default: "pending_configuration"},
+		{Name: "credit_multiplier_milli", Type: field.TypeInt64, Nullable: true},
 	}
 	// ModelsTable holds the schema information for the "models" table.
 	ModelsTable = &schema.Table{
@@ -286,6 +444,115 @@ var (
 				Name:    "modelbinding_provider_id_status",
 				Unique:  false,
 				Columns: []*schema.Column{ModelBindingsColumns[8], ModelBindingsColumns[6]},
+			},
+		},
+	}
+	// ModelMultiplierAuditsColumns holds the columns for the "model_multiplier_audits" table.
+	ModelMultiplierAuditsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "model_id", Type: field.TypeUUID},
+		{Name: "actor_user_id", Type: field.TypeUUID},
+		{Name: "old_multiplier_milli", Type: field.TypeInt64, Nullable: true},
+		{Name: "new_multiplier_milli", Type: field.TypeInt64},
+		{Name: "reason", Type: field.TypeString, Size: 1000},
+	}
+	// ModelMultiplierAuditsTable holds the schema information for the "model_multiplier_audits" table.
+	ModelMultiplierAuditsTable = &schema.Table{
+		Name:       "model_multiplier_audits",
+		Columns:    ModelMultiplierAuditsColumns,
+		PrimaryKey: []*schema.Column{ModelMultiplierAuditsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "modelmultiplieraudit_model_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ModelMultiplierAuditsColumns[2], ModelMultiplierAuditsColumns[1]},
+			},
+			{
+				Name:    "modelmultiplieraudit_actor_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{ModelMultiplierAuditsColumns[3], ModelMultiplierAuditsColumns[1]},
+			},
+		},
+	}
+	// MonitoredInputsColumns holds the columns for the "monitored_inputs" table.
+	MonitoredInputsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "project_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "source", Type: field.TypeString, Size: 64},
+		{Name: "content", Type: field.TypeString, Size: 2147483647},
+		{Name: "content_bytes", Type: field.TypeInt64},
+		{Name: "visible", Type: field.TypeBool, Default: false},
+		{Name: "call_id", Type: field.TypeUUID, Unique: true},
+	}
+	// MonitoredInputsTable holds the schema information for the "monitored_inputs" table.
+	MonitoredInputsTable = &schema.Table{
+		Name:       "monitored_inputs",
+		Columns:    MonitoredInputsColumns,
+		PrimaryKey: []*schema.Column{MonitoredInputsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "monitored_inputs_gateway_calls_monitored_input",
+				Columns:    []*schema.Column{MonitoredInputsColumns[8]},
+				RefColumns: []*schema.Column{GatewayCallsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "monitoredinput_project_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MonitoredInputsColumns[2], MonitoredInputsColumns[1]},
+			},
+			{
+				Name:    "monitoredinput_visible_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MonitoredInputsColumns[7], MonitoredInputsColumns[1]},
+			},
+		},
+	}
+	// MonthlyUsageCubeColumns holds the columns for the "monthly_usage_cube" table.
+	MonthlyUsageCubeColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "month", Type: field.TypeTime},
+		{Name: "organization_id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "api_key_id", Type: field.TypeUUID},
+		{Name: "model_id", Type: field.TypeUUID},
+		{Name: "organization_name", Type: field.TypeString, Size: 128},
+		{Name: "project_name", Type: field.TypeString, Size: 128},
+		{Name: "user_name", Type: field.TypeString, Size: 64},
+		{Name: "api_key_name", Type: field.TypeString, Size: 128},
+		{Name: "model_name", Type: field.TypeString, Size: 256},
+		{Name: "charged_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "charged_count", Type: field.TypeInt64, Default: 0},
+		{Name: "zero_cost_count", Type: field.TypeInt64, Default: 0},
+	}
+	// MonthlyUsageCubeTable holds the schema information for the "monthly_usage_cube" table.
+	MonthlyUsageCubeTable = &schema.Table{
+		Name:       "monthly_usage_cube",
+		Columns:    MonthlyUsageCubeColumns,
+		PrimaryKey: []*schema.Column{MonthlyUsageCubeColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "monthlyusagecube_month_project_id_user_id_api_key_id_model_id",
+				Unique:  true,
+				Columns: []*schema.Column{MonthlyUsageCubeColumns[3], MonthlyUsageCubeColumns[5], MonthlyUsageCubeColumns[6], MonthlyUsageCubeColumns[7], MonthlyUsageCubeColumns[8]},
+			},
+			{
+				Name:    "monthlyusagecube_month_api_key_id",
+				Unique:  false,
+				Columns: []*schema.Column{MonthlyUsageCubeColumns[3], MonthlyUsageCubeColumns[7]},
+			},
+			{
+				Name:    "monthlyusagecube_month_project_id",
+				Unique:  false,
+				Columns: []*schema.Column{MonthlyUsageCubeColumns[3], MonthlyUsageCubeColumns[5]},
 			},
 		},
 	}
@@ -358,6 +625,7 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 128, SchemaType: map[string]string{"postgres": "citext"}},
 		{Name: "description", Type: field.TypeString, Nullable: true, Size: 1024},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
+		{Name: "monthly_credit_quota_milli", Type: field.TypeInt64, Default: 20000000},
 		{Name: "organization_id", Type: field.TypeUUID},
 	}
 	// ProjectsTable holds the schema information for the "projects" table.
@@ -368,7 +636,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "projects_organizations_projects",
-				Columns:    []*schema.Column{ProjectsColumns[6]},
+				Columns:    []*schema.Column{ProjectsColumns[7]},
 				RefColumns: []*schema.Column{OrganizationsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -377,12 +645,12 @@ var (
 			{
 				Name:    "project_organization_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{ProjectsColumns[6], ProjectsColumns[3]},
+				Columns: []*schema.Column{ProjectsColumns[7], ProjectsColumns[3]},
 			},
 			{
 				Name:    "project_organization_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{ProjectsColumns[6], ProjectsColumns[5]},
+				Columns: []*schema.Column{ProjectsColumns[7], ProjectsColumns[5]},
 			},
 		},
 	}
@@ -425,6 +693,74 @@ var (
 			},
 		},
 	}
+	// ProjectMonthCreditBucketsColumns holds the columns for the "project_month_credit_buckets" table.
+	ProjectMonthCreditBucketsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "month", Type: field.TypeTime},
+		{Name: "quota_milli", Type: field.TypeInt64},
+		{Name: "allocated_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "charged_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "pending_milli", Type: field.TypeInt64, Default: 0},
+		{Name: "project_id", Type: field.TypeUUID},
+	}
+	// ProjectMonthCreditBucketsTable holds the schema information for the "project_month_credit_buckets" table.
+	ProjectMonthCreditBucketsTable = &schema.Table{
+		Name:       "project_month_credit_buckets",
+		Columns:    ProjectMonthCreditBucketsColumns,
+		PrimaryKey: []*schema.Column{ProjectMonthCreditBucketsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "project_month_credit_buckets_projects_credit_buckets",
+				Columns:    []*schema.Column{ProjectMonthCreditBucketsColumns[8]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "projectmonthcreditbucket_project_id_month",
+				Unique:  true,
+				Columns: []*schema.Column{ProjectMonthCreditBucketsColumns[8], ProjectMonthCreditBucketsColumns[3]},
+			},
+			{
+				Name:    "projectmonthcreditbucket_month",
+				Unique:  false,
+				Columns: []*schema.Column{ProjectMonthCreditBucketsColumns[3]},
+			},
+		},
+	}
+	// PromptAccessAuditsColumns holds the columns for the "prompt_access_audits" table.
+	PromptAccessAuditsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "actor_user_id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "monitored_input_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "access_type", Type: field.TypeString, Size: 32},
+		{Name: "query_scope", Type: field.TypeJSON, Nullable: true},
+		{Name: "result_ids", Type: field.TypeJSON, Nullable: true},
+		{Name: "result_count", Type: field.TypeInt, Default: 0},
+	}
+	// PromptAccessAuditsTable holds the schema information for the "prompt_access_audits" table.
+	PromptAccessAuditsTable = &schema.Table{
+		Name:       "prompt_access_audits",
+		Columns:    PromptAccessAuditsColumns,
+		PrimaryKey: []*schema.Column{PromptAccessAuditsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "promptaccessaudit_actor_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{PromptAccessAuditsColumns[2], PromptAccessAuditsColumns[1]},
+			},
+			{
+				Name:    "promptaccessaudit_monitored_input_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{PromptAccessAuditsColumns[4], PromptAccessAuditsColumns[1]},
+			},
+		},
+	}
 	// ProvidersColumns holds the columns for the "providers" table.
 	ProvidersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -445,6 +781,35 @@ var (
 				Name:    "provider_status",
 				Unique:  false,
 				Columns: []*schema.Column{ProvidersColumns[6]},
+			},
+		},
+	}
+	// QuotaAdjustmentAuditsColumns holds the columns for the "quota_adjustment_audits" table.
+	QuotaAdjustmentAuditsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "owner_type", Type: field.TypeEnum, Enums: []string{"project", "api_key"}},
+		{Name: "owner_id", Type: field.TypeUUID},
+		{Name: "actor_user_id", Type: field.TypeUUID},
+		{Name: "old_quota_milli", Type: field.TypeInt64},
+		{Name: "new_quota_milli", Type: field.TypeInt64},
+		{Name: "reason", Type: field.TypeString, Size: 1000},
+	}
+	// QuotaAdjustmentAuditsTable holds the schema information for the "quota_adjustment_audits" table.
+	QuotaAdjustmentAuditsTable = &schema.Table{
+		Name:       "quota_adjustment_audits",
+		Columns:    QuotaAdjustmentAuditsColumns,
+		PrimaryKey: []*schema.Column{QuotaAdjustmentAuditsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "quotaadjustmentaudit_owner_type_owner_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{QuotaAdjustmentAuditsColumns[2], QuotaAdjustmentAuditsColumns[3], QuotaAdjustmentAuditsColumns[1]},
+			},
+			{
+				Name:    "quotaadjustmentaudit_actor_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{QuotaAdjustmentAuditsColumns[4], QuotaAdjustmentAuditsColumns[1]},
 			},
 		},
 	}
@@ -477,14 +842,24 @@ var (
 		APIKeysTable,
 		APIKeyAuditsTable,
 		APIKeyModelsTable,
+		APIKeyMonthCreditBucketsTable,
+		GatewayCallsTable,
+		GatewayCallAttemptsTable,
+		MaintenanceStateTable,
 		MentorProjectApplicationsTable,
 		ModelsTable,
 		ModelBindingsTable,
+		ModelMultiplierAuditsTable,
+		MonitoredInputsTable,
+		MonthlyUsageCubeTable,
 		OrganizationsTable,
 		OrganizationMembersTable,
 		ProjectsTable,
 		ProjectMembersTable,
+		ProjectMonthCreditBucketsTable,
+		PromptAccessAuditsTable,
 		ProvidersTable,
+		QuotaAdjustmentAuditsTable,
 		UsersTable,
 	}
 )
@@ -511,6 +886,21 @@ func init() {
 	APIKeyModelsTable.Annotation = &entsql.Annotation{
 		Table: "api_key_models",
 	}
+	APIKeyMonthCreditBucketsTable.ForeignKeys[0].RefTable = APIKeysTable
+	APIKeyMonthCreditBucketsTable.ForeignKeys[1].RefTable = ProjectsTable
+	APIKeyMonthCreditBucketsTable.Annotation = &entsql.Annotation{
+		Table: "api_key_month_credit_buckets",
+	}
+	GatewayCallsTable.Annotation = &entsql.Annotation{
+		Table: "gateway_calls",
+	}
+	GatewayCallAttemptsTable.ForeignKeys[0].RefTable = GatewayCallsTable
+	GatewayCallAttemptsTable.Annotation = &entsql.Annotation{
+		Table: "gateway_call_attempts",
+	}
+	MaintenanceStateTable.Annotation = &entsql.Annotation{
+		Table: "maintenance_state",
+	}
 	MentorProjectApplicationsTable.ForeignKeys[0].RefTable = ProjectsTable
 	MentorProjectApplicationsTable.ForeignKeys[1].RefTable = UsersTable
 	MentorProjectApplicationsTable.ForeignKeys[2].RefTable = UsersTable
@@ -524,10 +914,23 @@ func init() {
 	ModelsTable.Annotation = &entsql.Annotation{
 		Table: "models",
 	}
+	ModelsTable.Annotation.Checks = map[string]string{
+		"active_model_requires_credit_multiplier": "status <> 'active' OR credit_multiplier_milli IS NOT NULL",
+	}
 	ModelBindingsTable.ForeignKeys[0].RefTable = ModelsTable
 	ModelBindingsTable.ForeignKeys[1].RefTable = ProvidersTable
 	ModelBindingsTable.Annotation = &entsql.Annotation{
 		Table: "model_bindings",
+	}
+	ModelMultiplierAuditsTable.Annotation = &entsql.Annotation{
+		Table: "model_multiplier_audits",
+	}
+	MonitoredInputsTable.ForeignKeys[0].RefTable = GatewayCallsTable
+	MonitoredInputsTable.Annotation = &entsql.Annotation{
+		Table: "monitored_inputs",
+	}
+	MonthlyUsageCubeTable.Annotation = &entsql.Annotation{
+		Table: "monthly_usage_cube",
 	}
 	OrganizationsTable.Annotation = &entsql.Annotation{
 		Table: "organizations",
@@ -546,8 +949,18 @@ func init() {
 	ProjectMembersTable.Annotation = &entsql.Annotation{
 		Table: "project_members",
 	}
+	ProjectMonthCreditBucketsTable.ForeignKeys[0].RefTable = ProjectsTable
+	ProjectMonthCreditBucketsTable.Annotation = &entsql.Annotation{
+		Table: "project_month_credit_buckets",
+	}
+	PromptAccessAuditsTable.Annotation = &entsql.Annotation{
+		Table: "prompt_access_audits",
+	}
 	ProvidersTable.Annotation = &entsql.Annotation{
 		Table: "providers",
+	}
+	QuotaAdjustmentAuditsTable.Annotation = &entsql.Annotation{
+		Table: "quota_adjustment_audits",
 	}
 	UsersTable.Annotation = &entsql.Annotation{
 		Table: "users",

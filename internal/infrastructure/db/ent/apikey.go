@@ -40,6 +40,12 @@ type APIKey struct {
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
 	// RevokedAt holds the value of the "revoked_at" field.
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	// RequestedMonthlyCreditQuotaMilli holds the value of the "requested_monthly_credit_quota_milli" field.
+	RequestedMonthlyCreditQuotaMilli int64 `json:"requested_monthly_credit_quota_milli,omitempty"`
+	// MentorMonthlyCreditQuotaMilli holds the value of the "mentor_monthly_credit_quota_milli" field.
+	MentorMonthlyCreditQuotaMilli *int64 `json:"mentor_monthly_credit_quota_milli,omitempty"`
+	// MonthlyCreditQuotaMilli holds the value of the "monthly_credit_quota_milli" field.
+	MonthlyCreditQuotaMilli *int64 `json:"monthly_credit_quota_milli,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the APIKeyQuery when eager-loading is set.
 	Edges        APIKeyEdges `json:"edges"`
@@ -56,9 +62,11 @@ type APIKeyEdges struct {
 	Models []*APIKeyModel `json:"models,omitempty"`
 	// Audits holds the value of the audits edge.
 	Audits []*APIKeyAudit `json:"audits,omitempty"`
+	// CreditBuckets holds the value of the credit_buckets edge.
+	CreditBuckets []*APIKeyMonthCreditBucket `json:"credit_buckets,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [5]bool
 }
 
 // OwnerOrErr returns the Owner value or an error if the edge
@@ -101,6 +109,15 @@ func (e APIKeyEdges) AuditsOrErr() ([]*APIKeyAudit, error) {
 	return nil, &NotLoadedError{edge: "audits"}
 }
 
+// CreditBucketsOrErr returns the CreditBuckets value or an error if the edge
+// was not loaded in eager-loading.
+func (e APIKeyEdges) CreditBucketsOrErr() ([]*APIKeyMonthCreditBucket, error) {
+	if e.loadedTypes[4] {
+		return e.CreditBuckets, nil
+	}
+	return nil, &NotLoadedError{edge: "credit_buckets"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*APIKey) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -108,6 +125,8 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case apikey.FieldKeyHash:
 			values[i] = new([]byte)
+		case apikey.FieldRequestedMonthlyCreditQuotaMilli, apikey.FieldMentorMonthlyCreditQuotaMilli, apikey.FieldMonthlyCreditQuotaMilli:
+			values[i] = new(sql.NullInt64)
 		case apikey.FieldName, apikey.FieldStatus, apikey.FieldKeyPrefix:
 			values[i] = new(sql.NullString)
 		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldClaimedAt, apikey.FieldRevokedAt:
@@ -198,6 +217,26 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 				_m.RevokedAt = new(time.Time)
 				*_m.RevokedAt = value.Time
 			}
+		case apikey.FieldRequestedMonthlyCreditQuotaMilli:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field requested_monthly_credit_quota_milli", values[i])
+			} else if value.Valid {
+				_m.RequestedMonthlyCreditQuotaMilli = value.Int64
+			}
+		case apikey.FieldMentorMonthlyCreditQuotaMilli:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field mentor_monthly_credit_quota_milli", values[i])
+			} else if value.Valid {
+				_m.MentorMonthlyCreditQuotaMilli = new(int64)
+				*_m.MentorMonthlyCreditQuotaMilli = value.Int64
+			}
+		case apikey.FieldMonthlyCreditQuotaMilli:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field monthly_credit_quota_milli", values[i])
+			} else if value.Valid {
+				_m.MonthlyCreditQuotaMilli = new(int64)
+				*_m.MonthlyCreditQuotaMilli = value.Int64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -229,6 +268,11 @@ func (_m *APIKey) QueryModels() *APIKeyModelQuery {
 // QueryAudits queries the "audits" edge of the APIKey entity.
 func (_m *APIKey) QueryAudits() *APIKeyAuditQuery {
 	return NewAPIKeyClient(_m.config).QueryAudits(_m)
+}
+
+// QueryCreditBuckets queries the "credit_buckets" edge of the APIKey entity.
+func (_m *APIKey) QueryCreditBuckets() *APIKeyMonthCreditBucketQuery {
+	return NewAPIKeyClient(_m.config).QueryCreditBuckets(_m)
 }
 
 // Update returns a builder for updating this APIKey.
@@ -287,6 +331,19 @@ func (_m *APIKey) String() string {
 	if v := _m.RevokedAt; v != nil {
 		builder.WriteString("revoked_at=")
 		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("requested_monthly_credit_quota_milli=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RequestedMonthlyCreditQuotaMilli))
+	builder.WriteString(", ")
+	if v := _m.MentorMonthlyCreditQuotaMilli; v != nil {
+		builder.WriteString("mentor_monthly_credit_quota_milli=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.MonthlyCreditQuotaMilli; v != nil {
+		builder.WriteString("monthly_credit_quota_milli=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteByte(')')
 	return builder.String()

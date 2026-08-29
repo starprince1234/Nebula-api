@@ -9,16 +9,26 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeyaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymodel"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelmultiplieraudit"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monitoredinput"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monthlyusagecube"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organization"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organizationmember"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/promptaccessaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
-	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/schema"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/schema"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -64,6 +74,60 @@ func init() {
 	apikeyDescKeyPrefix := apikeyFields[5].Descriptor()
 	// apikey.KeyPrefixValidator is a validator for the "key_prefix" field. It is called by the builders before save.
 	apikey.KeyPrefixValidator = apikeyDescKeyPrefix.Validators[0].(func(string) error)
+	// apikeyDescRequestedMonthlyCreditQuotaMilli is the schema descriptor for requested_monthly_credit_quota_milli field.
+	apikeyDescRequestedMonthlyCreditQuotaMilli := apikeyFields[8].Descriptor()
+	// apikey.RequestedMonthlyCreditQuotaMilliValidator is a validator for the "requested_monthly_credit_quota_milli" field. It is called by the builders before save.
+	apikey.RequestedMonthlyCreditQuotaMilliValidator = func() func(int64) error {
+		validators := apikeyDescRequestedMonthlyCreditQuotaMilli.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(requested_monthly_credit_quota_milli int64) error {
+			for _, fn := range fns {
+				if err := fn(requested_monthly_credit_quota_milli); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// apikeyDescMentorMonthlyCreditQuotaMilli is the schema descriptor for mentor_monthly_credit_quota_milli field.
+	apikeyDescMentorMonthlyCreditQuotaMilli := apikeyFields[9].Descriptor()
+	// apikey.MentorMonthlyCreditQuotaMilliValidator is a validator for the "mentor_monthly_credit_quota_milli" field. It is called by the builders before save.
+	apikey.MentorMonthlyCreditQuotaMilliValidator = func() func(int64) error {
+		validators := apikeyDescMentorMonthlyCreditQuotaMilli.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(mentor_monthly_credit_quota_milli int64) error {
+			for _, fn := range fns {
+				if err := fn(mentor_monthly_credit_quota_milli); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// apikeyDescMonthlyCreditQuotaMilli is the schema descriptor for monthly_credit_quota_milli field.
+	apikeyDescMonthlyCreditQuotaMilli := apikeyFields[10].Descriptor()
+	// apikey.MonthlyCreditQuotaMilliValidator is a validator for the "monthly_credit_quota_milli" field. It is called by the builders before save.
+	apikey.MonthlyCreditQuotaMilliValidator = func() func(int64) error {
+		validators := apikeyDescMonthlyCreditQuotaMilli.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(monthly_credit_quota_milli int64) error {
+			for _, fn := range fns {
+				if err := fn(monthly_credit_quota_milli); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// apikeyDescID is the schema descriptor for id field.
 	apikeyDescID := apikeyMixinFields0[0].Descriptor()
 	// apikey.DefaultID holds the default value on creation for the id field.
@@ -102,6 +166,194 @@ func init() {
 	apikeymodelDescID := apikeymodelMixinFields0[0].Descriptor()
 	// apikeymodel.DefaultID holds the default value on creation for the id field.
 	apikeymodel.DefaultID = apikeymodelDescID.Default.(func() uuid.UUID)
+	apikeymonthcreditbucketMixin := schema.APIKeyMonthCreditBucket{}.Mixin()
+	apikeymonthcreditbucketMixinFields0 := apikeymonthcreditbucketMixin[0].Fields()
+	_ = apikeymonthcreditbucketMixinFields0
+	apikeymonthcreditbucketMixinFields1 := apikeymonthcreditbucketMixin[1].Fields()
+	_ = apikeymonthcreditbucketMixinFields1
+	apikeymonthcreditbucketFields := schema.APIKeyMonthCreditBucket{}.Fields()
+	_ = apikeymonthcreditbucketFields
+	// apikeymonthcreditbucketDescCreatedAt is the schema descriptor for created_at field.
+	apikeymonthcreditbucketDescCreatedAt := apikeymonthcreditbucketMixinFields1[0].Descriptor()
+	// apikeymonthcreditbucket.DefaultCreatedAt holds the default value on creation for the created_at field.
+	apikeymonthcreditbucket.DefaultCreatedAt = apikeymonthcreditbucketDescCreatedAt.Default.(func() time.Time)
+	// apikeymonthcreditbucketDescUpdatedAt is the schema descriptor for updated_at field.
+	apikeymonthcreditbucketDescUpdatedAt := apikeymonthcreditbucketMixinFields1[1].Descriptor()
+	// apikeymonthcreditbucket.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	apikeymonthcreditbucket.DefaultUpdatedAt = apikeymonthcreditbucketDescUpdatedAt.Default.(func() time.Time)
+	// apikeymonthcreditbucket.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	apikeymonthcreditbucket.UpdateDefaultUpdatedAt = apikeymonthcreditbucketDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// apikeymonthcreditbucketDescQuotaMilli is the schema descriptor for quota_milli field.
+	apikeymonthcreditbucketDescQuotaMilli := apikeymonthcreditbucketFields[3].Descriptor()
+	// apikeymonthcreditbucket.QuotaMilliValidator is a validator for the "quota_milli" field. It is called by the builders before save.
+	apikeymonthcreditbucket.QuotaMilliValidator = apikeymonthcreditbucketDescQuotaMilli.Validators[0].(func(int64) error)
+	// apikeymonthcreditbucketDescAllocationActive is the schema descriptor for allocation_active field.
+	apikeymonthcreditbucketDescAllocationActive := apikeymonthcreditbucketFields[4].Descriptor()
+	// apikeymonthcreditbucket.DefaultAllocationActive holds the default value on creation for the allocation_active field.
+	apikeymonthcreditbucket.DefaultAllocationActive = apikeymonthcreditbucketDescAllocationActive.Default.(bool)
+	// apikeymonthcreditbucketDescChargedMilli is the schema descriptor for charged_milli field.
+	apikeymonthcreditbucketDescChargedMilli := apikeymonthcreditbucketFields[5].Descriptor()
+	// apikeymonthcreditbucket.DefaultChargedMilli holds the default value on creation for the charged_milli field.
+	apikeymonthcreditbucket.DefaultChargedMilli = apikeymonthcreditbucketDescChargedMilli.Default.(int64)
+	// apikeymonthcreditbucket.ChargedMilliValidator is a validator for the "charged_milli" field. It is called by the builders before save.
+	apikeymonthcreditbucket.ChargedMilliValidator = apikeymonthcreditbucketDescChargedMilli.Validators[0].(func(int64) error)
+	// apikeymonthcreditbucketDescPendingMilli is the schema descriptor for pending_milli field.
+	apikeymonthcreditbucketDescPendingMilli := apikeymonthcreditbucketFields[6].Descriptor()
+	// apikeymonthcreditbucket.DefaultPendingMilli holds the default value on creation for the pending_milli field.
+	apikeymonthcreditbucket.DefaultPendingMilli = apikeymonthcreditbucketDescPendingMilli.Default.(int64)
+	// apikeymonthcreditbucket.PendingMilliValidator is a validator for the "pending_milli" field. It is called by the builders before save.
+	apikeymonthcreditbucket.PendingMilliValidator = apikeymonthcreditbucketDescPendingMilli.Validators[0].(func(int64) error)
+	// apikeymonthcreditbucketDescID is the schema descriptor for id field.
+	apikeymonthcreditbucketDescID := apikeymonthcreditbucketMixinFields0[0].Descriptor()
+	// apikeymonthcreditbucket.DefaultID holds the default value on creation for the id field.
+	apikeymonthcreditbucket.DefaultID = apikeymonthcreditbucketDescID.Default.(func() uuid.UUID)
+	gatewaycallMixin := schema.GatewayCall{}.Mixin()
+	gatewaycallMixinFields0 := gatewaycallMixin[0].Fields()
+	_ = gatewaycallMixinFields0
+	gatewaycallMixinFields1 := gatewaycallMixin[1].Fields()
+	_ = gatewaycallMixinFields1
+	gatewaycallFields := schema.GatewayCall{}.Fields()
+	_ = gatewaycallFields
+	// gatewaycallDescCreatedAt is the schema descriptor for created_at field.
+	gatewaycallDescCreatedAt := gatewaycallMixinFields1[0].Descriptor()
+	// gatewaycall.DefaultCreatedAt holds the default value on creation for the created_at field.
+	gatewaycall.DefaultCreatedAt = gatewaycallDescCreatedAt.Default.(func() time.Time)
+	// gatewaycallDescRequestID is the schema descriptor for request_id field.
+	gatewaycallDescRequestID := gatewaycallFields[0].Descriptor()
+	// gatewaycall.RequestIDValidator is a validator for the "request_id" field. It is called by the builders before save.
+	gatewaycall.RequestIDValidator = gatewaycallDescRequestID.Validators[0].(func(string) error)
+	// gatewaycallDescOrganizationName is the schema descriptor for organization_name field.
+	gatewaycallDescOrganizationName := gatewaycallFields[8].Descriptor()
+	// gatewaycall.OrganizationNameValidator is a validator for the "organization_name" field. It is called by the builders before save.
+	gatewaycall.OrganizationNameValidator = gatewaycallDescOrganizationName.Validators[0].(func(string) error)
+	// gatewaycallDescProjectName is the schema descriptor for project_name field.
+	gatewaycallDescProjectName := gatewaycallFields[9].Descriptor()
+	// gatewaycall.ProjectNameValidator is a validator for the "project_name" field. It is called by the builders before save.
+	gatewaycall.ProjectNameValidator = gatewaycallDescProjectName.Validators[0].(func(string) error)
+	// gatewaycallDescUserName is the schema descriptor for user_name field.
+	gatewaycallDescUserName := gatewaycallFields[10].Descriptor()
+	// gatewaycall.UserNameValidator is a validator for the "user_name" field. It is called by the builders before save.
+	gatewaycall.UserNameValidator = gatewaycallDescUserName.Validators[0].(func(string) error)
+	// gatewaycallDescAPIKeyName is the schema descriptor for api_key_name field.
+	gatewaycallDescAPIKeyName := gatewaycallFields[11].Descriptor()
+	// gatewaycall.APIKeyNameValidator is a validator for the "api_key_name" field. It is called by the builders before save.
+	gatewaycall.APIKeyNameValidator = gatewaycallDescAPIKeyName.Validators[0].(func(string) error)
+	// gatewaycallDescModelName is the schema descriptor for model_name field.
+	gatewaycallDescModelName := gatewaycallFields[12].Descriptor()
+	// gatewaycall.ModelNameValidator is a validator for the "model_name" field. It is called by the builders before save.
+	gatewaycall.ModelNameValidator = gatewaycallDescModelName.Validators[0].(func(string) error)
+	// gatewaycallDescProviderName is the schema descriptor for provider_name field.
+	gatewaycallDescProviderName := gatewaycallFields[13].Descriptor()
+	// gatewaycall.ProviderNameValidator is a validator for the "provider_name" field. It is called by the builders before save.
+	gatewaycall.ProviderNameValidator = gatewaycallDescProviderName.Validators[0].(func(string) error)
+	// gatewaycallDescProtocol is the schema descriptor for protocol field.
+	gatewaycallDescProtocol := gatewaycallFields[14].Descriptor()
+	// gatewaycall.ProtocolValidator is a validator for the "protocol" field. It is called by the builders before save.
+	gatewaycall.ProtocolValidator = gatewaycallDescProtocol.Validators[0].(func(string) error)
+	// gatewaycallDescRequestPath is the schema descriptor for request_path field.
+	gatewaycallDescRequestPath := gatewaycallFields[15].Descriptor()
+	// gatewaycall.RequestPathValidator is a validator for the "request_path" field. It is called by the builders before save.
+	gatewaycall.RequestPathValidator = gatewaycallDescRequestPath.Validators[0].(func(string) error)
+	// gatewaycallDescMultiplierMilli is the schema descriptor for multiplier_milli field.
+	gatewaycallDescMultiplierMilli := gatewaycallFields[16].Descriptor()
+	// gatewaycall.MultiplierMilliValidator is a validator for the "multiplier_milli" field. It is called by the builders before save.
+	gatewaycall.MultiplierMilliValidator = gatewaycallDescMultiplierMilli.Validators[0].(func(int64) error)
+	// gatewaycallDescCreditMilli is the schema descriptor for credit_milli field.
+	gatewaycallDescCreditMilli := gatewaycallFields[17].Descriptor()
+	// gatewaycall.CreditMilliValidator is a validator for the "credit_milli" field. It is called by the builders before save.
+	gatewaycall.CreditMilliValidator = gatewaycallDescCreditMilli.Validators[0].(func(int64) error)
+	// gatewaycallDescErrorCategory is the schema descriptor for error_category field.
+	gatewaycallDescErrorCategory := gatewaycallFields[20].Descriptor()
+	// gatewaycall.ErrorCategoryValidator is a validator for the "error_category" field. It is called by the builders before save.
+	gatewaycall.ErrorCategoryValidator = gatewaycallDescErrorCategory.Validators[0].(func(string) error)
+	// gatewaycallDescErrorMessage is the schema descriptor for error_message field.
+	gatewaycallDescErrorMessage := gatewaycallFields[21].Descriptor()
+	// gatewaycall.ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
+	gatewaycall.ErrorMessageValidator = gatewaycallDescErrorMessage.Validators[0].(func(string) error)
+	// gatewaycallDescID is the schema descriptor for id field.
+	gatewaycallDescID := gatewaycallMixinFields0[0].Descriptor()
+	// gatewaycall.DefaultID holds the default value on creation for the id field.
+	gatewaycall.DefaultID = gatewaycallDescID.Default.(func() uuid.UUID)
+	gatewaycallattemptMixin := schema.GatewayCallAttempt{}.Mixin()
+	gatewaycallattemptMixinFields0 := gatewaycallattemptMixin[0].Fields()
+	_ = gatewaycallattemptMixinFields0
+	gatewaycallattemptMixinFields1 := gatewaycallattemptMixin[1].Fields()
+	_ = gatewaycallattemptMixinFields1
+	gatewaycallattemptFields := schema.GatewayCallAttempt{}.Fields()
+	_ = gatewaycallattemptFields
+	// gatewaycallattemptDescCreatedAt is the schema descriptor for created_at field.
+	gatewaycallattemptDescCreatedAt := gatewaycallattemptMixinFields1[0].Descriptor()
+	// gatewaycallattempt.DefaultCreatedAt holds the default value on creation for the created_at field.
+	gatewaycallattempt.DefaultCreatedAt = gatewaycallattemptDescCreatedAt.Default.(func() time.Time)
+	// gatewaycallattemptDescProviderName is the schema descriptor for provider_name field.
+	gatewaycallattemptDescProviderName := gatewaycallattemptFields[3].Descriptor()
+	// gatewaycallattempt.ProviderNameValidator is a validator for the "provider_name" field. It is called by the builders before save.
+	gatewaycallattempt.ProviderNameValidator = gatewaycallattemptDescProviderName.Validators[0].(func(string) error)
+	// gatewaycallattemptDescHTTPStatus is the schema descriptor for http_status field.
+	gatewaycallattemptDescHTTPStatus := gatewaycallattemptFields[5].Descriptor()
+	// gatewaycallattempt.HTTPStatusValidator is a validator for the "http_status" field. It is called by the builders before save.
+	gatewaycallattempt.HTTPStatusValidator = gatewaycallattemptDescHTTPStatus.Validators[0].(func(int) error)
+	// gatewaycallattemptDescErrorCategory is the schema descriptor for error_category field.
+	gatewaycallattemptDescErrorCategory := gatewaycallattemptFields[6].Descriptor()
+	// gatewaycallattempt.ErrorCategoryValidator is a validator for the "error_category" field. It is called by the builders before save.
+	gatewaycallattempt.ErrorCategoryValidator = gatewaycallattemptDescErrorCategory.Validators[0].(func(string) error)
+	// gatewaycallattemptDescErrorMessage is the schema descriptor for error_message field.
+	gatewaycallattemptDescErrorMessage := gatewaycallattemptFields[7].Descriptor()
+	// gatewaycallattempt.ErrorMessageValidator is a validator for the "error_message" field. It is called by the builders before save.
+	gatewaycallattempt.ErrorMessageValidator = gatewaycallattemptDescErrorMessage.Validators[0].(func(string) error)
+	// gatewaycallattemptDescLatencyMs is the schema descriptor for latency_ms field.
+	gatewaycallattemptDescLatencyMs := gatewaycallattemptFields[8].Descriptor()
+	// gatewaycallattempt.DefaultLatencyMs holds the default value on creation for the latency_ms field.
+	gatewaycallattempt.DefaultLatencyMs = gatewaycallattemptDescLatencyMs.Default.(int64)
+	// gatewaycallattempt.LatencyMsValidator is a validator for the "latency_ms" field. It is called by the builders before save.
+	gatewaycallattempt.LatencyMsValidator = gatewaycallattemptDescLatencyMs.Validators[0].(func(int64) error)
+	// gatewaycallattemptDescID is the schema descriptor for id field.
+	gatewaycallattemptDescID := gatewaycallattemptMixinFields0[0].Descriptor()
+	// gatewaycallattempt.DefaultID holds the default value on creation for the id field.
+	gatewaycallattempt.DefaultID = gatewaycallattemptDescID.Default.(func() uuid.UUID)
+	maintenancestateMixin := schema.MaintenanceState{}.Mixin()
+	maintenancestateMixinFields0 := maintenancestateMixin[0].Fields()
+	_ = maintenancestateMixinFields0
+	maintenancestateMixinFields1 := maintenancestateMixin[1].Fields()
+	_ = maintenancestateMixinFields1
+	maintenancestateFields := schema.MaintenanceState{}.Fields()
+	_ = maintenancestateFields
+	// maintenancestateDescCreatedAt is the schema descriptor for created_at field.
+	maintenancestateDescCreatedAt := maintenancestateMixinFields1[0].Descriptor()
+	// maintenancestate.DefaultCreatedAt holds the default value on creation for the created_at field.
+	maintenancestate.DefaultCreatedAt = maintenancestateDescCreatedAt.Default.(func() time.Time)
+	// maintenancestateDescUpdatedAt is the schema descriptor for updated_at field.
+	maintenancestateDescUpdatedAt := maintenancestateMixinFields1[1].Descriptor()
+	// maintenancestate.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	maintenancestate.DefaultUpdatedAt = maintenancestateDescUpdatedAt.Default.(func() time.Time)
+	// maintenancestate.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	maintenancestate.UpdateDefaultUpdatedAt = maintenancestateDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// maintenancestateDescName is the schema descriptor for name field.
+	maintenancestateDescName := maintenancestateFields[0].Descriptor()
+	// maintenancestate.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	maintenancestate.NameValidator = func() func(string) error {
+		validators := maintenancestateDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// maintenancestateDescLastError is the schema descriptor for last_error field.
+	maintenancestateDescLastError := maintenancestateFields[2].Descriptor()
+	// maintenancestate.LastErrorValidator is a validator for the "last_error" field. It is called by the builders before save.
+	maintenancestate.LastErrorValidator = maintenancestateDescLastError.Validators[0].(func(string) error)
+	// maintenancestateDescID is the schema descriptor for id field.
+	maintenancestateDescID := maintenancestateMixinFields0[0].Descriptor()
+	// maintenancestate.DefaultID holds the default value on creation for the id field.
+	maintenancestate.DefaultID = maintenancestateDescID.Default.(func() uuid.UUID)
 	mentorprojectapplicationMixin := schema.MentorProjectApplication{}.Mixin()
 	mentorprojectapplicationMixinFields0 := mentorprojectapplicationMixin[0].Fields()
 	_ = mentorprojectapplicationMixinFields0
@@ -202,6 +454,24 @@ func init() {
 	modelDescIsCommon := modelFields[9].Descriptor()
 	// model.DefaultIsCommon holds the default value on creation for the is_common field.
 	model.DefaultIsCommon = modelDescIsCommon.Default.(bool)
+	// modelDescCreditMultiplierMilli is the schema descriptor for credit_multiplier_milli field.
+	modelDescCreditMultiplierMilli := modelFields[11].Descriptor()
+	// model.CreditMultiplierMilliValidator is a validator for the "credit_multiplier_milli" field. It is called by the builders before save.
+	model.CreditMultiplierMilliValidator = func() func(int64) error {
+		validators := modelDescCreditMultiplierMilli.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(credit_multiplier_milli int64) error {
+			for _, fn := range fns {
+				if err := fn(credit_multiplier_milli); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// modelDescID is the schema descriptor for id field.
 	modelDescID := modelMixinFields0[0].Descriptor()
 	// model.DefaultID holds the default value on creation for the id field.
@@ -251,6 +521,133 @@ func init() {
 	modelbindingDescID := modelbindingMixinFields0[0].Descriptor()
 	// modelbinding.DefaultID holds the default value on creation for the id field.
 	modelbinding.DefaultID = modelbindingDescID.Default.(func() uuid.UUID)
+	modelmultiplierauditMixin := schema.ModelMultiplierAudit{}.Mixin()
+	modelmultiplierauditMixinFields0 := modelmultiplierauditMixin[0].Fields()
+	_ = modelmultiplierauditMixinFields0
+	modelmultiplierauditMixinFields1 := modelmultiplierauditMixin[1].Fields()
+	_ = modelmultiplierauditMixinFields1
+	modelmultiplierauditFields := schema.ModelMultiplierAudit{}.Fields()
+	_ = modelmultiplierauditFields
+	// modelmultiplierauditDescCreatedAt is the schema descriptor for created_at field.
+	modelmultiplierauditDescCreatedAt := modelmultiplierauditMixinFields1[0].Descriptor()
+	// modelmultiplieraudit.DefaultCreatedAt holds the default value on creation for the created_at field.
+	modelmultiplieraudit.DefaultCreatedAt = modelmultiplierauditDescCreatedAt.Default.(func() time.Time)
+	// modelmultiplierauditDescOldMultiplierMilli is the schema descriptor for old_multiplier_milli field.
+	modelmultiplierauditDescOldMultiplierMilli := modelmultiplierauditFields[2].Descriptor()
+	// modelmultiplieraudit.OldMultiplierMilliValidator is a validator for the "old_multiplier_milli" field. It is called by the builders before save.
+	modelmultiplieraudit.OldMultiplierMilliValidator = modelmultiplierauditDescOldMultiplierMilli.Validators[0].(func(int64) error)
+	// modelmultiplierauditDescNewMultiplierMilli is the schema descriptor for new_multiplier_milli field.
+	modelmultiplierauditDescNewMultiplierMilli := modelmultiplierauditFields[3].Descriptor()
+	// modelmultiplieraudit.NewMultiplierMilliValidator is a validator for the "new_multiplier_milli" field. It is called by the builders before save.
+	modelmultiplieraudit.NewMultiplierMilliValidator = modelmultiplierauditDescNewMultiplierMilli.Validators[0].(func(int64) error)
+	// modelmultiplierauditDescReason is the schema descriptor for reason field.
+	modelmultiplierauditDescReason := modelmultiplierauditFields[4].Descriptor()
+	// modelmultiplieraudit.ReasonValidator is a validator for the "reason" field. It is called by the builders before save.
+	modelmultiplieraudit.ReasonValidator = func() func(string) error {
+		validators := modelmultiplierauditDescReason.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(reason string) error {
+			for _, fn := range fns {
+				if err := fn(reason); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// modelmultiplierauditDescID is the schema descriptor for id field.
+	modelmultiplierauditDescID := modelmultiplierauditMixinFields0[0].Descriptor()
+	// modelmultiplieraudit.DefaultID holds the default value on creation for the id field.
+	modelmultiplieraudit.DefaultID = modelmultiplierauditDescID.Default.(func() uuid.UUID)
+	monitoredinputMixin := schema.MonitoredInput{}.Mixin()
+	monitoredinputMixinFields0 := monitoredinputMixin[0].Fields()
+	_ = monitoredinputMixinFields0
+	monitoredinputMixinFields1 := monitoredinputMixin[1].Fields()
+	_ = monitoredinputMixinFields1
+	monitoredinputFields := schema.MonitoredInput{}.Fields()
+	_ = monitoredinputFields
+	// monitoredinputDescCreatedAt is the schema descriptor for created_at field.
+	monitoredinputDescCreatedAt := monitoredinputMixinFields1[0].Descriptor()
+	// monitoredinput.DefaultCreatedAt holds the default value on creation for the created_at field.
+	monitoredinput.DefaultCreatedAt = monitoredinputDescCreatedAt.Default.(func() time.Time)
+	// monitoredinputDescSource is the schema descriptor for source field.
+	monitoredinputDescSource := monitoredinputFields[3].Descriptor()
+	// monitoredinput.SourceValidator is a validator for the "source" field. It is called by the builders before save.
+	monitoredinput.SourceValidator = monitoredinputDescSource.Validators[0].(func(string) error)
+	// monitoredinputDescContentBytes is the schema descriptor for content_bytes field.
+	monitoredinputDescContentBytes := monitoredinputFields[5].Descriptor()
+	// monitoredinput.ContentBytesValidator is a validator for the "content_bytes" field. It is called by the builders before save.
+	monitoredinput.ContentBytesValidator = monitoredinputDescContentBytes.Validators[0].(func(int64) error)
+	// monitoredinputDescVisible is the schema descriptor for visible field.
+	monitoredinputDescVisible := monitoredinputFields[6].Descriptor()
+	// monitoredinput.DefaultVisible holds the default value on creation for the visible field.
+	monitoredinput.DefaultVisible = monitoredinputDescVisible.Default.(bool)
+	// monitoredinputDescID is the schema descriptor for id field.
+	monitoredinputDescID := monitoredinputMixinFields0[0].Descriptor()
+	// monitoredinput.DefaultID holds the default value on creation for the id field.
+	monitoredinput.DefaultID = monitoredinputDescID.Default.(func() uuid.UUID)
+	monthlyusagecubeMixin := schema.MonthlyUsageCube{}.Mixin()
+	monthlyusagecubeMixinFields0 := monthlyusagecubeMixin[0].Fields()
+	_ = monthlyusagecubeMixinFields0
+	monthlyusagecubeMixinFields1 := monthlyusagecubeMixin[1].Fields()
+	_ = monthlyusagecubeMixinFields1
+	monthlyusagecubeFields := schema.MonthlyUsageCube{}.Fields()
+	_ = monthlyusagecubeFields
+	// monthlyusagecubeDescCreatedAt is the schema descriptor for created_at field.
+	monthlyusagecubeDescCreatedAt := monthlyusagecubeMixinFields1[0].Descriptor()
+	// monthlyusagecube.DefaultCreatedAt holds the default value on creation for the created_at field.
+	monthlyusagecube.DefaultCreatedAt = monthlyusagecubeDescCreatedAt.Default.(func() time.Time)
+	// monthlyusagecubeDescUpdatedAt is the schema descriptor for updated_at field.
+	monthlyusagecubeDescUpdatedAt := monthlyusagecubeMixinFields1[1].Descriptor()
+	// monthlyusagecube.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	monthlyusagecube.DefaultUpdatedAt = monthlyusagecubeDescUpdatedAt.Default.(func() time.Time)
+	// monthlyusagecube.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	monthlyusagecube.UpdateDefaultUpdatedAt = monthlyusagecubeDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// monthlyusagecubeDescOrganizationName is the schema descriptor for organization_name field.
+	monthlyusagecubeDescOrganizationName := monthlyusagecubeFields[6].Descriptor()
+	// monthlyusagecube.OrganizationNameValidator is a validator for the "organization_name" field. It is called by the builders before save.
+	monthlyusagecube.OrganizationNameValidator = monthlyusagecubeDescOrganizationName.Validators[0].(func(string) error)
+	// monthlyusagecubeDescProjectName is the schema descriptor for project_name field.
+	monthlyusagecubeDescProjectName := monthlyusagecubeFields[7].Descriptor()
+	// monthlyusagecube.ProjectNameValidator is a validator for the "project_name" field. It is called by the builders before save.
+	monthlyusagecube.ProjectNameValidator = monthlyusagecubeDescProjectName.Validators[0].(func(string) error)
+	// monthlyusagecubeDescUserName is the schema descriptor for user_name field.
+	monthlyusagecubeDescUserName := monthlyusagecubeFields[8].Descriptor()
+	// monthlyusagecube.UserNameValidator is a validator for the "user_name" field. It is called by the builders before save.
+	monthlyusagecube.UserNameValidator = monthlyusagecubeDescUserName.Validators[0].(func(string) error)
+	// monthlyusagecubeDescAPIKeyName is the schema descriptor for api_key_name field.
+	monthlyusagecubeDescAPIKeyName := monthlyusagecubeFields[9].Descriptor()
+	// monthlyusagecube.APIKeyNameValidator is a validator for the "api_key_name" field. It is called by the builders before save.
+	monthlyusagecube.APIKeyNameValidator = monthlyusagecubeDescAPIKeyName.Validators[0].(func(string) error)
+	// monthlyusagecubeDescModelName is the schema descriptor for model_name field.
+	monthlyusagecubeDescModelName := monthlyusagecubeFields[10].Descriptor()
+	// monthlyusagecube.ModelNameValidator is a validator for the "model_name" field. It is called by the builders before save.
+	monthlyusagecube.ModelNameValidator = monthlyusagecubeDescModelName.Validators[0].(func(string) error)
+	// monthlyusagecubeDescChargedMilli is the schema descriptor for charged_milli field.
+	monthlyusagecubeDescChargedMilli := monthlyusagecubeFields[11].Descriptor()
+	// monthlyusagecube.DefaultChargedMilli holds the default value on creation for the charged_milli field.
+	monthlyusagecube.DefaultChargedMilli = monthlyusagecubeDescChargedMilli.Default.(int64)
+	// monthlyusagecube.ChargedMilliValidator is a validator for the "charged_milli" field. It is called by the builders before save.
+	monthlyusagecube.ChargedMilliValidator = monthlyusagecubeDescChargedMilli.Validators[0].(func(int64) error)
+	// monthlyusagecubeDescChargedCount is the schema descriptor for charged_count field.
+	monthlyusagecubeDescChargedCount := monthlyusagecubeFields[12].Descriptor()
+	// monthlyusagecube.DefaultChargedCount holds the default value on creation for the charged_count field.
+	monthlyusagecube.DefaultChargedCount = monthlyusagecubeDescChargedCount.Default.(int64)
+	// monthlyusagecube.ChargedCountValidator is a validator for the "charged_count" field. It is called by the builders before save.
+	monthlyusagecube.ChargedCountValidator = monthlyusagecubeDescChargedCount.Validators[0].(func(int64) error)
+	// monthlyusagecubeDescZeroCostCount is the schema descriptor for zero_cost_count field.
+	monthlyusagecubeDescZeroCostCount := monthlyusagecubeFields[13].Descriptor()
+	// monthlyusagecube.DefaultZeroCostCount holds the default value on creation for the zero_cost_count field.
+	monthlyusagecube.DefaultZeroCostCount = monthlyusagecubeDescZeroCostCount.Default.(int64)
+	// monthlyusagecube.ZeroCostCountValidator is a validator for the "zero_cost_count" field. It is called by the builders before save.
+	monthlyusagecube.ZeroCostCountValidator = monthlyusagecubeDescZeroCostCount.Validators[0].(func(int64) error)
+	// monthlyusagecubeDescID is the schema descriptor for id field.
+	monthlyusagecubeDescID := monthlyusagecubeMixinFields0[0].Descriptor()
+	// monthlyusagecube.DefaultID holds the default value on creation for the id field.
+	monthlyusagecube.DefaultID = monthlyusagecubeDescID.Default.(func() uuid.UUID)
 	organizationMixin := schema.Organization{}.Mixin()
 	organizationMixinFields0 := organizationMixin[0].Fields()
 	_ = organizationMixinFields0
@@ -348,6 +745,26 @@ func init() {
 	projectDescDescription := projectFields[2].Descriptor()
 	// project.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
 	project.DescriptionValidator = projectDescDescription.Validators[0].(func(string) error)
+	// projectDescMonthlyCreditQuotaMilli is the schema descriptor for monthly_credit_quota_milli field.
+	projectDescMonthlyCreditQuotaMilli := projectFields[4].Descriptor()
+	// project.DefaultMonthlyCreditQuotaMilli holds the default value on creation for the monthly_credit_quota_milli field.
+	project.DefaultMonthlyCreditQuotaMilli = projectDescMonthlyCreditQuotaMilli.Default.(int64)
+	// project.MonthlyCreditQuotaMilliValidator is a validator for the "monthly_credit_quota_milli" field. It is called by the builders before save.
+	project.MonthlyCreditQuotaMilliValidator = func() func(int64) error {
+		validators := projectDescMonthlyCreditQuotaMilli.Validators
+		fns := [...]func(int64) error{
+			validators[0].(func(int64) error),
+			validators[1].(func(int64) error),
+		}
+		return func(monthly_credit_quota_milli int64) error {
+			for _, fn := range fns {
+				if err := fn(monthly_credit_quota_milli); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	// projectDescID is the schema descriptor for id field.
 	projectDescID := projectMixinFields0[0].Descriptor()
 	// project.DefaultID holds the default value on creation for the id field.
@@ -367,6 +784,74 @@ func init() {
 	projectmemberDescID := projectmemberMixinFields0[0].Descriptor()
 	// projectmember.DefaultID holds the default value on creation for the id field.
 	projectmember.DefaultID = projectmemberDescID.Default.(func() uuid.UUID)
+	projectmonthcreditbucketMixin := schema.ProjectMonthCreditBucket{}.Mixin()
+	projectmonthcreditbucketMixinFields0 := projectmonthcreditbucketMixin[0].Fields()
+	_ = projectmonthcreditbucketMixinFields0
+	projectmonthcreditbucketMixinFields1 := projectmonthcreditbucketMixin[1].Fields()
+	_ = projectmonthcreditbucketMixinFields1
+	projectmonthcreditbucketFields := schema.ProjectMonthCreditBucket{}.Fields()
+	_ = projectmonthcreditbucketFields
+	// projectmonthcreditbucketDescCreatedAt is the schema descriptor for created_at field.
+	projectmonthcreditbucketDescCreatedAt := projectmonthcreditbucketMixinFields1[0].Descriptor()
+	// projectmonthcreditbucket.DefaultCreatedAt holds the default value on creation for the created_at field.
+	projectmonthcreditbucket.DefaultCreatedAt = projectmonthcreditbucketDescCreatedAt.Default.(func() time.Time)
+	// projectmonthcreditbucketDescUpdatedAt is the schema descriptor for updated_at field.
+	projectmonthcreditbucketDescUpdatedAt := projectmonthcreditbucketMixinFields1[1].Descriptor()
+	// projectmonthcreditbucket.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	projectmonthcreditbucket.DefaultUpdatedAt = projectmonthcreditbucketDescUpdatedAt.Default.(func() time.Time)
+	// projectmonthcreditbucket.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	projectmonthcreditbucket.UpdateDefaultUpdatedAt = projectmonthcreditbucketDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// projectmonthcreditbucketDescQuotaMilli is the schema descriptor for quota_milli field.
+	projectmonthcreditbucketDescQuotaMilli := projectmonthcreditbucketFields[2].Descriptor()
+	// projectmonthcreditbucket.QuotaMilliValidator is a validator for the "quota_milli" field. It is called by the builders before save.
+	projectmonthcreditbucket.QuotaMilliValidator = projectmonthcreditbucketDescQuotaMilli.Validators[0].(func(int64) error)
+	// projectmonthcreditbucketDescAllocatedMilli is the schema descriptor for allocated_milli field.
+	projectmonthcreditbucketDescAllocatedMilli := projectmonthcreditbucketFields[3].Descriptor()
+	// projectmonthcreditbucket.DefaultAllocatedMilli holds the default value on creation for the allocated_milli field.
+	projectmonthcreditbucket.DefaultAllocatedMilli = projectmonthcreditbucketDescAllocatedMilli.Default.(int64)
+	// projectmonthcreditbucket.AllocatedMilliValidator is a validator for the "allocated_milli" field. It is called by the builders before save.
+	projectmonthcreditbucket.AllocatedMilliValidator = projectmonthcreditbucketDescAllocatedMilli.Validators[0].(func(int64) error)
+	// projectmonthcreditbucketDescChargedMilli is the schema descriptor for charged_milli field.
+	projectmonthcreditbucketDescChargedMilli := projectmonthcreditbucketFields[4].Descriptor()
+	// projectmonthcreditbucket.DefaultChargedMilli holds the default value on creation for the charged_milli field.
+	projectmonthcreditbucket.DefaultChargedMilli = projectmonthcreditbucketDescChargedMilli.Default.(int64)
+	// projectmonthcreditbucket.ChargedMilliValidator is a validator for the "charged_milli" field. It is called by the builders before save.
+	projectmonthcreditbucket.ChargedMilliValidator = projectmonthcreditbucketDescChargedMilli.Validators[0].(func(int64) error)
+	// projectmonthcreditbucketDescPendingMilli is the schema descriptor for pending_milli field.
+	projectmonthcreditbucketDescPendingMilli := projectmonthcreditbucketFields[5].Descriptor()
+	// projectmonthcreditbucket.DefaultPendingMilli holds the default value on creation for the pending_milli field.
+	projectmonthcreditbucket.DefaultPendingMilli = projectmonthcreditbucketDescPendingMilli.Default.(int64)
+	// projectmonthcreditbucket.PendingMilliValidator is a validator for the "pending_milli" field. It is called by the builders before save.
+	projectmonthcreditbucket.PendingMilliValidator = projectmonthcreditbucketDescPendingMilli.Validators[0].(func(int64) error)
+	// projectmonthcreditbucketDescID is the schema descriptor for id field.
+	projectmonthcreditbucketDescID := projectmonthcreditbucketMixinFields0[0].Descriptor()
+	// projectmonthcreditbucket.DefaultID holds the default value on creation for the id field.
+	projectmonthcreditbucket.DefaultID = projectmonthcreditbucketDescID.Default.(func() uuid.UUID)
+	promptaccessauditMixin := schema.PromptAccessAudit{}.Mixin()
+	promptaccessauditMixinFields0 := promptaccessauditMixin[0].Fields()
+	_ = promptaccessauditMixinFields0
+	promptaccessauditMixinFields1 := promptaccessauditMixin[1].Fields()
+	_ = promptaccessauditMixinFields1
+	promptaccessauditFields := schema.PromptAccessAudit{}.Fields()
+	_ = promptaccessauditFields
+	// promptaccessauditDescCreatedAt is the schema descriptor for created_at field.
+	promptaccessauditDescCreatedAt := promptaccessauditMixinFields1[0].Descriptor()
+	// promptaccessaudit.DefaultCreatedAt holds the default value on creation for the created_at field.
+	promptaccessaudit.DefaultCreatedAt = promptaccessauditDescCreatedAt.Default.(func() time.Time)
+	// promptaccessauditDescAccessType is the schema descriptor for access_type field.
+	promptaccessauditDescAccessType := promptaccessauditFields[3].Descriptor()
+	// promptaccessaudit.AccessTypeValidator is a validator for the "access_type" field. It is called by the builders before save.
+	promptaccessaudit.AccessTypeValidator = promptaccessauditDescAccessType.Validators[0].(func(string) error)
+	// promptaccessauditDescResultCount is the schema descriptor for result_count field.
+	promptaccessauditDescResultCount := promptaccessauditFields[6].Descriptor()
+	// promptaccessaudit.DefaultResultCount holds the default value on creation for the result_count field.
+	promptaccessaudit.DefaultResultCount = promptaccessauditDescResultCount.Default.(int)
+	// promptaccessaudit.ResultCountValidator is a validator for the "result_count" field. It is called by the builders before save.
+	promptaccessaudit.ResultCountValidator = promptaccessauditDescResultCount.Validators[0].(func(int) error)
+	// promptaccessauditDescID is the schema descriptor for id field.
+	promptaccessauditDescID := promptaccessauditMixinFields0[0].Descriptor()
+	// promptaccessaudit.DefaultID holds the default value on creation for the id field.
+	promptaccessaudit.DefaultID = promptaccessauditDescID.Default.(func() uuid.UUID)
 	providerMixin := schema.Provider{}.Mixin()
 	providerMixinFields0 := providerMixin[0].Fields()
 	_ = providerMixinFields0
@@ -428,6 +913,47 @@ func init() {
 	providerDescID := providerMixinFields0[0].Descriptor()
 	// provider.DefaultID holds the default value on creation for the id field.
 	provider.DefaultID = providerDescID.Default.(func() uuid.UUID)
+	quotaadjustmentauditMixin := schema.QuotaAdjustmentAudit{}.Mixin()
+	quotaadjustmentauditMixinFields0 := quotaadjustmentauditMixin[0].Fields()
+	_ = quotaadjustmentauditMixinFields0
+	quotaadjustmentauditMixinFields1 := quotaadjustmentauditMixin[1].Fields()
+	_ = quotaadjustmentauditMixinFields1
+	quotaadjustmentauditFields := schema.QuotaAdjustmentAudit{}.Fields()
+	_ = quotaadjustmentauditFields
+	// quotaadjustmentauditDescCreatedAt is the schema descriptor for created_at field.
+	quotaadjustmentauditDescCreatedAt := quotaadjustmentauditMixinFields1[0].Descriptor()
+	// quotaadjustmentaudit.DefaultCreatedAt holds the default value on creation for the created_at field.
+	quotaadjustmentaudit.DefaultCreatedAt = quotaadjustmentauditDescCreatedAt.Default.(func() time.Time)
+	// quotaadjustmentauditDescOldQuotaMilli is the schema descriptor for old_quota_milli field.
+	quotaadjustmentauditDescOldQuotaMilli := quotaadjustmentauditFields[3].Descriptor()
+	// quotaadjustmentaudit.OldQuotaMilliValidator is a validator for the "old_quota_milli" field. It is called by the builders before save.
+	quotaadjustmentaudit.OldQuotaMilliValidator = quotaadjustmentauditDescOldQuotaMilli.Validators[0].(func(int64) error)
+	// quotaadjustmentauditDescNewQuotaMilli is the schema descriptor for new_quota_milli field.
+	quotaadjustmentauditDescNewQuotaMilli := quotaadjustmentauditFields[4].Descriptor()
+	// quotaadjustmentaudit.NewQuotaMilliValidator is a validator for the "new_quota_milli" field. It is called by the builders before save.
+	quotaadjustmentaudit.NewQuotaMilliValidator = quotaadjustmentauditDescNewQuotaMilli.Validators[0].(func(int64) error)
+	// quotaadjustmentauditDescReason is the schema descriptor for reason field.
+	quotaadjustmentauditDescReason := quotaadjustmentauditFields[5].Descriptor()
+	// quotaadjustmentaudit.ReasonValidator is a validator for the "reason" field. It is called by the builders before save.
+	quotaadjustmentaudit.ReasonValidator = func() func(string) error {
+		validators := quotaadjustmentauditDescReason.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(reason string) error {
+			for _, fn := range fns {
+				if err := fn(reason); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// quotaadjustmentauditDescID is the schema descriptor for id field.
+	quotaadjustmentauditDescID := quotaadjustmentauditMixinFields0[0].Descriptor()
+	// quotaadjustmentaudit.DefaultID holds the default value on creation for the id field.
+	quotaadjustmentaudit.DefaultID = quotaadjustmentauditDescID.Default.(func() uuid.UUID)
 	userMixin := schema.User{}.Mixin()
 	userMixinFields0 := userMixin[0].Fields()
 	_ = userMixinFields0

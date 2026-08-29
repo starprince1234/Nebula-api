@@ -15,14 +15,24 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeyaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymodel"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelmultiplieraudit"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monitoredinput"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/monthlyusagecube"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organization"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organizationmember"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmonthcreditbucket"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/promptaccessaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 )
 
@@ -87,14 +97,24 @@ func checkColumn(t, c string) error {
 			apikey.Table:                   apikey.ValidColumn,
 			apikeyaudit.Table:              apikeyaudit.ValidColumn,
 			apikeymodel.Table:              apikeymodel.ValidColumn,
+			apikeymonthcreditbucket.Table:  apikeymonthcreditbucket.ValidColumn,
+			gatewaycall.Table:              gatewaycall.ValidColumn,
+			gatewaycallattempt.Table:       gatewaycallattempt.ValidColumn,
+			maintenancestate.Table:         maintenancestate.ValidColumn,
 			mentorprojectapplication.Table: mentorprojectapplication.ValidColumn,
 			model.Table:                    model.ValidColumn,
 			modelbinding.Table:             modelbinding.ValidColumn,
+			modelmultiplieraudit.Table:     modelmultiplieraudit.ValidColumn,
+			monitoredinput.Table:           monitoredinput.ValidColumn,
+			monthlyusagecube.Table:         monthlyusagecube.ValidColumn,
 			organization.Table:             organization.ValidColumn,
 			organizationmember.Table:       organizationmember.ValidColumn,
 			project.Table:                  project.ValidColumn,
 			projectmember.Table:            projectmember.ValidColumn,
+			projectmonthcreditbucket.Table: projectmonthcreditbucket.ValidColumn,
+			promptaccessaudit.Table:        promptaccessaudit.ValidColumn,
 			provider.Table:                 provider.ValidColumn,
+			quotaadjustmentaudit.Table:     quotaadjustmentaudit.ValidColumn,
 			user.Table:                     user.ValidColumn,
 		})
 	})

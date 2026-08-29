@@ -50,6 +50,9 @@ func (APIKey) Fields() []ent.Field {
 		field.String("key_prefix").Optional().Nillable().MaxLen(32),
 		field.Time("claimed_at").Optional().Nillable(),
 		field.Time("revoked_at").Optional().Nillable(),
+		field.Int64("requested_monthly_credit_quota_milli").NonNegative().Max(1_000_000_000_000),
+		field.Int64("mentor_monthly_credit_quota_milli").Optional().Nillable().NonNegative().Max(1_000_000_000_000),
+		field.Int64("monthly_credit_quota_milli").Optional().Nillable().NonNegative().Max(1_000_000_000_000),
 	}
 }
 
@@ -71,6 +74,7 @@ func (APIKey) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.Restrict)),
 		edge.To("models", APIKeyModel.Type),
 		edge.To("audits", APIKeyAudit.Type),
+		edge.To("credit_buckets", APIKeyMonthCreditBucket.Type),
 	}
 }
 

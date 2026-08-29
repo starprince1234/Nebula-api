@@ -28,6 +28,20 @@ npm run build
 
 当前自动化测试覆盖：
 
+- 模型倍率解析、项目/Key 月度 credit 聚合、调用日志与输入监控 DTO；新增 PostgreSQL migration、额度门禁、失败返还和权限集成测试应在发布前执行。
+
+### 限额、调用日志与输入监控
+
+- 测试范围：模型倍率定点解析、上海时区月桶、Key/项目额度门禁、供应商故障切换、调用状态结算、日志分页、导师项目范围和提示词访问审计。
+- 正常路径：请求解析模型后创建 pending call，成功结算 charged 与月度聚合；提示词仅在 charged/outcome_unknown 后可见。
+- 权限/安全边界：老师只看项目按模型聚合，导师只看当前负责项目的调用日志和输入监控；完整提示词读取必须先成功写访问审计。
+- 并发或事务边界：项目月桶和 Key 月桶必须在固定锁序下条件更新；重复 finalize/recovery 不得重复计费；撤销与 reserve 使用同一事务规则。
+- 常见现象：额度耗尽返回 `429`；日志出现 `outcome_unknown`；输入监控列表无全文。
+- 根因：Key/项目月桶已达到额度、客户端在上游发送后中断、或输入文本仍需点击详情读取。
+- 解决方案：等待北京时间下月刷新或使用 0 倍率模型；按 request ID 检查调用尝试；在导师项目范围内打开详情。
+- 排查命令或观察点：`go test ./...`、`go vet ./...`、`cd frontend; npm run typecheck`；查看 `gateway_calls`、`gateway_call_attempts` 的脱敏状态和 `monthly_usage_cube` 聚合。
+- 不得记录的敏感信息：完整 API Key、供应商凭据、数据库 DSN、refresh token、JWT、提示词原文和上游原始响应 body。
+
 - API Key 合法/非法状态迁移及驳回、撤销原因规则；
 - bcrypt、JWT audience/issuer、API Key HMAC、AES-GCM 防篡改；
 - 标准网关路由与旧路由拒绝；
@@ -166,7 +180,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | Gemini batch embeddings 上游提示 model 不匹配 | Binding 上游模型名错误，或批量请求内的 model 不是合法 Gemini embedding 模型 | 修正 Binding 的上游模型名 | 网关会统一改写路径和 `requests[*].model`；检查上游返回但不要输出供应商凭据 |
 | Realtime WebSocket 连接失败 | token 放在 query、模型不允许、subprotocol 不匹配 | 使用 Authorization 或约定 subprotocol | 检查 Upgrade 响应、模型 query 和白名单；禁止记录 token |
 | Codex CLI 普通请求可用但 compact 或 WebSocket 失败 | 缺少 `/v1/responses/compact`、Responses WebSocket Upgrade 未转发、`OpenAI-Beta` 被删除，或 compact output 被代理裁剪 | 使用 `openai_responses` Binding，确认 HTTP 与 WS 都指向支持 Responses 的上游 | compact 必须保留完整 output/`encrypted_content`；检查 `prompt_cache_key`、`previous_response_id` 与 Upgrade Header，不要打印加密内容 |
-| Realtime WebRTC 返回 `model_not_allowed` | `/realtime/client_secrets` 未在 `session.model` 配置公开模型，或 `/realtime/calls` 的 multipart `session` 缺少 model | 在 session JSON 中填写 Key 白名单内且具有 `openai_realtime` Binding 的公开 model | calls 的 SDP 不参与路由；确认网关只改写 session.model 并保留 SDP |
+| Realtime WebSocket 生成失败 | 连接未使用 `/v1/realtime` WebSocket、模型不在 Key 白名单或额度耗尽 | 使用 WebSocket 并在连接 query 指定允许模型；额度耗尽时等待下月或使用 0 倍率模型 | 检查协议 error event 与 request ID；不再提供 WebRTC client secret/calls 路由 |
 | Video 创建成功但查询、下载或 remix 404 | Redis 资源路由过期、Video 创建响应没有标准 `id`，或原 Binding/provider 已停用 | 在 TTL 内使用标准 video ID，恢复对应 Binding/provider；必要时重新创建 Video | 检查 `gateway:resource-route:video:{id}` 是否存在；不要把 video ID 当模型重新路由 |
 | Backend 启动时报 `GATEWAY_RESOURCE_ROUTE_TTL_HOURS` 配置错误 | Doppler 仍只保存旧视频任务 TTL 字段或值不是正整数小时 | 在 `nebula-api` 对应 config 中写入 `GATEWAY_RESOURCE_ROUTE_TTL_HOURS=24` 并删除旧字段 | 使用按名配置读取确认新字段存在；不要输出整份 secret 配置 |
 | `/v1/files`、`/v1/uploads` 或 `/v1/batches` 返回 404 | 这些是有状态资源 API，当前按模型 Binding 的首期网关未实现 | 不要映射到任意默认模型；如需该能力先设计资源归属、权限和生命周期契约 | NewAPI 参考实现同样把多项 Files 路由标为未实现；透明代理无法解决后续 resource ID 应回到哪个上游的问题 |

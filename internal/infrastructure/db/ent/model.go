@@ -45,6 +45,8 @@ type Model struct {
 	IsCommon bool `json:"is_common,omitempty"`
 	// Status holds the value of the "status" field.
 	Status model.Status `json:"status,omitempty"`
+	// CreditMultiplierMilli holds the value of the "credit_multiplier_milli" field.
+	CreditMultiplierMilli *int64 `json:"credit_multiplier_milli,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ModelQuery when eager-loading is set.
 	Edges        ModelEdges `json:"edges"`
@@ -89,7 +91,7 @@ func (*Model) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case model.FieldIsCommon:
 			values[i] = new(sql.NullBool)
-		case model.FieldContextWindow, model.FieldMaxOutputTokens:
+		case model.FieldContextWindow, model.FieldMaxOutputTokens, model.FieldCreditMultiplierMilli:
 			values[i] = new(sql.NullInt64)
 		case model.FieldModelID, model.FieldDisplayName, model.FieldDescription, model.FieldCategory, model.FieldStatus:
 			values[i] = new(sql.NullString)
@@ -205,6 +207,13 @@ func (_m *Model) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = model.Status(value.String)
 			}
+		case model.FieldCreditMultiplierMilli:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field credit_multiplier_milli", values[i])
+			} else if value.Valid {
+				_m.CreditMultiplierMilli = new(int64)
+				*_m.CreditMultiplierMilli = value.Int64
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -295,6 +304,11 @@ func (_m *Model) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	if v := _m.CreditMultiplierMilli; v != nil {
+		builder.WriteString("credit_multiplier_milli=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

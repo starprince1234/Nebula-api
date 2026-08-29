@@ -1,9 +1,10 @@
 import { get, post } from './client'
-import type { ApiKey, Model, Organization, Project, SubmitApiKey } from './types'
+import type { ApiKey, Model, Organization, Project, SubmitApiKey, StudentUsage } from './types'
 export const studentAPI = {
   organizations: () => get<Organization[]>('/api/v1/student/organizations'),
   projects: (org: string) => get<Project[]>(`/api/v1/student/organizations/${org}/projects`),
   models: () => get<Model[]>('/api/v1/student/models'),
+  usage: (month?: string) => get<StudentUsage>(`/api/v1/student/usage${month ? `?month=${month}` : ''}`),
   keys: () => get<ApiKey[]>('/api/v1/student/api-keys'),
   key: (id: string) => get<ApiKey>(`/api/v1/student/api-keys/${id}`),
   submit: (body: SubmitApiKey) => post<ApiKey>('/api/v1/student/api-keys', body),

@@ -19,7 +19,7 @@ const adapterOptions: Array<{ value: BindingAdapter; label: string; description:
   { value: 'openai_images', label: 'OpenAI Images', description: '用于 /v1/images/generations、edits 与 variations' },
   { value: 'openai_audio', label: 'OpenAI Audio', description: '用于 /v1/audio/transcriptions、translations 与 speech' },
   { value: 'openai_video', label: 'OpenAI Videos', description: '用于 /v1/videos 的创建、查询、内容下载与 remix' },
-  { value: 'openai_realtime', label: 'OpenAI Realtime', description: '用于 /v1/realtime WebSocket、client_secrets 与 WebRTC calls' },
+  { value: 'openai_realtime', label: 'OpenAI Realtime', description: '用于 /v1/realtime WebSocket' },
   { value: 'openai_moderations', label: 'OpenAI Moderations', description: '用于 /v1/moderations' },
   { value: 'anthropic', label: 'Anthropic Messages', description: '用于 /v1/messages' },
   { value: 'cohere_rerank_v2', label: 'Cohere Rerank v2', description: '用于官方 /v2/rerank' },

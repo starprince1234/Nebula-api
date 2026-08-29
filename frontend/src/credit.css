@@ -1,0 +1,3 @@
+.credit-donut{width:180px;height:180px;min-width:180px}
+.credit-donut-wrap{display:flex;align-items:center;gap:16px;min-height:190px}
+@media(max-width:700px){.credit-donut-wrap{flex-direction:column;align-items:flex-start}.credit-donut{width:160px;height:160px;min-width:160px}}

@@ -26,12 +26,8 @@ func main() {
 	}
 	defer client.Close()
 
-	if _, err := sqlDB.ExecContext(ctx, "CREATE EXTENSION IF NOT EXISTS citext"); err != nil {
-		slog.Error("enable citext extension", "error", err)
-		os.Exit(1)
-	}
-	if err := client.Schema.Create(ctx); err != nil {
-		slog.Error("create Ent schema", "error", err)
+	if err := db.Migrate(ctx, sqlDB); err != nil {
+		slog.Error("apply database migrations", "error", err)
 		os.Exit(1)
 	}
 	slog.Info("database schema is up to date")

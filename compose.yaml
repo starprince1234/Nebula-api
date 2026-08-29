@@ -141,6 +141,23 @@ services:
     init: true
     restart: unless-stopped
 
+  maintenance:
+    <<: *application-image
+    entrypoint: ["/app/nebula-maintenance"]
+    environment:
+      DATABASE_URL:
+    networks:
+      - data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    restart: unless-stopped
+
   frontend:
     image: nebula-api-frontend:${NEBULA_VERSION:?run through scripts/compose.ps1}
     build:

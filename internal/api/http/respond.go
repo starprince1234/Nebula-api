@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/starprince1234/Nebula-api/internal/controlplane"
 	"github.com/starprince1234/Nebula-api/internal/domain"
+	"github.com/starprince1234/Nebula-api/internal/usage"
 )
 
 const (
@@ -28,6 +29,7 @@ func (s *Server) requestContext() gin.HandlerFunc {
 			requestID = uuid.Must(uuid.NewV7()).String()
 		}
 		c.Set(requestIDKey, requestID)
+		c.Request = c.Request.WithContext(usage.WithRequestID(c.Request.Context(), requestID))
 		c.Header("X-Request-ID", requestID)
 		c.Next()
 	}
@@ -220,6 +222,8 @@ func errorStatus(code string) int {
 	case domain.CodeVerificationInvalid, domain.CodeVerificationExpired, domain.CodeInvitationInvalid:
 		return http.StatusUnprocessableEntity
 	case domain.CodeRateLimited, domain.CodeVerificationLocked:
+		return http.StatusTooManyRequests
+	case domain.CodeAPIKeyQuotaExceeded, domain.CodeProjectQuotaExceeded:
 		return http.StatusTooManyRequests
 	case domain.CodeDependencyUnavailable:
 		return http.StatusServiceUnavailable

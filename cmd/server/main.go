@@ -18,6 +18,7 @@ import (
 	security "github.com/starprince1234/Nebula-api/internal/infrastructure/crypto"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/mail"
+	"github.com/starprince1234/Nebula-api/internal/usage"
 )
 
 func main() {
@@ -71,7 +72,7 @@ func run() error {
 		return err
 	}
 	controlService := controlplane.NewService(
-		dbClient, cacheStore, securityManager, mailer,
+		dbClient, sqlDB, cacheStore, securityManager, mailer,
 		controlplane.Config{
 			AccessTTL: cfg.AccessTTL, RefreshTTL: cfg.RefreshTTL,
 			VerificationTTL: cfg.VerificationTTL, SendCooldown: cfg.SendCooldown,
@@ -97,7 +98,7 @@ func run() error {
 		return err
 	}
 
-	gateway := dataplane.NewGateway(dbClient, cacheStore, securityManager, dataplane.Config{
+	gateway := dataplane.NewGateway(dbClient, usage.NewStore(sqlDB), cacheStore, securityManager, dataplane.Config{
 		ConnectTimeout:        cfg.UpstreamConnectTimeout,
 		ResponseHeaderTimeout: cfg.UpstreamResponseHeaderTimeout,
 		MaxRequestBytes:       cfg.GatewayMaxRequestBytes,

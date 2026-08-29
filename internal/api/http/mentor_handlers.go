@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/starprince1234/Nebula-api/internal/controlplane"
+	"github.com/starprince1234/Nebula-api/internal/domain"
 )
 
 func (s *Server) mentorOrganizations(c *gin.Context) {
@@ -86,11 +88,26 @@ func (s *Server) reviewKeyAsMentor(approve bool) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		comment, ok := bindOptionalComment(c)
-		if !ok {
-			return
+		var input struct {
+			Comment        string `json:"comment"`
+			MonthlyCredits string `json:"monthly_credits"`
 		}
-		if err := s.service.ReviewKeyAsMentor(c.Request.Context(), identity(c).UserID, keyID, approve, comment); err != nil {
+		if c.Request.ContentLength != 0 {
+			if !bindJSON(c, &input) {
+				return
+			}
+		}
+		comment := input.Comment
+		var quota []int64
+		if approve && strings.TrimSpace(input.MonthlyCredits) != "" {
+			value, err := domain.ParseCredits(input.MonthlyCredits)
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			quota = []int64{value}
+		}
+		if err := s.service.ReviewKeyAsMentor(c.Request.Context(), identity(c).UserID, keyID, approve, comment, quota...); err != nil {
 			writeError(c, err)
 			return
 		}

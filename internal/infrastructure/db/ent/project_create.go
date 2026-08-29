@@ -12,10 +12,12 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeymonthcreditbucket"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/organization"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmonthcreditbucket"
 )
 
 // ProjectCreate is the builder for creating a Project entity.
@@ -93,6 +95,20 @@ func (_c *ProjectCreate) SetNillableStatus(v *project.Status) *ProjectCreate {
 	return _c
 }
 
+// SetMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field.
+func (_c *ProjectCreate) SetMonthlyCreditQuotaMilli(v int64) *ProjectCreate {
+	_c.mutation.SetMonthlyCreditQuotaMilli(v)
+	return _c
+}
+
+// SetNillableMonthlyCreditQuotaMilli sets the "monthly_credit_quota_milli" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableMonthlyCreditQuotaMilli(v *int64) *ProjectCreate {
+	if v != nil {
+		_c.SetMonthlyCreditQuotaMilli(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ProjectCreate) SetID(v uuid.UUID) *ProjectCreate {
 	_c.mutation.SetID(v)
@@ -157,6 +173,36 @@ func (_c *ProjectCreate) AddAPIKeys(v ...*APIKey) *ProjectCreate {
 	return _c.AddAPIKeyIDs(ids...)
 }
 
+// AddCreditBucketIDs adds the "credit_buckets" edge to the ProjectMonthCreditBucket entity by IDs.
+func (_c *ProjectCreate) AddCreditBucketIDs(ids ...uuid.UUID) *ProjectCreate {
+	_c.mutation.AddCreditBucketIDs(ids...)
+	return _c
+}
+
+// AddCreditBuckets adds the "credit_buckets" edges to the ProjectMonthCreditBucket entity.
+func (_c *ProjectCreate) AddCreditBuckets(v ...*ProjectMonthCreditBucket) *ProjectCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddCreditBucketIDs(ids...)
+}
+
+// AddAPIKeyCreditBucketIDs adds the "api_key_credit_buckets" edge to the APIKeyMonthCreditBucket entity by IDs.
+func (_c *ProjectCreate) AddAPIKeyCreditBucketIDs(ids ...uuid.UUID) *ProjectCreate {
+	_c.mutation.AddAPIKeyCreditBucketIDs(ids...)
+	return _c
+}
+
+// AddAPIKeyCreditBuckets adds the "api_key_credit_buckets" edges to the APIKeyMonthCreditBucket entity.
+func (_c *ProjectCreate) AddAPIKeyCreditBuckets(v ...*APIKeyMonthCreditBucket) *ProjectCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAPIKeyCreditBucketIDs(ids...)
+}
+
 // Mutation returns the ProjectMutation object of the builder.
 func (_c *ProjectCreate) Mutation() *ProjectMutation {
 	return _c.mutation
@@ -204,6 +250,10 @@ func (_c *ProjectCreate) defaults() {
 		v := project.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.MonthlyCreditQuotaMilli(); !ok {
+		v := project.DefaultMonthlyCreditQuotaMilli
+		_c.mutation.SetMonthlyCreditQuotaMilli(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := project.DefaultID()
 		_c.mutation.SetID(v)
@@ -240,6 +290,14 @@ func (_c *ProjectCreate) check() error {
 	if v, ok := _c.mutation.Status(); ok {
 		if err := project.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Project.status": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.MonthlyCreditQuotaMilli(); !ok {
+		return &ValidationError{Name: "monthly_credit_quota_milli", err: errors.New(`ent: missing required field "Project.monthly_credit_quota_milli"`)}
+	}
+	if v, ok := _c.mutation.MonthlyCreditQuotaMilli(); ok {
+		if err := project.MonthlyCreditQuotaMilliValidator(v); err != nil {
+			return &ValidationError{Name: "monthly_credit_quota_milli", err: fmt.Errorf(`ent: validator failed for field "Project.monthly_credit_quota_milli": %w`, err)}
 		}
 	}
 	if len(_c.mutation.OrganizationIDs()) == 0 {
@@ -300,6 +358,10 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 		_spec.SetField(project.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
 	}
+	if value, ok := _c.mutation.MonthlyCreditQuotaMilli(); ok {
+		_spec.SetField(project.FieldMonthlyCreditQuotaMilli, field.TypeInt64, value)
+		_node.MonthlyCreditQuotaMilli = value
+	}
 	if nodes := _c.mutation.OrganizationIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -358,6 +420,38 @@ func (_c *ProjectCreate) createSpec() (*Project, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CreditBucketsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   project.CreditBucketsTable,
+			Columns: []string{project.CreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(projectmonthcreditbucket.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.APIKeyCreditBucketsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   project.APIKeyCreditBucketsTable,
+			Columns: []string{project.APIKeyCreditBucketsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeymonthcreditbucket.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

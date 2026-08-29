@@ -28,6 +28,8 @@ const (
 	FieldDescription = "description"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldMonthlyCreditQuotaMilli holds the string denoting the monthly_credit_quota_milli field in the database.
+	FieldMonthlyCreditQuotaMilli = "monthly_credit_quota_milli"
 	// EdgeOrganization holds the string denoting the organization edge name in mutations.
 	EdgeOrganization = "organization"
 	// EdgeMemberships holds the string denoting the memberships edge name in mutations.
@@ -36,6 +38,10 @@ const (
 	EdgeMentorApplications = "mentor_applications"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
+	// EdgeCreditBuckets holds the string denoting the credit_buckets edge name in mutations.
+	EdgeCreditBuckets = "credit_buckets"
+	// EdgeAPIKeyCreditBuckets holds the string denoting the api_key_credit_buckets edge name in mutations.
+	EdgeAPIKeyCreditBuckets = "api_key_credit_buckets"
 	// Table holds the table name of the project in the database.
 	Table = "projects"
 	// OrganizationTable is the table that holds the organization relation/edge.
@@ -66,6 +72,20 @@ const (
 	APIKeysInverseTable = "api_keys"
 	// APIKeysColumn is the table column denoting the api_keys relation/edge.
 	APIKeysColumn = "project_id"
+	// CreditBucketsTable is the table that holds the credit_buckets relation/edge.
+	CreditBucketsTable = "project_month_credit_buckets"
+	// CreditBucketsInverseTable is the table name for the ProjectMonthCreditBucket entity.
+	// It exists in this package in order to avoid circular dependency with the "projectmonthcreditbucket" package.
+	CreditBucketsInverseTable = "project_month_credit_buckets"
+	// CreditBucketsColumn is the table column denoting the credit_buckets relation/edge.
+	CreditBucketsColumn = "project_id"
+	// APIKeyCreditBucketsTable is the table that holds the api_key_credit_buckets relation/edge.
+	APIKeyCreditBucketsTable = "api_key_month_credit_buckets"
+	// APIKeyCreditBucketsInverseTable is the table name for the APIKeyMonthCreditBucket entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeymonthcreditbucket" package.
+	APIKeyCreditBucketsInverseTable = "api_key_month_credit_buckets"
+	// APIKeyCreditBucketsColumn is the table column denoting the api_key_credit_buckets relation/edge.
+	APIKeyCreditBucketsColumn = "project_id"
 )
 
 // Columns holds all SQL columns for project fields.
@@ -77,6 +97,7 @@ var Columns = []string{
 	FieldName,
 	FieldDescription,
 	FieldStatus,
+	FieldMonthlyCreditQuotaMilli,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -100,6 +121,10 @@ var (
 	NameValidator func(string) error
 	// DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
 	DescriptionValidator func(string) error
+	// DefaultMonthlyCreditQuotaMilli holds the default value on creation for the "monthly_credit_quota_milli" field.
+	DefaultMonthlyCreditQuotaMilli int64
+	// MonthlyCreditQuotaMilliValidator is a validator for the "monthly_credit_quota_milli" field. It is called by the builders before save.
+	MonthlyCreditQuotaMilliValidator func(int64) error
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -168,6 +193,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
 }
 
+// ByMonthlyCreditQuotaMilli orders the results by the monthly_credit_quota_milli field.
+func ByMonthlyCreditQuotaMilli(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyCreditQuotaMilli, opts...).ToFunc()
+}
+
 // ByOrganizationField orders the results by organization field.
 func ByOrganizationField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -216,6 +246,34 @@ func ByAPIKeys(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newAPIKeysStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByCreditBucketsCount orders the results by credit_buckets count.
+func ByCreditBucketsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCreditBucketsStep(), opts...)
+	}
+}
+
+// ByCreditBuckets orders the results by credit_buckets terms.
+func ByCreditBuckets(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCreditBucketsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByAPIKeyCreditBucketsCount orders the results by api_key_credit_buckets count.
+func ByAPIKeyCreditBucketsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAPIKeyCreditBucketsStep(), opts...)
+	}
+}
+
+// ByAPIKeyCreditBuckets orders the results by api_key_credit_buckets terms.
+func ByAPIKeyCreditBuckets(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAPIKeyCreditBucketsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newOrganizationStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -242,5 +300,19 @@ func newAPIKeysStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(APIKeysInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, APIKeysTable, APIKeysColumn),
+	)
+}
+func newCreditBucketsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CreditBucketsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, CreditBucketsTable, CreditBucketsColumn),
+	)
+}
+func newAPIKeyCreditBucketsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(APIKeyCreditBucketsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, APIKeyCreditBucketsTable, APIKeyCreditBucketsColumn),
 	)
 }

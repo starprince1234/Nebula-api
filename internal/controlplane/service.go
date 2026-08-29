@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	netmail "net/mail"
 	"net/url"
@@ -15,7 +16,10 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikey"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/apikeyaudit"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
 	inframail "github.com/starprince1234/Nebula-api/internal/infrastructure/mail"
+	"github.com/starprince1234/Nebula-api/internal/usage"
 )
 
 type Config struct {
@@ -31,6 +35,8 @@ type Config struct {
 
 type Service struct {
 	db       *ent.Client
+	sqlDB    *sql.DB
+	usage    *usage.Store
 	cache    *cache.Store
 	security *security.Manager
 	mailer   inframail.Sender
@@ -43,9 +49,9 @@ type Identity struct {
 	Role   string
 }
 
-func NewService(db *ent.Client, cacheStore *cache.Store, securityManager *security.Manager, mailer inframail.Sender, cfg Config) *Service {
+func NewService(db *ent.Client, sqlDB *sql.DB, cacheStore *cache.Store, securityManager *security.Manager, mailer inframail.Sender, cfg Config) *Service {
 	return &Service{
-		db: db, cache: cacheStore, security: securityManager, mailer: mailer,
+		db: db, sqlDB: sqlDB, usage: usage.NewStore(sqlDB), cache: cacheStore, security: securityManager, mailer: mailer,
 		config: cfg, now: time.Now,
 	}
 }
@@ -125,6 +131,15 @@ func makeAPIKeyView(key *ent.APIKey) APIKeyView {
 		ID: key.ID.String(), Name: key.Name, Status: string(key.Status),
 		KeyPrefix: key.KeyPrefix, ClaimedAt: key.ClaimedAt,
 		CreatedAt: key.CreatedAt, UpdatedAt: key.UpdatedAt,
+		RequestedMonthlyCredits: domain.FormatCredits(key.RequestedMonthlyCreditQuotaMilli),
+	}
+	if key.MentorMonthlyCreditQuotaMilli != nil {
+		value := domain.FormatCredits(*key.MentorMonthlyCreditQuotaMilli)
+		view.MentorMonthlyCredits = &value
+	}
+	if key.MonthlyCreditQuotaMilli != nil {
+		value := domain.FormatCredits(*key.MonthlyCreditQuotaMilli)
+		view.MonthlyCredits = &value
 	}
 	if key.Edges.Owner != nil {
 		view.Applicant = userView(key.Edges.Owner)
@@ -202,4 +217,80 @@ func keyStatus(status string) (apikey.Status, error) {
 	default:
 		return "", fmt.Errorf("unknown API key status %q", status)
 	}
+}
+
+func (s *Service) StudentUsage(ctx context.Context, userID uuid.UUID, month time.Time) (usage.StudentUsage, error) {
+	return s.usage.StudentUsage(ctx, userID, month)
+}
+
+func (s *Service) MentorProjectUsage(ctx context.Context, mentorID, projectID uuid.UUID, month time.Time) (usage.ProjectUsage, error) {
+	responsible, err := s.db.ProjectMember.Query().Where(projectmember.ProjectIDEQ(projectID), projectmember.UserIDEQ(mentorID)).Exist(ctx)
+	if err != nil {
+		return usage.ProjectUsage{}, domain.WrapError(domain.CodeDependencyUnavailable, "query mentor responsibility", err)
+	}
+	if !responsible {
+		return usage.ProjectUsage{}, domain.NewError(domain.CodeNotFound, "project not found")
+	}
+	return s.usage.ProjectUsage(ctx, projectID, month)
+}
+
+func (s *Service) MentorCallLogs(ctx context.Context, mentorID uuid.UUID, filter usage.LogFilter) (usage.Page[usage.CallLog], error) {
+	return s.usage.MentorCallLogs(ctx, mentorID, filter)
+}
+func (s *Service) MentorCallLog(ctx context.Context, mentorID, callID uuid.UUID) (usage.CallLog, error) {
+	return s.usage.MentorCallLog(ctx, mentorID, callID)
+}
+func (s *Service) MentorInputs(ctx context.Context, mentorID uuid.UUID, filter usage.InputFilter) (usage.Page[usage.InputMonitorItem], error) {
+	return s.usage.MentorInputs(ctx, mentorID, filter)
+}
+func (s *Service) MentorInput(ctx context.Context, mentorID, callID uuid.UUID) (usage.InputMonitorItem, error) {
+	return s.usage.MentorInput(ctx, mentorID, callID)
+}
+
+func (s *Service) UpdateMentorKeyQuota(ctx context.Context, mentorID, keyID uuid.UUID, quota int64, reason string) error {
+	if quota < 0 || quota > domain.MaxCreditMilli || strings.TrimSpace(reason) == "" {
+		return domain.NewError(domain.CodeValidation, "quota and reason are required")
+	}
+	key, err := s.db.APIKey.Query().Where(apikey.IDEQ(keyID), apikey.StatusIn(apikey.StatusApproved, apikey.StatusActive)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return domain.NewError(domain.CodeNotFound, "API key not found")
+	}
+	if err != nil {
+		return domain.WrapError(domain.CodeDependencyUnavailable, "query API key", err)
+	}
+	responsible, err := s.db.ProjectMember.Query().Where(projectmember.ProjectIDEQ(key.ProjectID), projectmember.UserIDEQ(mentorID)).Exist(ctx)
+	if err != nil {
+		return domain.WrapError(domain.CodeDependencyUnavailable, "query mentor responsibility", err)
+	}
+	if !responsible {
+		return domain.NewError(domain.CodeNotFound, "API key not found")
+	}
+	_, err = s.db.APIKey.UpdateOneID(keyID).SetMonthlyCreditQuotaMilli(quota).Save(ctx)
+	if err != nil {
+		return domain.WrapError(domain.CodeDependencyUnavailable, "update API key quota", err)
+	}
+	return nil
+}
+
+func (s *Service) TeacherProjectSpend(ctx context.Context, month time.Time, organizationID, query string) ([]usage.ProjectUsage, error) {
+	projects, err := s.db.Project.Query().WithOrganization().Order(ent.Asc(project.FieldName)).All(ctx)
+	if err != nil {
+		return nil, domain.WrapError(domain.CodeDependencyUnavailable, "list project spend", err)
+	}
+	result := make([]usage.ProjectUsage, 0, len(projects))
+	for _, p := range projects {
+		if organizationID != "" && p.OrganizationID.String() != organizationID {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(p.Name), strings.ToLower(query)) {
+			continue
+		}
+		item, err := s.usage.ProjectUsage(ctx, p.ID, month)
+		if err != nil {
+			continue
+		}
+		item.Members = nil
+		result = append(result, item)
+	}
+	return result, nil
 }

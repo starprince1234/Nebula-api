@@ -15,6 +15,18 @@ type APIKeyAudit func(*sql.Selector)
 // APIKeyModel is the predicate function for apikeymodel builders.
 type APIKeyModel func(*sql.Selector)
 
+// APIKeyMonthCreditBucket is the predicate function for apikeymonthcreditbucket builders.
+type APIKeyMonthCreditBucket func(*sql.Selector)
+
+// GatewayCall is the predicate function for gatewaycall builders.
+type GatewayCall func(*sql.Selector)
+
+// GatewayCallAttempt is the predicate function for gatewaycallattempt builders.
+type GatewayCallAttempt func(*sql.Selector)
+
+// MaintenanceState is the predicate function for maintenancestate builders.
+type MaintenanceState func(*sql.Selector)
+
 // MentorProjectApplication is the predicate function for mentorprojectapplication builders.
 type MentorProjectApplication func(*sql.Selector)
 
@@ -23,6 +35,15 @@ type Model func(*sql.Selector)
 
 // ModelBinding is the predicate function for modelbinding builders.
 type ModelBinding func(*sql.Selector)
+
+// ModelMultiplierAudit is the predicate function for modelmultiplieraudit builders.
+type ModelMultiplierAudit func(*sql.Selector)
+
+// MonitoredInput is the predicate function for monitoredinput builders.
+type MonitoredInput func(*sql.Selector)
+
+// MonthlyUsageCube is the predicate function for monthlyusagecube builders.
+type MonthlyUsageCube func(*sql.Selector)
 
 // Organization is the predicate function for organization builders.
 type Organization func(*sql.Selector)
@@ -36,8 +57,17 @@ type Project func(*sql.Selector)
 // ProjectMember is the predicate function for projectmember builders.
 type ProjectMember func(*sql.Selector)
 
+// ProjectMonthCreditBucket is the predicate function for projectmonthcreditbucket builders.
+type ProjectMonthCreditBucket func(*sql.Selector)
+
+// PromptAccessAudit is the predicate function for promptaccessaudit builders.
+type PromptAccessAudit func(*sql.Selector)
+
 // Provider is the predicate function for provider builders.
 type Provider func(*sql.Selector)
+
+// QuotaAdjustmentAudit is the predicate function for quotaadjustmentaudit builders.
+type QuotaAdjustmentAudit func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)

@@ -165,6 +165,20 @@ func (_c *ModelCreate) SetNillableStatus(v *model.Status) *ModelCreate {
 	return _c
 }
 
+// SetCreditMultiplierMilli sets the "credit_multiplier_milli" field.
+func (_c *ModelCreate) SetCreditMultiplierMilli(v int64) *ModelCreate {
+	_c.mutation.SetCreditMultiplierMilli(v)
+	return _c
+}
+
+// SetNillableCreditMultiplierMilli sets the "credit_multiplier_milli" field if the given value is not nil.
+func (_c *ModelCreate) SetNillableCreditMultiplierMilli(v *int64) *ModelCreate {
+	if v != nil {
+		_c.SetCreditMultiplierMilli(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ModelCreate) SetID(v uuid.UUID) *ModelCreate {
 	_c.mutation.SetID(v)
@@ -349,6 +363,11 @@ func (_c *ModelCreate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Model.status": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.CreditMultiplierMilli(); ok {
+		if err := model.CreditMultiplierMilliValidator(v); err != nil {
+			return &ValidationError{Name: "credit_multiplier_milli", err: fmt.Errorf(`ent: validator failed for field "Model.credit_multiplier_milli": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -435,6 +454,10 @@ func (_c *ModelCreate) createSpec() (*Model, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(model.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.CreditMultiplierMilli(); ok {
+		_spec.SetField(model.FieldCreditMultiplierMilli, field.TypeInt64, value)
+		_node.CreditMultiplierMilli = &value
 	}
 	if nodes := _c.mutation.BindingsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

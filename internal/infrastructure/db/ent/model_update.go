@@ -218,6 +218,33 @@ func (_u *ModelUpdate) SetNillableStatus(v *model.Status) *ModelUpdate {
 	return _u
 }
 
+// SetCreditMultiplierMilli sets the "credit_multiplier_milli" field.
+func (_u *ModelUpdate) SetCreditMultiplierMilli(v int64) *ModelUpdate {
+	_u.mutation.ResetCreditMultiplierMilli()
+	_u.mutation.SetCreditMultiplierMilli(v)
+	return _u
+}
+
+// SetNillableCreditMultiplierMilli sets the "credit_multiplier_milli" field if the given value is not nil.
+func (_u *ModelUpdate) SetNillableCreditMultiplierMilli(v *int64) *ModelUpdate {
+	if v != nil {
+		_u.SetCreditMultiplierMilli(*v)
+	}
+	return _u
+}
+
+// AddCreditMultiplierMilli adds value to the "credit_multiplier_milli" field.
+func (_u *ModelUpdate) AddCreditMultiplierMilli(v int64) *ModelUpdate {
+	_u.mutation.AddCreditMultiplierMilli(v)
+	return _u
+}
+
+// ClearCreditMultiplierMilli clears the value of the "credit_multiplier_milli" field.
+func (_u *ModelUpdate) ClearCreditMultiplierMilli() *ModelUpdate {
+	_u.mutation.ClearCreditMultiplierMilli()
+	return _u
+}
+
 // AddBindingIDs adds the "bindings" edge to the ModelBinding entity by IDs.
 func (_u *ModelUpdate) AddBindingIDs(ids ...uuid.UUID) *ModelUpdate {
 	_u.mutation.AddBindingIDs(ids...)
@@ -368,6 +395,11 @@ func (_u *ModelUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Model.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CreditMultiplierMilli(); ok {
+		if err := model.CreditMultiplierMilliValidator(v); err != nil {
+			return &ValidationError{Name: "credit_multiplier_milli", err: fmt.Errorf(`ent: validator failed for field "Model.credit_multiplier_milli": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -448,6 +480,15 @@ func (_u *ModelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(model.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.CreditMultiplierMilli(); ok {
+		_spec.SetField(model.FieldCreditMultiplierMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditMultiplierMilli(); ok {
+		_spec.AddField(model.FieldCreditMultiplierMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.CreditMultiplierMilliCleared() {
+		_spec.ClearField(model.FieldCreditMultiplierMilli, field.TypeInt64)
 	}
 	if _u.mutation.BindingsCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -745,6 +786,33 @@ func (_u *ModelUpdateOne) SetNillableStatus(v *model.Status) *ModelUpdateOne {
 	return _u
 }
 
+// SetCreditMultiplierMilli sets the "credit_multiplier_milli" field.
+func (_u *ModelUpdateOne) SetCreditMultiplierMilli(v int64) *ModelUpdateOne {
+	_u.mutation.ResetCreditMultiplierMilli()
+	_u.mutation.SetCreditMultiplierMilli(v)
+	return _u
+}
+
+// SetNillableCreditMultiplierMilli sets the "credit_multiplier_milli" field if the given value is not nil.
+func (_u *ModelUpdateOne) SetNillableCreditMultiplierMilli(v *int64) *ModelUpdateOne {
+	if v != nil {
+		_u.SetCreditMultiplierMilli(*v)
+	}
+	return _u
+}
+
+// AddCreditMultiplierMilli adds value to the "credit_multiplier_milli" field.
+func (_u *ModelUpdateOne) AddCreditMultiplierMilli(v int64) *ModelUpdateOne {
+	_u.mutation.AddCreditMultiplierMilli(v)
+	return _u
+}
+
+// ClearCreditMultiplierMilli clears the value of the "credit_multiplier_milli" field.
+func (_u *ModelUpdateOne) ClearCreditMultiplierMilli() *ModelUpdateOne {
+	_u.mutation.ClearCreditMultiplierMilli()
+	return _u
+}
+
 // AddBindingIDs adds the "bindings" edge to the ModelBinding entity by IDs.
 func (_u *ModelUpdateOne) AddBindingIDs(ids ...uuid.UUID) *ModelUpdateOne {
 	_u.mutation.AddBindingIDs(ids...)
@@ -908,6 +976,11 @@ func (_u *ModelUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Model.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CreditMultiplierMilli(); ok {
+		if err := model.CreditMultiplierMilliValidator(v); err != nil {
+			return &ValidationError{Name: "credit_multiplier_milli", err: fmt.Errorf(`ent: validator failed for field "Model.credit_multiplier_milli": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1005,6 +1078,15 @@ func (_u *ModelUpdateOne) sqlSave(ctx context.Context) (_node *Model, err error)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(model.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.CreditMultiplierMilli(); ok {
+		_spec.SetField(model.FieldCreditMultiplierMilli, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditMultiplierMilli(); ok {
+		_spec.AddField(model.FieldCreditMultiplierMilli, field.TypeInt64, value)
+	}
+	if _u.mutation.CreditMultiplierMilliCleared() {
+		_spec.ClearField(model.FieldCreditMultiplierMilli, field.TypeInt64)
 	}
 	if _u.mutation.BindingsCleared() {
 		edge := &sqlgraph.EdgeSpec{

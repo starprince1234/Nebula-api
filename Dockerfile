@@ -13,12 +13,14 @@ COPY internal ./internal
 ARG VERSION
 RUN test -n "$VERSION" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-server ./cmd/server && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-migrate ./cmd/migrate
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-migrate ./cmd/migrate && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/nebula-maintenance ./cmd/maintenance
 
 FROM docker.m.daocloud.io/library/alpine:3.22.5 AS runtime
 WORKDIR /app
 COPY --from=builder --chown=10001:10001 /out/nebula-server /app/nebula-server
 COPY --from=builder --chown=10001:10001 /out/nebula-migrate /app/nebula-migrate
+COPY --from=builder --chown=10001:10001 /out/nebula-maintenance /app/nebula-maintenance
 
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S -g 10001 nebula && \

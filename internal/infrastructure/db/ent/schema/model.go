@@ -15,7 +15,12 @@ type Model struct {
 }
 
 func (Model) Annotations() []entschema.Annotation {
-	return []entschema.Annotation{entsql.Annotation{Table: "models"}}
+	return []entschema.Annotation{entsql.Annotation{
+		Table: "models",
+		Checks: map[string]string{
+			"active_model_requires_credit_multiplier": "status <> 'active' OR credit_multiplier_milli IS NOT NULL",
+		},
+	}}
 }
 
 func (Model) Mixin() []ent.Mixin {
@@ -43,6 +48,7 @@ func (Model) Fields() []ent.Field {
 		field.Enum("status").
 			Values("pending_configuration", "active", "inactive").
 			Default("pending_configuration"),
+		field.Int64("credit_multiplier_milli").Optional().Nillable().NonNegative().Max(1_000_000_000_000),
 	}
 }
 

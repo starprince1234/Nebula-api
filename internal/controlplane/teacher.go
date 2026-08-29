@@ -19,6 +19,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 )
 
@@ -29,10 +30,12 @@ type OrganizationInput struct {
 }
 
 type ProjectInput struct {
-	OrganizationID uuid.UUID
-	Name           string
-	Description    *string
-	Status         *string
+	OrganizationID          uuid.UUID
+	Name                    string
+	Description             *string
+	Status                  *string
+	MonthlyCreditQuotaMilli *int64
+	QuotaChangeReason       string
 }
 
 type ProviderInput struct {
@@ -43,19 +46,21 @@ type ProviderInput struct {
 }
 
 type ModelInput struct {
-	ModelID            string
-	DisplayName        string
-	Description        *string
-	Category           string
-	Capabilities       []string
-	InputModalities    []string
-	OutputModalities   []string
-	ContextWindow      *int
-	ContextWindowSet   bool
-	MaxOutputTokens    *int
-	MaxOutputTokensSet bool
-	IsCommon           *bool
-	Status             *string
+	ModelID                string
+	DisplayName            string
+	Description            *string
+	Category               string
+	Capabilities           []string
+	InputModalities        []string
+	OutputModalities       []string
+	ContextWindow          *int
+	ContextWindowSet       bool
+	MaxOutputTokens        *int
+	MaxOutputTokensSet     bool
+	IsCommon               *bool
+	Status                 *string
+	CreditMultiplierMilli  *int64
+	MultiplierChangeReason string
 }
 
 type MentorCandidateCursor struct {
@@ -302,6 +307,9 @@ func (s *Service) CreateProject(ctx context.Context, input ProjectInput) (Projec
 		SetOrganizationID(input.OrganizationID).
 		SetName(name).
 		SetStatus(project.Status(status))
+	if input.MonthlyCreditQuotaMilli != nil {
+		builder.SetMonthlyCreditQuotaMilli(*input.MonthlyCreditQuotaMilli)
+	}
 	if input.Description != nil && strings.TrimSpace(*input.Description) != "" {
 		builder.SetDescription(strings.TrimSpace(*input.Description))
 	}
@@ -315,8 +323,25 @@ func (s *Service) CreateProject(ctx context.Context, input ProjectInput) (Projec
 	return projectView(row, false), nil
 }
 
-func (s *Service) UpdateProject(ctx context.Context, id uuid.UUID, input ProjectInput) (ProjectView, error) {
+func (s *Service) UpdateProject(ctx context.Context, actorID, id uuid.UUID, input ProjectInput) (ProjectView, error) {
 	builder := s.db.Project.UpdateOneID(id)
+	var oldQuota *int64
+	if input.MonthlyCreditQuotaMilli != nil {
+		current, err := s.db.Project.Get(ctx, id)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return ProjectView{}, domain.NewError(domain.CodeNotFound, "project not found")
+			}
+			return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "query project", err)
+		}
+		oldQuota = &current.MonthlyCreditQuotaMilli
+	}
+	if input.MonthlyCreditQuotaMilli != nil {
+		if strings.TrimSpace(input.QuotaChangeReason) == "" {
+			return ProjectView{}, domain.NewError(domain.CodeValidation, "quota change reason is required")
+		}
+		builder.SetMonthlyCreditQuotaMilli(*input.MonthlyCreditQuotaMilli)
+	}
 	if input.Name != "" {
 		name, err := ValidateName(input.Name, 128)
 		if err != nil {
@@ -349,6 +374,11 @@ func (s *Service) UpdateProject(ctx context.Context, id uuid.UUID, input Project
 	}
 	if err != nil {
 		return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update project", err)
+	}
+	if input.MonthlyCreditQuotaMilli != nil && oldQuota != nil {
+		if _, auditErr := s.db.QuotaAdjustmentAudit.Create().SetOwnerType(quotaadjustmentaudit.OwnerTypeProject).SetOwnerID(id).SetActorUserID(actorID).SetOldQuotaMilli(*oldQuota).SetNewQuotaMilli(*input.MonthlyCreditQuotaMilli).SetReason(input.QuotaChangeReason).Save(ctx); auditErr != nil {
+			return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "create project quota audit", auditErr)
+		}
 	}
 	return projectView(row, false), nil
 }
@@ -626,6 +656,9 @@ func (s *Service) CreateModel(ctx context.Context, input ModelInput) (ModelView,
 		SetInputModalities(cleanStringList(input.InputModalities)).
 		SetOutputModalities(cleanStringList(input.OutputModalities)).
 		SetStatus(status)
+	if input.CreditMultiplierMilli != nil {
+		builder.SetCreditMultiplierMilli(*input.CreditMultiplierMilli)
+	}
 	if input.Description != nil && strings.TrimSpace(*input.Description) != "" {
 		builder.SetDescription(strings.TrimSpace(*input.Description))
 	}
@@ -677,7 +710,7 @@ func (s *Service) TeacherModel(ctx context.Context, id uuid.UUID) (ModelView, []
 	return view, result, nil
 }
 
-func (s *Service) UpdateModel(ctx context.Context, id uuid.UUID, input ModelInput) (ModelView, error) {
+func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input ModelInput) (ModelView, error) {
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "start model update transaction", err)
@@ -691,6 +724,12 @@ func (s *Service) UpdateModel(ctx context.Context, id uuid.UUID, input ModelInpu
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "query model", err)
 	}
 	builder := current.Update()
+	if input.CreditMultiplierMilli != nil {
+		if strings.TrimSpace(input.MultiplierChangeReason) == "" {
+			return ModelView{}, domain.NewError(domain.CodeValidation, "multiplier change reason is required")
+		}
+		builder.SetCreditMultiplierMilli(*input.CreditMultiplierMilli)
+	}
 	if input.DisplayName != "" {
 		name, err := ValidateName(input.DisplayName, 256)
 		if err != nil {
@@ -750,6 +789,9 @@ func (s *Service) UpdateModel(ctx context.Context, id uuid.UUID, input ModelInpu
 			return ModelView{}, err
 		}
 		if status == entmodel.StatusActive {
+			if current.CreditMultiplierMilli == nil && input.CreditMultiplierMilli == nil {
+				return ModelView{}, domain.NewError(domain.CodeModelNotReady, "model credit multiplier is required")
+			}
 			ready, err := modelHasActiveRouteTx(ctx, tx, id)
 			if err != nil {
 				return ModelView{}, err
@@ -765,6 +807,15 @@ func (s *Service) UpdateModel(ctx context.Context, id uuid.UUID, input ModelInpu
 	row, err := builder.Save(ctx)
 	if err != nil {
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update model", err)
+	}
+	if input.CreditMultiplierMilli != nil {
+		audit := tx.ModelMultiplierAudit.Create().SetModelID(id).SetActorUserID(actorID).SetNewMultiplierMilli(*input.CreditMultiplierMilli).SetReason(input.MultiplierChangeReason)
+		if current.CreditMultiplierMilli != nil {
+			audit.SetOldMultiplierMilli(*current.CreditMultiplierMilli)
+		}
+		if _, err := audit.Save(ctx); err != nil {
+			return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "create model multiplier audit", err)
+		}
 	}
 	commonWasVisible := current.IsCommon && current.Status == entmodel.StatusActive
 	commonIsVisible := row.IsCommon && row.Status == entmodel.StatusActive
@@ -995,7 +1046,7 @@ func (s *Service) populateRouteReadiness(ctx context.Context, view *APIKeyView) 
 	return nil
 }
 
-func (s *Service) ReviewKeyAsTeacher(ctx context.Context, teacherID, keyID uuid.UUID, approve bool, comment string) error {
+func (s *Service) ReviewKeyAsTeacher(ctx context.Context, teacherID, keyID uuid.UUID, approve bool, comment string, monthly ...int64) error {
 	action := "teacher_approved"
 	nextStatus := apikey.StatusApproved
 	auditAction := apikeyaudit.ActionTeacherApproved
@@ -1052,6 +1103,19 @@ func (s *Service) ReviewKeyAsTeacher(ctx context.Context, teacherID, keyID uuid.
 		}
 		if key.Edges.Project == nil {
 			return domain.NewError(domain.CodeNotFound, "project not found")
+		}
+		quota := key.RequestedMonthlyCreditQuotaMilli
+		if key.MentorMonthlyCreditQuotaMilli != nil {
+			quota = *key.MentorMonthlyCreditQuotaMilli
+		}
+		if len(monthly) > 0 {
+			quota = monthly[0]
+		}
+		if quota < 0 || quota > 1_000_000_000_000 {
+			return domain.NewError(domain.CodeValidation, "monthly credits are out of range")
+		}
+		if _, err := tx.APIKey.UpdateOneID(keyID).SetMonthlyCreditQuotaMilli(quota).Save(ctx); err != nil {
+			return domain.WrapError(domain.CodeDependencyUnavailable, "set final key quota", err)
 		}
 		if err := ensureOrganizationMember(ctx, tx, key.Edges.Project.OrganizationID, key.OwnerUserID); err != nil {
 			return err

@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -28,6 +29,7 @@ import (
 	entmodel "github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
+	"github.com/starprince1234/Nebula-api/internal/usage"
 )
 
 const replayMemoryThreshold = 1 << 20
@@ -44,6 +46,7 @@ type Gateway struct {
 	db       *ent.Client
 	cache    *cache.Store
 	security *security.Manager
+	usage    *usage.Store
 	client   *http.Client
 	dialer   *websocket.Dialer
 	config   Config
@@ -55,7 +58,7 @@ type route struct {
 	Credential string
 }
 
-func NewGateway(db *ent.Client, cacheStore *cache.Store, securityManager *security.Manager, cfg Config) *Gateway {
+func NewGateway(db *ent.Client, usageStore *usage.Store, cacheStore *cache.Store, securityManager *security.Manager, cfg Config) *Gateway {
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: cfg.ConnectTimeout, KeepAlive: 30 * time.Second}).DialContext,
@@ -68,7 +71,7 @@ func NewGateway(db *ent.Client, cacheStore *cache.Store, securityManager *securi
 		ExpectContinueTimeout: time.Second,
 	}
 	return &Gateway{
-		db: db, cache: cacheStore, security: securityManager,
+		db: db, usage: usageStore, cache: cacheStore, security: securityManager,
 		client: &http.Client{Transport: transport},
 		dialer: &websocket.Dialer{
 			Proxy:             http.ProxyFromEnvironment,
@@ -124,7 +127,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeProtocolError(w, r.URL.Path, http.StatusNotFound, "invalid_request_error", "resource_not_found", "The requested upstream resource is unavailable.", "")
 			return
 		}
-		g.proxyHTTP(w, r, replay, routes)
+		g.proxyHTTP(w, r, replay, routes, uuid.Nil)
 		return
 	}
 
@@ -138,7 +141,25 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeProtocolError(w, r.URL.Path, http.StatusBadRequest, "invalid_request_error", "model_not_allowed", "The requested model is not allowed or is unavailable for this API key.", "model")
 		return
 	}
-	g.proxyHTTP(w, r, replay, routes)
+	prompt, promptSource := extractInputSnapshot(r.URL.Path, r.Header.Get("Content-Type"), replay)
+	reservation, reserveErr := g.usage.Reserve(r.Context(), key.ID, routes[0].Binding.ModelID, requestIDFromContext(r), string(adapter), r.URL.Path, prompt, promptSource)
+	if reserveErr != nil {
+		var quotaErr *usage.QuotaError
+		if errors.As(reserveErr, &quotaErr) {
+			writeProtocolError(w, r.URL.Path, http.StatusTooManyRequests, "rate_limit_error", quotaErr.Code, fmt.Sprintf("%s quota is exhausted until %s.", quotaErr.Name, quotaErr.EndsAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04 MST")), "")
+			return
+		}
+		writeProtocolError(w, r.URL.Path, http.StatusBadRequest, "invalid_request_error", "billing_unavailable", "Unable to authorize this model call.", "model")
+		return
+	}
+	g.proxyHTTP(w, r, replay, routes, reservation)
+}
+
+func requestIDFromContext(r *http.Request) string {
+	if value := usage.RequestID(r.Context()); value != "" {
+		return value
+	}
+	return uuid.Must(uuid.NewV7()).String()
 }
 
 func (g *Gateway) authenticate(r *http.Request) (*ent.APIKey, error) {
@@ -262,17 +283,34 @@ func (g *Gateway) decryptRoutes(bindings []*ent.ModelBinding) []route {
 	return routes
 }
 
-func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, replay *replayBody, routes []route) {
+func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, replay *replayBody, routes []route, reservation any) {
 	var lastResponse *http.Response
 	for index, candidate := range routes {
+		attemptStarted := time.Now()
+		var attemptID uuid.UUID
+		if _, ok := reservation.(usage.Reservation); ok {
+			attemptID, _ = g.usage.StartAttempt(original.Context(), reservation.(usage.Reservation).CallID, candidate.Provider.ID, candidate.Binding.ID, candidate.Provider.Name)
+		}
 		request, cleanup, err := g.upstreamRequest(original, replay, candidate)
 		if err != nil {
+			if attemptID != uuid.Nil {
+				_ = g.usage.FinishAttempt(original.Context(), attemptID, false, nil, "request_rewrite", err.Error(), attemptStarted)
+			}
 			continue
+		}
+		if r, ok := reservation.(usage.Reservation); ok {
+			_ = g.usage.MarkSent(original.Context(), r.CallID)
 		}
 		response, err := g.client.Do(request)
 		cleanup()
 		if err != nil {
+			if attemptID != uuid.Nil {
+				_ = g.usage.FinishAttempt(original.Context(), attemptID, false, nil, "connection", err.Error(), attemptStarted)
+			}
 			continue
+		}
+		if attemptID != uuid.Nil {
+			_ = g.usage.FinishAttempt(original.Context(), attemptID, response.StatusCode >= 200 && response.StatusCode < 300, &response.StatusCode, "", "", attemptStarted)
 		}
 		lastResponse = response
 		canRetry := response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500
@@ -280,6 +318,18 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 			_, _ = io.CopyN(io.Discard, response.Body, 64<<10)
 			_ = response.Body.Close()
 			continue
+		}
+		if r, ok := reservation.(usage.Reservation); ok && isSSEResponse(response) {
+			g.proxySSE(w, original, response, r, candidate.Provider)
+			return
+		}
+		if r, ok := reservation.(usage.Reservation); ok {
+			success := response.StatusCode >= 200 && response.StatusCode < 300
+			if success {
+				_ = g.usage.Finalize(original.Context(), r, true, "succeeded", "", "", &candidate.Provider.ID, candidate.Provider.Name)
+			} else {
+				_ = g.usage.Finalize(original.Context(), r, false, "upstream_failed", "http", response.Status, &candidate.Provider.ID, candidate.Provider.Name)
+			}
 		}
 		if resourceType, ok := createdResourceType(original.Method, original.URL.Path); ok && response.StatusCode >= 200 && response.StatusCode < 300 {
 			g.writeResourceCreationResponse(w, response, resourceType, candidate.Binding.ID)
@@ -289,10 +339,57 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 		return
 	}
 	if lastResponse != nil {
+		if r, ok := reservation.(usage.Reservation); ok {
+			_ = g.usage.Finalize(original.Context(), r, false, "upstream_failed", "http", fmt.Sprintf("HTTP %d", lastResponse.StatusCode), nil, "")
+		}
 		copyUpstreamResponse(w, lastResponse)
 		return
 	}
 	writeProtocolError(w, original.URL.Path, http.StatusBadGateway, "server_error", "upstream_unavailable", "No upstream provider is available.", "")
+	if r, ok := reservation.(usage.Reservation); ok {
+		_ = g.usage.Finalize(original.Context(), r, false, "upstream_failed", "connection", "No upstream provider is available.", nil, "")
+	}
+}
+
+func isSSEResponse(response *http.Response) bool {
+	return strings.HasPrefix(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream")
+}
+
+func (g *Gateway) proxySSE(w http.ResponseWriter, original *http.Request, response *http.Response, reservation usage.Reservation, provider *ent.Provider) {
+	defer response.Body.Close()
+	reader := bufio.NewReader(response.Body)
+	var buffered bytes.Buffer
+	confirmed := false
+	for !confirmed {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			buffered.Write(line)
+			trimmed := bytes.TrimSpace(line)
+			if bytes.HasPrefix(trimmed, []byte("data:")) && !bytes.Contains(bytes.ToLower(trimmed), []byte("error")) {
+				confirmed = true
+			}
+		}
+		if err != nil {
+			if !confirmed {
+				_ = g.usage.Finalize(original.Context(), reservation, false, "upstream_failed", "stream", "stream ended before a successful event", nil, provider.Name)
+			}
+			copyHeaders(w.Header(), response.Header)
+			w.WriteHeader(response.StatusCode)
+			_, _ = w.Write(buffered.Bytes())
+			return
+		}
+	}
+	if err := g.usage.Finalize(original.Context(), reservation, true, "succeeded", "", "", &provider.ID, provider.Name); err != nil {
+		writeProtocolError(w, original.URL.Path, http.StatusServiceUnavailable, "server_error", "billing_unavailable", "Unable to finalize model usage.", "")
+		return
+	}
+	copyHeaders(w.Header(), response.Header)
+	w.WriteHeader(response.StatusCode)
+	_, _ = w.Write(buffered.Bytes())
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	_, _ = io.Copy(w, reader)
 }
 
 func (g *Gateway) upstreamRequest(original *http.Request, replay *replayBody, candidate route) (*http.Request, func(), error) {
@@ -422,7 +519,7 @@ func (g *Gateway) serveRealtimeWebSocket(w http.ResponseWriter, r *http.Request)
 	defer client.Close()
 	client.SetReadLimit(g.config.MaxRequestBytes)
 	upstream.SetReadLimit(g.config.MaxRequestBytes)
-	proxyWebSockets(client, upstream)
+	proxyRealtimeWebSocket(client, upstream, g, key.ID, routes[0].Binding.ModelID)
 }
 
 func (g *Gateway) serveResponsesWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -483,10 +580,18 @@ func (g *Gateway) serveResponsesWebSocket(w http.ResponseWriter, r *http.Request
 	}
 	defer upstream.Close()
 	upstream.SetReadLimit(g.config.MaxRequestBytes)
-	if err := upstream.WriteMessage(messageType, rewritten); err != nil {
+	reservation, reserveErr := g.usage.Reserve(r.Context(), key.ID, routes[0].Binding.ModelID, requestIDFromContext(r), string(modelbinding.AdapterOpenaiResponses), "/v1/responses", "", "")
+	if reserveErr != nil {
+		_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "rate_limit_error", "code": "quota_exceeded", "message": "The API key or project credit quota is exhausted."}})
 		return
 	}
-	proxyResponsesWebSockets(client, upstream, upstreamModel)
+	if err := upstream.WriteMessage(messageType, rewritten); err != nil {
+		_ = g.usage.Finalize(r.Context(), reservation, false, "outcome_unknown", "connection", err.Error(), nil, "")
+		return
+	}
+	_ = g.usage.MarkSent(r.Context(), reservation.CallID)
+	_ = g.usage.Finalize(r.Context(), reservation, true, "succeeded", "", "", &routes[0].Provider.ID, routes[0].Provider.Name)
+	proxyResponsesWebSockets(client, upstream, upstreamModel, g, key.ID, routes[0].Binding.ModelID)
 }
 
 func (g *Gateway) validWebSocketOrigin(request *http.Request) bool {
@@ -543,7 +648,7 @@ func rewriteResponsesWebSocketModel(message []byte, upstreamModel string) ([]byt
 	return json.Marshal(payload)
 }
 
-func proxyResponsesWebSockets(client, upstream *websocket.Conn, upstreamModel string) {
+func proxyResponsesWebSockets(client, upstream *websocket.Conn, upstreamModel string, gateway *Gateway, keyID, modelID uuid.UUID) {
 	errs := make(chan error, 2)
 	go func() {
 		for {
@@ -557,11 +662,75 @@ func proxyResponsesWebSockets(client, upstream *websocket.Conn, upstreamModel st
 					Type string `json:"type"`
 				}
 				if json.Unmarshal(data, &envelope) == nil && envelope.Type == "response.create" {
+					reservation, reserveErr := gateway.usage.Reserve(context.Background(), keyID, modelID, uuid.Must(uuid.NewV7()).String(), string(modelbinding.AdapterOpenaiResponses), "/v1/responses", "", "")
+					if reserveErr != nil {
+						_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "rate_limit_error", "code": "quota_exceeded", "message": "The API key or project credit quota is exhausted."}})
+						continue
+					}
 					data, err = rewriteResponsesWebSocketModel(data, upstreamModel)
 					if err != nil {
 						errs <- err
 						return
 					}
+					if err := upstream.WriteMessage(messageType, data); err != nil {
+						_ = gateway.usage.Finalize(context.Background(), reservation, false, "outcome_unknown", "connection", err.Error(), nil, "")
+						errs <- err
+						return
+					}
+					_ = gateway.usage.MarkSent(context.Background(), reservation.CallID)
+					_ = gateway.usage.Finalize(context.Background(), reservation, true, "succeeded", "", "", nil, "")
+					continue
+				}
+			}
+			if err := upstream.WriteMessage(messageType, data); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			messageType, data, err := upstream.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if err := client.WriteMessage(messageType, data); err != nil {
+				errs <- err
+				return
+			}
+		}
+	}()
+	<-errs
+}
+
+func proxyRealtimeWebSocket(client, upstream *websocket.Conn, gateway *Gateway, keyID, modelID uuid.UUID) {
+	errs := make(chan error, 2)
+	go func() {
+		for {
+			messageType, data, err := client.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if messageType == websocket.TextMessage {
+				var event struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal(data, &event) == nil && event.Type == "response.create" {
+					reservation, reserveErr := gateway.usage.Reserve(context.Background(), keyID, modelID, uuid.Must(uuid.NewV7()).String(), string(modelbinding.AdapterOpenaiRealtime), "/v1/realtime", "", "")
+					if reserveErr != nil {
+						_ = client.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"type": "rate_limit_error", "code": "quota_exceeded", "message": "The API key or project credit quota is exhausted."}})
+						continue
+					}
+					if err := upstream.WriteMessage(messageType, data); err != nil {
+						_ = gateway.usage.Finalize(context.Background(), reservation, false, "outcome_unknown", "connection", err.Error(), nil, "")
+						errs <- err
+						return
+					}
+					_ = gateway.usage.MarkSent(context.Background(), reservation.CallID)
+					_ = gateway.usage.Finalize(context.Background(), reservation, true, "succeeded", "", "", nil, "")
+					continue
 				}
 			}
 			if err := upstream.WriteMessage(messageType, data); err != nil {
@@ -675,10 +844,6 @@ func supportedRoute(method, requestPath string) bool {
 		return true
 	case method == http.MethodPost && requestPath == "/v1/moderations":
 		return true
-	case method == http.MethodPost && requestPath == "/v1/realtime/client_secrets":
-		return true
-	case method == http.MethodPost && requestPath == "/v1/realtime/calls":
-		return true
 	case method == http.MethodPost && requestPath == "/v1/messages":
 		return true
 	case method == http.MethodPost && isGeminiPath(requestPath):
@@ -791,12 +956,6 @@ func extractRequestedModel(requestPath, contentType string, replay *replayBody) 
 			return "", errors.New("model is required")
 		}
 		return value, nil
-	}
-	if requestPath == "/v1/realtime/calls" {
-		return extractRealtimeCallModel(contentType, replay)
-	}
-	if requestPath == "/v1/realtime/client_secrets" {
-		return extractNestedJSONModel(contentType, replay, "session")
 	}
 	return extractModel(contentType, replay)
 }
@@ -1127,6 +1286,91 @@ func extractModel(contentType string, replay *replayBody) (string, error) {
 		return "", errors.New("model is required")
 	}
 	return payload.Model, nil
+}
+
+func extractInputSnapshot(requestPath, contentType string, replay *replayBody) (string, string) {
+	if replay == nil {
+		return "", ""
+	}
+	reader, err := replay.Open()
+	if err != nil {
+		return "", ""
+	}
+	defer reader.Close()
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return "", ""
+	}
+	if mediaType == "multipart/form-data" {
+		form := multipart.NewReader(reader, params["boundary"])
+		for {
+			part, e := form.NextPart()
+			if errors.Is(e, io.EOF) {
+				break
+			}
+			if e != nil {
+				return "", ""
+			}
+			name := part.FormName()
+			if name == "prompt" || name == "input" {
+				value, _ := io.ReadAll(io.LimitReader(part, 1<<20))
+				_ = part.Close()
+				return strings.TrimSpace(string(value)), name
+			}
+			_ = part.Close()
+		}
+		return "", ""
+	}
+	if mediaType != "application/json" {
+		return "", ""
+	}
+	var payload map[string]any
+	if json.NewDecoder(reader).Decode(&payload) != nil {
+		return "", ""
+	}
+	if value, ok := payload["prompt"].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value), "prompt"
+	}
+	if value, ok := payload["input"].(string); ok && strings.TrimSpace(value) != "" {
+		return strings.TrimSpace(value), "input"
+	}
+	if messages, ok := payload["messages"].([]any); ok {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if m, ok := messages[i].(map[string]any); ok && strings.EqualFold(fmt.Sprint(m["role"]), "user") {
+				if text := textFromJSONValue(m["content"]); text != "" {
+					return text, "user_message"
+				}
+			}
+		}
+	}
+	if input, ok := payload["input"].([]any); ok {
+		for i := len(input) - 1; i >= 0; i-- {
+			if text := textFromJSONValue(input[i]); text != "" {
+				return text, "input_text"
+			}
+		}
+	}
+	return "", ""
+}
+
+func textFromJSONValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case []any:
+		for i := len(v) - 1; i >= 0; i-- {
+			if text := textFromJSONValue(v[i]); text != "" {
+				return text
+			}
+		}
+	case map[string]any:
+		for _, key := range []string{"text", "input_text", "content"} {
+			if text := textFromJSONValue(v[key]); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 func rewriteRequestBody(contentType string, replay *replayBody, upstreamModel string) (

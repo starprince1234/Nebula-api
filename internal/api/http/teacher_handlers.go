@@ -151,10 +151,11 @@ func (s *Server) teacherProjects(c *gin.Context) {
 
 func (s *Server) createProject(c *gin.Context) {
 	var input struct {
-		OrganizationID string  `json:"organization_id" binding:"required"`
-		Name           string  `json:"name" binding:"required"`
-		Description    *string `json:"description"`
-		Status         *string `json:"status"`
+		OrganizationID     string  `json:"organization_id" binding:"required"`
+		Name               string  `json:"name" binding:"required"`
+		Description        *string `json:"description"`
+		Status             *string `json:"status"`
+		MonthlyCreditQuota string  `json:"monthly_credit_quota"`
 	}
 	if !bindJSON(c, &input) {
 		return
@@ -164,9 +165,19 @@ func (s *Server) createProject(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	var quota *int64
+	if input.MonthlyCreditQuota != "" {
+		value, parseErr := domain.ParseCredits(input.MonthlyCreditQuota)
+		if parseErr != nil {
+			writeError(c, parseErr)
+			return
+		}
+		quota = &value
+	}
 	view, err := s.service.CreateProject(c.Request.Context(), controlplane.ProjectInput{
 		OrganizationID: organizationID, Name: input.Name,
 		Description: input.Description, Status: input.Status,
+		MonthlyCreditQuotaMilli: quota,
 	})
 	if err != nil {
 		writeError(c, err)
@@ -181,15 +192,27 @@ func (s *Server) updateProject(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Name        string  `json:"name"`
-		Description *string `json:"description"`
-		Status      *string `json:"status"`
+		Name               string  `json:"name"`
+		Description        *string `json:"description"`
+		Status             *string `json:"status"`
+		MonthlyCreditQuota string  `json:"monthly_credit_quota"`
+		QuotaChangeReason  string  `json:"quota_change_reason"`
 	}
 	if !bindJSON(c, &input) {
 		return
 	}
-	view, err := s.service.UpdateProject(c.Request.Context(), projectID, controlplane.ProjectInput{
+	var quota *int64
+	if input.MonthlyCreditQuota != "" {
+		value, parseErr := domain.ParseCredits(input.MonthlyCreditQuota)
+		if parseErr != nil {
+			writeError(c, parseErr)
+			return
+		}
+		quota = &value
+	}
+	view, err := s.service.UpdateProject(c.Request.Context(), identity(c).UserID, projectID, controlplane.ProjectInput{
 		Name: input.Name, Description: input.Description, Status: input.Status,
+		MonthlyCreditQuotaMilli: quota, QuotaChangeReason: input.QuotaChangeReason,
 	})
 	if err != nil {
 		writeError(c, err)
@@ -298,17 +321,19 @@ func (s *Server) updateProvider(c *gin.Context) {
 }
 
 type modelPayload struct {
-	ModelID          string   `json:"model_id"`
-	DisplayName      string   `json:"display_name"`
-	Description      *string  `json:"description"`
-	Category         string   `json:"category"`
-	Capabilities     []string `json:"capabilities"`
-	InputModalities  []string `json:"input_modalities"`
-	OutputModalities []string `json:"output_modalities"`
-	ContextWindow    *int     `json:"context_window"`
-	MaxOutputTokens  *int     `json:"max_output_tokens"`
-	IsCommon         *bool    `json:"is_common"`
-	Status           *string  `json:"status"`
+	ModelID                string   `json:"model_id"`
+	DisplayName            string   `json:"display_name"`
+	Description            *string  `json:"description"`
+	Category               string   `json:"category"`
+	Capabilities           []string `json:"capabilities"`
+	InputModalities        []string `json:"input_modalities"`
+	OutputModalities       []string `json:"output_modalities"`
+	ContextWindow          *int     `json:"context_window"`
+	MaxOutputTokens        *int     `json:"max_output_tokens"`
+	IsCommon               *bool    `json:"is_common"`
+	Status                 *string  `json:"status"`
+	CreditMultiplier       string   `json:"credit_multiplier"`
+	MultiplierChangeReason string   `json:"multiplier_change_reason"`
 }
 
 type nullableIntPayload struct {
@@ -331,25 +356,35 @@ func (value *nullableIntPayload) UnmarshalJSON(raw []byte) error {
 }
 
 type modelPatchPayload struct {
-	DisplayName      string             `json:"display_name"`
-	Description      *string            `json:"description"`
-	Category         string             `json:"category"`
-	Capabilities     []string           `json:"capabilities"`
-	InputModalities  []string           `json:"input_modalities"`
-	OutputModalities []string           `json:"output_modalities"`
-	ContextWindow    nullableIntPayload `json:"context_window"`
-	MaxOutputTokens  nullableIntPayload `json:"max_output_tokens"`
-	IsCommon         *bool              `json:"is_common"`
-	Status           *string            `json:"status"`
+	DisplayName            string             `json:"display_name"`
+	Description            *string            `json:"description"`
+	Category               string             `json:"category"`
+	Capabilities           []string           `json:"capabilities"`
+	InputModalities        []string           `json:"input_modalities"`
+	OutputModalities       []string           `json:"output_modalities"`
+	ContextWindow          nullableIntPayload `json:"context_window"`
+	MaxOutputTokens        nullableIntPayload `json:"max_output_tokens"`
+	IsCommon               *bool              `json:"is_common"`
+	Status                 *string            `json:"status"`
+	CreditMultiplier       string             `json:"credit_multiplier"`
+	MultiplierChangeReason string             `json:"multiplier_change_reason"`
 }
 
 func (payload modelPayload) input() controlplane.ModelInput {
+	var multiplier *int64
+	if payload.CreditMultiplier != "" {
+		value, err := domain.ParseCredits(payload.CreditMultiplier)
+		if err == nil {
+			multiplier = &value
+		}
+	}
 	return controlplane.ModelInput{
 		ModelID: payload.ModelID, DisplayName: payload.DisplayName,
 		Description: payload.Description, Category: payload.Category,
 		Capabilities: payload.Capabilities, InputModalities: payload.InputModalities,
 		OutputModalities: payload.OutputModalities, ContextWindow: payload.ContextWindow,
 		MaxOutputTokens: payload.MaxOutputTokens, IsCommon: payload.IsCommon, Status: payload.Status,
+		CreditMultiplierMilli: multiplier, MultiplierChangeReason: payload.MultiplierChangeReason,
 	}
 }
 
@@ -370,6 +405,12 @@ func (s *Server) createModel(c *gin.Context) {
 	if input.ModelID == "" || input.DisplayName == "" {
 		writeError(c, domain.NewError(domain.CodeValidation, "model_id and display_name are required"))
 		return
+	}
+	if input.CreditMultiplier != "" {
+		if _, err := domain.ParseCredits(input.CreditMultiplier); err != nil {
+			writeError(c, err)
+			return
+		}
 	}
 	view, err := s.service.CreateModel(c.Request.Context(), input.input())
 	if err != nil {
@@ -401,12 +442,22 @@ func (s *Server) updateModel(c *gin.Context) {
 	if !bindJSON(c, &input) {
 		return
 	}
-	view, err := s.service.UpdateModel(c.Request.Context(), modelID, controlplane.ModelInput{
+	var multiplier *int64
+	if input.CreditMultiplier != "" {
+		value, err := domain.ParseCredits(input.CreditMultiplier)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		multiplier = &value
+	}
+	view, err := s.service.UpdateModel(c.Request.Context(), identity(c).UserID, modelID, controlplane.ModelInput{
 		DisplayName: input.DisplayName, Description: input.Description, Category: input.Category,
 		Capabilities: input.Capabilities, InputModalities: input.InputModalities,
 		OutputModalities: input.OutputModalities, ContextWindow: input.ContextWindow.Value,
 		ContextWindowSet: input.ContextWindow.Set, MaxOutputTokens: input.MaxOutputTokens.Value,
 		MaxOutputTokensSet: input.MaxOutputTokens.Set, IsCommon: input.IsCommon, Status: input.Status,
+		CreditMultiplierMilli: multiplier, MultiplierChangeReason: input.MultiplierChangeReason,
 	})
 	if err != nil {
 		writeError(c, err)
@@ -510,12 +561,27 @@ func (s *Server) reviewKeyAsTeacher(approve bool) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		comment, ok := bindOptionalComment(c)
-		if !ok {
-			return
+		var input struct {
+			Comment        string `json:"comment"`
+			MonthlyCredits string `json:"monthly_credits"`
+		}
+		if c.Request.ContentLength != 0 {
+			if !bindJSON(c, &input) {
+				return
+			}
+		}
+		comment := input.Comment
+		var quota []int64
+		if approve && strings.TrimSpace(input.MonthlyCredits) != "" {
+			value, err := domain.ParseCredits(input.MonthlyCredits)
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			quota = []int64{value}
 		}
 		if err := s.service.ReviewKeyAsTeacher(
-			c.Request.Context(), identity(c).UserID, keyID, approve, comment,
+			c.Request.Context(), identity(c).UserID, keyID, approve, comment, quota...,
 		); err != nil {
 			writeError(c, err)
 			return

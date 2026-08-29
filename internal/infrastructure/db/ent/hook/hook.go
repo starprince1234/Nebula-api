@@ -45,6 +45,54 @@ func (f APIKeyModelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APIKeyModelMutation", m)
 }
 
+// The APIKeyMonthCreditBucketFunc type is an adapter to allow the use of ordinary
+// function as APIKeyMonthCreditBucket mutator.
+type APIKeyMonthCreditBucketFunc func(context.Context, *ent.APIKeyMonthCreditBucketMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f APIKeyMonthCreditBucketFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.APIKeyMonthCreditBucketMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APIKeyMonthCreditBucketMutation", m)
+}
+
+// The GatewayCallFunc type is an adapter to allow the use of ordinary
+// function as GatewayCall mutator.
+type GatewayCallFunc func(context.Context, *ent.GatewayCallMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GatewayCallFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GatewayCallMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GatewayCallMutation", m)
+}
+
+// The GatewayCallAttemptFunc type is an adapter to allow the use of ordinary
+// function as GatewayCallAttempt mutator.
+type GatewayCallAttemptFunc func(context.Context, *ent.GatewayCallAttemptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f GatewayCallAttemptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.GatewayCallAttemptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GatewayCallAttemptMutation", m)
+}
+
+// The MaintenanceStateFunc type is an adapter to allow the use of ordinary
+// function as MaintenanceState mutator.
+type MaintenanceStateFunc func(context.Context, *ent.MaintenanceStateMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MaintenanceStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MaintenanceStateMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MaintenanceStateMutation", m)
+}
+
 // The MentorProjectApplicationFunc type is an adapter to allow the use of ordinary
 // function as MentorProjectApplication mutator.
 type MentorProjectApplicationFunc func(context.Context, *ent.MentorProjectApplicationMutation) (ent.Value, error)
@@ -79,6 +127,42 @@ func (f ModelBindingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ModelBindingMutation", m)
+}
+
+// The ModelMultiplierAuditFunc type is an adapter to allow the use of ordinary
+// function as ModelMultiplierAudit mutator.
+type ModelMultiplierAuditFunc func(context.Context, *ent.ModelMultiplierAuditMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ModelMultiplierAuditFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ModelMultiplierAuditMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ModelMultiplierAuditMutation", m)
+}
+
+// The MonitoredInputFunc type is an adapter to allow the use of ordinary
+// function as MonitoredInput mutator.
+type MonitoredInputFunc func(context.Context, *ent.MonitoredInputMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MonitoredInputFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MonitoredInputMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MonitoredInputMutation", m)
+}
+
+// The MonthlyUsageCubeFunc type is an adapter to allow the use of ordinary
+// function as MonthlyUsageCube mutator.
+type MonthlyUsageCubeFunc func(context.Context, *ent.MonthlyUsageCubeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MonthlyUsageCubeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MonthlyUsageCubeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MonthlyUsageCubeMutation", m)
 }
 
 // The OrganizationFunc type is an adapter to allow the use of ordinary
@@ -129,6 +213,30 @@ func (f ProjectMemberFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProjectMemberMutation", m)
 }
 
+// The ProjectMonthCreditBucketFunc type is an adapter to allow the use of ordinary
+// function as ProjectMonthCreditBucket mutator.
+type ProjectMonthCreditBucketFunc func(context.Context, *ent.ProjectMonthCreditBucketMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ProjectMonthCreditBucketFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ProjectMonthCreditBucketMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProjectMonthCreditBucketMutation", m)
+}
+
+// The PromptAccessAuditFunc type is an adapter to allow the use of ordinary
+// function as PromptAccessAudit mutator.
+type PromptAccessAuditFunc func(context.Context, *ent.PromptAccessAuditMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PromptAccessAuditFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PromptAccessAuditMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PromptAccessAuditMutation", m)
+}
+
 // The ProviderFunc type is an adapter to allow the use of ordinary
 // function as Provider mutator.
 type ProviderFunc func(context.Context, *ent.ProviderMutation) (ent.Value, error)
@@ -139,6 +247,18 @@ func (f ProviderFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProviderMutation", m)
+}
+
+// The QuotaAdjustmentAuditFunc type is an adapter to allow the use of ordinary
+// function as QuotaAdjustmentAudit mutator.
+type QuotaAdjustmentAuditFunc func(context.Context, *ent.QuotaAdjustmentAuditMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f QuotaAdjustmentAuditFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.QuotaAdjustmentAuditMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.QuotaAdjustmentAuditMutation", m)
 }
 
 // The UserFunc type is an adapter to allow the use of ordinary

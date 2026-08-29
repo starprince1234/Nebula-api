@@ -36,6 +36,12 @@ const (
 	FieldClaimedAt = "claimed_at"
 	// FieldRevokedAt holds the string denoting the revoked_at field in the database.
 	FieldRevokedAt = "revoked_at"
+	// FieldRequestedMonthlyCreditQuotaMilli holds the string denoting the requested_monthly_credit_quota_milli field in the database.
+	FieldRequestedMonthlyCreditQuotaMilli = "requested_monthly_credit_quota_milli"
+	// FieldMentorMonthlyCreditQuotaMilli holds the string denoting the mentor_monthly_credit_quota_milli field in the database.
+	FieldMentorMonthlyCreditQuotaMilli = "mentor_monthly_credit_quota_milli"
+	// FieldMonthlyCreditQuotaMilli holds the string denoting the monthly_credit_quota_milli field in the database.
+	FieldMonthlyCreditQuotaMilli = "monthly_credit_quota_milli"
 	// EdgeOwner holds the string denoting the owner edge name in mutations.
 	EdgeOwner = "owner"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -44,6 +50,8 @@ const (
 	EdgeModels = "models"
 	// EdgeAudits holds the string denoting the audits edge name in mutations.
 	EdgeAudits = "audits"
+	// EdgeCreditBuckets holds the string denoting the credit_buckets edge name in mutations.
+	EdgeCreditBuckets = "credit_buckets"
 	// Table holds the table name of the apikey in the database.
 	Table = "api_keys"
 	// OwnerTable is the table that holds the owner relation/edge.
@@ -74,6 +82,13 @@ const (
 	AuditsInverseTable = "api_key_audits"
 	// AuditsColumn is the table column denoting the audits relation/edge.
 	AuditsColumn = "api_key_id"
+	// CreditBucketsTable is the table that holds the credit_buckets relation/edge.
+	CreditBucketsTable = "api_key_month_credit_buckets"
+	// CreditBucketsInverseTable is the table name for the APIKeyMonthCreditBucket entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeymonthcreditbucket" package.
+	CreditBucketsInverseTable = "api_key_month_credit_buckets"
+	// CreditBucketsColumn is the table column denoting the credit_buckets relation/edge.
+	CreditBucketsColumn = "api_key_id"
 )
 
 // Columns holds all SQL columns for apikey fields.
@@ -89,6 +104,9 @@ var Columns = []string{
 	FieldKeyPrefix,
 	FieldClaimedAt,
 	FieldRevokedAt,
+	FieldRequestedMonthlyCreditQuotaMilli,
+	FieldMentorMonthlyCreditQuotaMilli,
+	FieldMonthlyCreditQuotaMilli,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -112,6 +130,12 @@ var (
 	NameValidator func(string) error
 	// KeyPrefixValidator is a validator for the "key_prefix" field. It is called by the builders before save.
 	KeyPrefixValidator func(string) error
+	// RequestedMonthlyCreditQuotaMilliValidator is a validator for the "requested_monthly_credit_quota_milli" field. It is called by the builders before save.
+	RequestedMonthlyCreditQuotaMilliValidator func(int64) error
+	// MentorMonthlyCreditQuotaMilliValidator is a validator for the "mentor_monthly_credit_quota_milli" field. It is called by the builders before save.
+	MentorMonthlyCreditQuotaMilliValidator func(int64) error
+	// MonthlyCreditQuotaMilliValidator is a validator for the "monthly_credit_quota_milli" field. It is called by the builders before save.
+	MonthlyCreditQuotaMilliValidator func(int64) error
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -199,6 +223,21 @@ func ByRevokedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRevokedAt, opts...).ToFunc()
 }
 
+// ByRequestedMonthlyCreditQuotaMilli orders the results by the requested_monthly_credit_quota_milli field.
+func ByRequestedMonthlyCreditQuotaMilli(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequestedMonthlyCreditQuotaMilli, opts...).ToFunc()
+}
+
+// ByMentorMonthlyCreditQuotaMilli orders the results by the mentor_monthly_credit_quota_milli field.
+func ByMentorMonthlyCreditQuotaMilli(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMentorMonthlyCreditQuotaMilli, opts...).ToFunc()
+}
+
+// ByMonthlyCreditQuotaMilli orders the results by the monthly_credit_quota_milli field.
+func ByMonthlyCreditQuotaMilli(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMonthlyCreditQuotaMilli, opts...).ToFunc()
+}
+
 // ByOwnerField orders the results by owner field.
 func ByOwnerField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -240,6 +279,20 @@ func ByAudits(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newAuditsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByCreditBucketsCount orders the results by credit_buckets count.
+func ByCreditBucketsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCreditBucketsStep(), opts...)
+	}
+}
+
+// ByCreditBuckets orders the results by credit_buckets terms.
+func ByCreditBuckets(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCreditBucketsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newOwnerStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -266,5 +319,12 @@ func newAuditsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AuditsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, AuditsTable, AuditsColumn),
+	)
+}
+func newCreditBucketsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CreditBucketsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, CreditBucketsTable, CreditBucketsColumn),
 	)
 }
