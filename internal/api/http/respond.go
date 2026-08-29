@@ -217,7 +217,7 @@ func errorStatus(code string) int {
 	case domain.CodeEmailRegistered, domain.CodeNameConflict, domain.CodeInvalidTransition,
 		domain.CodeProjectNoMentor, domain.CodeMentorNotInOrganization, domain.CodeMentorAlreadyProjectMember,
 		domain.CodeModelNotReady, domain.CodeModelRoutingRequired,
-		domain.CodeKeyAlreadyClaimed:
+		domain.CodeKeyAlreadyClaimed, domain.CodeProjectQuotaAllocation:
 		return http.StatusConflict
 	case domain.CodeVerificationInvalid, domain.CodeVerificationExpired, domain.CodeInvitationInvalid:
 		return http.StatusUnprocessableEntity

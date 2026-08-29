@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { teacherAPI } from '../../api/teacher'
-import type { ProjectUsage } from '../../api/types'
+import type { Organization, ProjectUsage } from '../../api/types'
+import { APIError } from '../../api/client'
 import CreditDonut from '../../components/CreditDonut.vue'
-const rows = ref<ProjectUsage[]>([])
-const month = ref(new Date().toISOString().slice(0, 7))
-async function load() { rows.value = await teacherAPI.projectSpend(`month=${month.value}`) }
-onMounted(load)
+import EmptyState from '../../components/EmptyState.vue'
+import AppDialog from '../../components/AppDialog.vue'
+import { useVisibilityPolling } from '../../composables/useVisibilityPolling'
+const rows=ref<ProjectUsage[]>([]),organizations=ref<Organization[]>([]),expanded=ref<ProjectUsage|null>(null),month=ref(new Date().toISOString().slice(0,7)),organization=ref(''),query=ref(''),error=ref('')
+async function load(){try{const params=new URLSearchParams({month:month.value,...(organization.value?{organization_id:organization.value}:{}),...(query.value?{q:query.value}:{})});[rows.value,organizations.value]=await Promise.all([teacherAPI.projectSpend(params.toString()),teacherAPI.organizations()]);error.value=''}catch(caught){error.value=caught instanceof APIError?caught.message:'加载项目花费失败'}}
+useVisibilityPolling(load)
+function rateLabel(row:ProjectUsage){if(Number(row.quota)===0)return'N/A';return`${(Number(row.charged)/Number(row.quota)*100).toFixed(1)}%`}
+function segments(row:ProjectUsage){return row.models.map(model=>({name:model.name,value:Number(model.credits)})).concat([{name:'未消耗',value:Math.max(0,Number(row.quota)-Number(row.charged))}])}
 </script>
-<template><section class="page"><div class="page-heading"><h1>项目花费</h1><label>月份<input v-model="month" type="month" @change="load"/></label></div><section class="panel"><div v-for="row in rows" :key="row.project_id" class="list-row"><div><strong>{{row.project_name}}</strong><p class="muted">额度 {{row.quota}} · 已用 {{row.charged}} credits</p></div><CreditDonut :segments="row.models.map(model=>({name:model.name,value:Number(model.credits)})).concat([{name:'未消耗',value:Math.max(0,Number(row.quota)-Number(row.charged))}])" :total="Number(row.quota)" :label="`${row.project_name} actual spend`"/><div><span v-for="model in row.models" :key="model.id">{{model.name}} {{model.credits}}；</span><span v-for="model in row.free_models" :key="`free-${model.id}`">{{model.name}} 免费 {{model.calls}} 次</span></div></div></section></section></template>
+<template><section class="page"><div class="page-heading"><div><p class="eyebrow">TEACHER</p><h1>项目花费</h1><p class="muted">只展示项目级正倍率模型花费；不包含成员、Key、邮箱或提示词。</p></div><label>月份<input v-model="month" type="month" @change="load"></label></div><p v-if="error" class="error banner">{{error}}</p><section class="panel"><div class="filter-grid"><label>组织<select v-model="organization"><option value="">全部组织</option><option v-for="item in organizations" :key="item.id" :value="item.id">{{item.name}}</option></select></label><label>项目名称<input v-model="query"></label></div><button class="button primary" @click="load">查询</button></section><section class="panel"><article v-for="row in rows" :key="row.project_id" class="spend-row"><div><strong>{{row.project_name}}</strong><p class="muted">额度 {{row.quota}} · 已用 {{row.charged}} · {{rateLabel(row)}}</p><p v-if="Number(row.charged)>Number(row.quota)" class="error">超额 {{(Number(row.charged)-Number(row.quota)).toFixed(3)}} credits</p></div><CreditDonut mini :segments="segments(row)" :total="Number(row.quota)" :label="`${row.project_name} 花费概览`"/><div><p v-if="row.free_models.length"><strong>0x 调用</strong><span v-for="model in row.free_models" :key="model.id"> · {{model.name}} {{model.calls}} 次</span></p><button class="button ghost" @click="expanded=row">展开图表</button></div></article><EmptyState v-if="!rows.length" title="暂无项目花费数据" description="当前筛选条件下没有项目月额度快照。"/></section><AppDialog :open="Boolean(expanded)" :title="`${expanded?.project_name||''} · 实际开销`" wide @update:open="expanded=$event?expanded:null"><template v-if="expanded"><CreditDonut :segments="segments(expanded)" :total="Number(expanded.quota)" :label="`${expanded.project_name} 实际开销`"/><table class="usage-table"><thead><tr><th>模型</th><th>credits</th></tr></thead><tbody><tr v-for="model in expanded.models" :key="model.id"><td>{{model.name}}</td><td>{{model.credits}}</td></tr><tr><td>未消耗</td><td>{{Math.max(0,Number(expanded.quota)-Number(expanded.charged)).toFixed(3)}}</td></tr></tbody></table></template></AppDialog></section></template>

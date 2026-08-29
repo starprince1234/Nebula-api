@@ -32,6 +32,11 @@ npm run build
 
 ### 限额、调用日志与输入监控
 
+- 学生 `/student/usage`、导师项目用量、老师项目花费必须通过真实 HTTP JSON envelope 验证 snake_case 字段，禁止只构造前端对象。Go usage DTO 缺少 `json` tag 时，接口会返回 `ID/Quota/Models`，前端按 `id/quota/models` 读取后表现为空白或 `undefined.map`。
+- 模型广场必须展示 `credit_multiplier`；老师模型配置在倍率变化时必须要求 `multiplier_change_reason`。Key 申请、导师初审、老师终审分别验证三阶段额度字段。
+- 调用日志无数据时先区分真实空集和渲染失败：检查 `/mentor/call-logs` 的 `items`，再通过 fake upstream 发一笔测试调用，确认 `gateway_calls`、`monthly_usage_cube` 和适用协议的 `monitored_inputs` 同时更新。
+- 生产 Playwright E2E 仅使用专用测试身份与测试 Key；凭据不得写入源码、报告或截图。额度/倍率写操作只针对专用测试资源，并保留永久审计。
+
 - 测试范围：模型倍率定点解析、上海时区月桶、Key/项目额度门禁、供应商故障切换、调用状态结算、日志分页、导师项目范围和提示词访问审计。
 - 正常路径：请求解析模型后创建 pending call，成功结算 charged 与月度聚合；提示词仅在 charged/outcome_unknown 后可见。
 - 权限/安全边界：老师只看项目按模型聚合，导师只看当前负责项目的调用日志和输入监控；完整提示词读取必须先成功写访问审计。

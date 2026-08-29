@@ -31,6 +31,83 @@ func RequestID(ctx context.Context) string {
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
+func (s *Store) EnsureCurrentBuckets(ctx context.Context) error {
+	month, now := Month(time.Now()), time.Now().UTC()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO project_month_credit_buckets(id,project_id,month,quota_milli,allocated_milli,charged_milli,pending_milli,created_at,updated_at)
+SELECT gen_random_uuid(),p.id,$1,p.monthly_credit_quota_milli,COALESCE(sum(k.monthly_credit_quota_milli) FILTER(WHERE k.status IN ('approved','active')),0),0,0,$2,$2 FROM projects p LEFT JOIN api_keys k ON k.project_id=p.id GROUP BY p.id ON CONFLICT(project_id,month) DO NOTHING`, month, now); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_month_credit_buckets(id,api_key_id,project_id,month,quota_milli,allocation_active,charged_milli,pending_milli,created_at,updated_at)
+SELECT gen_random_uuid(),k.id,k.project_id,$1,k.monthly_credit_quota_milli,true,0,0,$2,$2 FROM api_keys k WHERE k.status IN ('approved','active') ON CONFLICT(api_key_id,month) DO NOTHING`, month, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) RunMaintenance(ctx context.Context, clean bool) error {
+	const lockID int64 = 7_823_409_118
+	connection, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	var locked bool
+	if err := connection.QueryRowContext(ctx, `SELECT pg_try_advisory_lock($1)`, lockID).Scan(&locked); err != nil {
+		return err
+	}
+	if !locked {
+		return nil
+	}
+	defer func() { _, _ = connection.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lockID) }()
+	if err := s.EnsureCurrentBuckets(ctx); err != nil {
+		return err
+	}
+	if clean {
+		err = s.RecoverAndClean(ctx)
+	} else {
+		err = s.RecoverExpired(ctx)
+	}
+	now, message := time.Now().UTC(), ""
+	if err != nil {
+		message = sanitize(err.Error())
+	}
+	_, heartbeatErr := connection.ExecContext(ctx, `INSERT INTO maintenance_state(id,name,last_success_at,last_error,created_at,updated_at) VALUES(gen_random_uuid(),'credit-maintenance',CASE WHEN $1='' THEN $2 ELSE NULL END,NULLIF($1,''),$2,$2) ON CONFLICT(name) DO UPDATE SET last_success_at=CASE WHEN $1='' THEN $2 ELSE maintenance_state.last_success_at END,last_error=NULLIF($1,''),updated_at=$2`, message, now)
+	if err != nil {
+		return err
+	}
+	return heartbeatErr
+}
+
+func (s *Store) RecoverExpired(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,request_id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,multiplier_milli FROM gateway_calls WHERE billing_state='pending' AND lease_expires_at<now()-interval '15 minutes' ORDER BY lease_expires_at LIMIT 100`)
+	if err != nil {
+		return err
+	}
+	list := []Reservation{}
+	for rows.Next() {
+		var r Reservation
+		if err := rows.Scan(&r.CallID, &r.RequestID, &r.Month, &r.OrganizationID, &r.ProjectID, &r.UserID, &r.APIKeyID, &r.ModelID, &r.OrganizationName, &r.ProjectName, &r.UserName, &r.APIKeyName, &r.ModelName, &r.MultiplierMilli); err != nil {
+			rows.Close()
+			return err
+		}
+		list = append(list, r)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, r := range list {
+		if err := s.Finalize(ctx, r, true, "outcome_unknown", "recovered_after_crash", "request outcome is unknown after process recovery", nil, ""); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func Month(value time.Time) time.Time {
 	local := value.In(shanghai)
 	return time.Date(local.Year(), local.Month(), 1, 0, 0, 0, 0, shanghai).UTC()
@@ -152,6 +229,284 @@ func (s *Store) RenewLease(ctx context.Context, callID uuid.UUID) error {
 	return err
 }
 
+func (s *Store) ApproveKey(ctx context.Context, teacherID, keyID uuid.UUID, quota int64, comment string) (uuid.UUID, error) {
+	if quota < 0 || quota > domain.MaxCreditMilli {
+		return uuid.Nil, domain.NewError(domain.CodeValidation, "monthly credits are out of range")
+	}
+	var projectID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, `SELECT project_id FROM api_keys WHERE id=$1`, keyID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, domain.NewError(domain.CodeInvalidTransition, "API key is no longer pending teacher review")
+	} else if err != nil {
+		return uuid.Nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var projectQuota int64
+	if err = tx.QueryRowContext(ctx, `SELECT monthly_credit_quota_milli FROM projects WHERE id=$1 FOR UPDATE`, projectID).Scan(&projectQuota); err != nil {
+		return uuid.Nil, err
+	}
+	var ownerID, organizationID uuid.UUID
+	if err = tx.QueryRowContext(ctx, `SELECT k.owner_user_id,p.organization_id FROM api_keys k JOIN projects p ON p.id=k.project_id WHERE k.id=$1 AND k.project_id=$2 AND k.status='pending_teacher' FOR UPDATE OF k`, keyID, projectID).Scan(&ownerID, &organizationID); errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, domain.NewError(domain.CodeInvalidTransition, "API key is no longer pending teacher review")
+	} else if err != nil {
+		return uuid.Nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT m.model_id,m.status,m.credit_multiplier_milli,EXISTS(SELECT 1 FROM model_bindings b JOIN providers p ON p.id=b.provider_id WHERE b.model_id=m.id AND b.status='active' AND p.status='active') FROM api_key_models km JOIN models m ON m.id=km.model_id WHERE km.api_key_id=$1 ORDER BY m.id FOR UPDATE OF m`, keyID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	notReady, count := []string{}, 0
+	for rows.Next() {
+		var modelID, status string
+		var multiplier sql.NullInt64
+		var routed bool
+		if err = rows.Scan(&modelID, &status, &multiplier, &routed); err != nil {
+			rows.Close()
+			return uuid.Nil, err
+		}
+		count++
+		if status != "active" || !multiplier.Valid || !routed {
+			notReady = append(notReady, modelID)
+		}
+	}
+	if err = rows.Close(); err != nil {
+		return uuid.Nil, err
+	}
+	if count == 0 || len(notReady) > 0 {
+		appErr := domain.NewError(domain.CodeModelNotReady, "one or more models are not ready")
+		appErr.Details = map[string]any{"model_ids": notReady}
+		return uuid.Nil, appErr
+	}
+	month, now := Month(time.Now()), time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO project_month_credit_buckets(id,project_id,month,quota_milli,allocated_milli,charged_milli,pending_milli,created_at,updated_at) SELECT gen_random_uuid(),p.id,$1,p.monthly_credit_quota_milli,COALESCE(sum(k.monthly_credit_quota_milli) FILTER(WHERE k.status IN ('approved','active')),0),0,0,$2,$2 FROM projects p LEFT JOIN api_keys k ON k.project_id=p.id WHERE p.id=$3 GROUP BY p.id ON CONFLICT(project_id,month) DO NOTHING`, month, now, projectID); err != nil {
+		return uuid.Nil, err
+	}
+	var bucketQuota, allocated int64
+	if err = tx.QueryRowContext(ctx, `SELECT quota_milli,allocated_milli FROM project_month_credit_buckets WHERE project_id=$1 AND month=$2 FOR UPDATE`, projectID, month).Scan(&bucketQuota, &allocated); err != nil {
+		return uuid.Nil, err
+	}
+	if allocated+quota > bucketQuota {
+		appErr := domain.NewError(domain.CodeProjectQuotaAllocation, "project quota allocation exceeded")
+		appErr.Details = map[string]any{"project_quota": domain.FormatCredits(bucketQuota), "allocated": domain.FormatCredits(allocated), "requested": domain.FormatCredits(quota)}
+		return uuid.Nil, appErr
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET monthly_credit_quota_milli=$1,status='approved',updated_at=$2 WHERE id=$3 AND status='pending_teacher'`, quota, now, keyID); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET allocated_milli=allocated_milli+$1,updated_at=$2 WHERE project_id=$3 AND month=$4`, quota, now, projectID); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_month_credit_buckets(id,api_key_id,project_id,month,quota_milli,allocation_active,charged_milli,pending_milli,created_at,updated_at) VALUES(gen_random_uuid(),$1,$2,$3,$4,true,0,0,$5,$5) ON CONFLICT(api_key_id,month) DO UPDATE SET quota_milli=EXCLUDED.quota_milli,allocation_active=true,updated_at=EXCLUDED.updated_at`, keyID, projectID, month, quota, now); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO organization_members(id,organization_id,user_id,created_at) VALUES(gen_random_uuid(),$1,$2,$3) ON CONFLICT(organization_id,user_id) DO NOTHING`, organizationID, ownerID, now); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO project_members(id,project_id,user_id,created_at) VALUES(gen_random_uuid(),$1,$2,$3) ON CONFLICT(project_id,user_id) DO NOTHING`, projectID, ownerID, now); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_audits(id,api_key_id,actor_user_id,action,comment,created_at) VALUES(gen_random_uuid(),$1,$2,'teacher_approved',NULLIF($3,''),$4)`, keyID, teacherID, comment, now); err != nil {
+		return uuid.Nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return uuid.Nil, err
+	}
+	return ownerID, nil
+}
+
+func (s *Store) UpdateKeyQuota(ctx context.Context, mentorID, keyID uuid.UUID, quota int64, reason string) error {
+	var projectID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, `SELECT project_id FROM api_keys WHERE id=$1`, keyID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return domain.NewError(domain.CodeNotFound, "API key not found")
+	} else if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `SELECT id FROM projects WHERE id=$1 FOR UPDATE`, projectID); err != nil {
+		return err
+	}
+	var oldQuota int64
+	if err = tx.QueryRowContext(ctx, `SELECT monthly_credit_quota_milli FROM api_keys WHERE id=$1 AND project_id=$2 AND status IN ('approved','active') FOR UPDATE`, keyID, projectID).Scan(&oldQuota); errors.Is(err, sql.ErrNoRows) {
+		return domain.NewError(domain.CodeNotFound, "API key not found")
+	} else if err != nil {
+		return err
+	}
+	var responsible bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id=$1 AND user_id=$2)`, projectID, mentorID).Scan(&responsible); err != nil {
+		return err
+	}
+	if !responsible {
+		return domain.NewError(domain.CodeNotFound, "API key not found")
+	}
+	month, now := Month(time.Now()), time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO project_month_credit_buckets(id,project_id,month,quota_milli,allocated_milli,charged_milli,pending_milli,created_at,updated_at) SELECT gen_random_uuid(),p.id,$1,p.monthly_credit_quota_milli,COALESCE(sum(k.monthly_credit_quota_milli) FILTER(WHERE k.status IN ('approved','active')),0),0,0,$2,$2 FROM projects p LEFT JOIN api_keys k ON k.project_id=p.id WHERE p.id=$3 GROUP BY p.id ON CONFLICT(project_id,month) DO NOTHING`, month, now, projectID); err != nil {
+		return err
+	}
+	var projectQuota, allocated int64
+	if err = tx.QueryRowContext(ctx, `SELECT quota_milli,allocated_milli FROM project_month_credit_buckets WHERE project_id=$1 AND month=$2 FOR UPDATE`, projectID, month).Scan(&projectQuota, &allocated); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_month_credit_buckets(id,api_key_id,project_id,month,quota_milli,allocation_active,charged_milli,pending_milli,created_at,updated_at) VALUES(gen_random_uuid(),$1,$2,$3,$4,true,0,0,$5,$5) ON CONFLICT(api_key_id,month) DO NOTHING`, keyID, projectID, month, oldQuota, now); err != nil {
+		return err
+	}
+	var charged, pending int64
+	if err = tx.QueryRowContext(ctx, `SELECT charged_milli,pending_milli FROM api_key_month_credit_buckets WHERE api_key_id=$1 AND month=$2 FOR UPDATE`, keyID, month).Scan(&charged, &pending); err != nil {
+		return err
+	}
+	if quota < charged+pending {
+		return domain.NewError(domain.CodeValidation, "key quota cannot be lower than charged plus pending credits")
+	}
+	if allocated-oldQuota+quota > projectQuota {
+		return domain.NewError(domain.CodeProjectQuotaAllocation, "project quota allocation exceeded")
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET monthly_credit_quota_milli=$1,updated_at=$2 WHERE id=$3`, quota, now, keyID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE api_key_month_credit_buckets SET quota_milli=$1,updated_at=$2 WHERE api_key_id=$3 AND month=$4`, quota, now, keyID, month); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET allocated_milli=allocated_milli-$1+$2,updated_at=$3 WHERE project_id=$4 AND month=$5`, oldQuota, quota, now, projectID, month); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO quota_adjustment_audits(id,owner_type,owner_id,actor_user_id,old_quota_milli,new_quota_milli,reason,created_at) VALUES(gen_random_uuid(),'api_key',$1,$2,$3,$4,$5,$6)`, keyID, mentorID, oldQuota, quota, reason, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) UpdateProjectQuota(ctx context.Context, actorID, projectID uuid.UUID, quota int64, reason string) error {
+	if quota < 0 || quota > domain.MaxCreditMilli || strings.TrimSpace(reason) == "" {
+		return domain.NewError(domain.CodeValidation, "quota and reason are required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var oldQuota int64
+	if err = tx.QueryRowContext(ctx, `SELECT monthly_credit_quota_milli FROM projects WHERE id=$1 FOR UPDATE`, projectID).Scan(&oldQuota); errors.Is(err, sql.ErrNoRows) {
+		return domain.NewError(domain.CodeNotFound, "project not found")
+	} else if err != nil {
+		return err
+	}
+	month, now := Month(time.Now()), time.Now().UTC()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO project_month_credit_buckets(id,project_id,month,quota_milli,allocated_milli,charged_milli,pending_milli,created_at,updated_at) SELECT gen_random_uuid(),p.id,$1,p.monthly_credit_quota_milli,COALESCE(sum(k.monthly_credit_quota_milli) FILTER(WHERE k.status IN ('approved','active')),0),0,0,$2,$2 FROM projects p LEFT JOIN api_keys k ON k.project_id=p.id WHERE p.id=$3 GROUP BY p.id ON CONFLICT(project_id,month) DO NOTHING`, month, now, projectID); err != nil {
+		return err
+	}
+	var commitment int64
+	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(sum(CASE WHEN k.status IN ('approved','active') THEN GREATEST(COALESCE(b.quota_milli,k.monthly_credit_quota_milli,0),COALESCE(b.charged_milli,0)+COALESCE(b.pending_milli,0)) WHEN k.status='revoked' THEN COALESCE(b.charged_milli,0) ELSE 0 END),0) FROM api_keys k LEFT JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$2 WHERE k.project_id=$1`, projectID, month).Scan(&commitment); err != nil {
+		return err
+	}
+	if quota < commitment {
+		appErr := domain.NewError(domain.CodeProjectQuotaAllocation, "project quota cannot be lower than current commitments")
+		appErr.Details = map[string]any{"minimum": domain.FormatCredits(commitment)}
+		return appErr
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE projects SET monthly_credit_quota_milli=$1,updated_at=$2 WHERE id=$3`, quota, now, projectID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET quota_milli=$1,updated_at=$2 WHERE project_id=$3 AND month=$4`, quota, now, projectID, month); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO quota_adjustment_audits(id,owner_type,owner_id,actor_user_id,old_quota_milli,new_quota_milli,reason,created_at) VALUES(gen_random_uuid(),'project',$1,$2,$3,$4,$5,$6)`, projectID, actorID, oldQuota, quota, reason, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) RevokeKey(ctx context.Context, mentorID, keyID uuid.UUID, comment string) (uuid.UUID, error) {
+	var projectID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, `SELECT project_id FROM api_keys WHERE id=$1`, keyID).Scan(&projectID); errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, domain.NewError(domain.CodeInvalidTransition, "API key is not active")
+	} else if err != nil {
+		return uuid.Nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `SELECT id FROM projects WHERE id=$1 FOR UPDATE`, projectID); err != nil {
+		return uuid.Nil, err
+	}
+	var ownerID uuid.UUID
+	if err = tx.QueryRowContext(ctx, `SELECT owner_user_id FROM api_keys WHERE id=$1 AND project_id=$2 AND status='active' FOR UPDATE`, keyID, projectID).Scan(&ownerID); errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, domain.NewError(domain.CodeInvalidTransition, "API key is not active")
+	} else if err != nil {
+		return uuid.Nil, err
+	}
+	var responsible bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id=$1 AND user_id=$2)`, projectID, mentorID).Scan(&responsible); err != nil {
+		return uuid.Nil, err
+	}
+	if !responsible {
+		return uuid.Nil, domain.NewError(domain.CodeNotFound, "API key not found")
+	}
+	month, now := Month(time.Now()), time.Now().UTC()
+	rows, err := tx.QueryContext(ctx, `SELECT id,request_id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,multiplier_milli FROM gateway_calls WHERE api_key_id=$1 AND billing_state='pending' FOR UPDATE`, keyID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	list := []Reservation{}
+	for rows.Next() {
+		var r Reservation
+		if err = rows.Scan(&r.CallID, &r.RequestID, &r.Month, &r.OrganizationID, &r.ProjectID, &r.UserID, &r.APIKeyID, &r.ModelID, &r.OrganizationName, &r.ProjectName, &r.UserName, &r.APIKeyName, &r.ModelName, &r.MultiplierMilli); err != nil {
+			rows.Close()
+			return uuid.Nil, err
+		}
+		list = append(list, r)
+	}
+	rows.Close()
+	for _, r := range list {
+		if _, err = tx.ExecContext(ctx, `UPDATE gateway_calls SET billing_state='charged',outcome='outcome_unknown',error_category='revoked_with_request_in_flight',error_message='API key was revoked while the request was in flight',finalized_at=$1,lease_expires_at=NULL WHERE id=$2 AND billing_state='pending'`, now, r.CallID); err != nil {
+			return uuid.Nil, err
+		}
+		if r.MultiplierMilli > 0 {
+			if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET pending_milli=pending_milli-$1,charged_milli=charged_milli+$1,updated_at=$2 WHERE project_id=$3 AND month=$4`, r.MultiplierMilli, now, r.ProjectID, r.Month); err != nil {
+				return uuid.Nil, err
+			}
+			if _, err = tx.ExecContext(ctx, `UPDATE api_key_month_credit_buckets SET pending_milli=pending_milli-$1,charged_milli=charged_milli+$1,updated_at=$2 WHERE api_key_id=$3 AND month=$4`, r.MultiplierMilli, now, r.APIKeyID, r.Month); err != nil {
+				return uuid.Nil, err
+			}
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE monitored_inputs SET visible=true WHERE call_id=$1`, r.CallID); err != nil {
+			return uuid.Nil, err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO monthly_usage_cube(id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,charged_milli,charged_count,zero_cost_count,created_at,updated_at) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) ON CONFLICT(month,project_id,user_id,api_key_id,model_id) DO UPDATE SET charged_milli=monthly_usage_cube.charged_milli+EXCLUDED.charged_milli,charged_count=monthly_usage_cube.charged_count+EXCLUDED.charged_count,zero_cost_count=monthly_usage_cube.zero_cost_count+EXCLUDED.zero_cost_count,updated_at=EXCLUDED.updated_at`, r.Month, r.OrganizationID, r.ProjectID, r.UserID, r.APIKeyID, r.ModelID, r.OrganizationName, r.ProjectName, r.UserName, r.APIKeyName, r.ModelName, r.MultiplierMilli, boolInt(r.MultiplierMilli > 0), boolInt(r.MultiplierMilli == 0), now); err != nil {
+			return uuid.Nil, err
+		}
+	}
+	var quota, charged int64
+	if err = tx.QueryRowContext(ctx, `SELECT quota_milli,charged_milli FROM api_key_month_credit_buckets WHERE api_key_id=$1 AND month=$2 FOR UPDATE`, keyID, month).Scan(&quota, &charged); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, err
+	}
+	if err == nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE api_key_month_credit_buckets SET allocation_active=false,updated_at=$1 WHERE api_key_id=$2 AND month=$3`, now, keyID, month); err != nil {
+			return uuid.Nil, err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE project_month_credit_buckets SET allocated_milli=GREATEST(0,allocated_milli-$1+$2),updated_at=$3 WHERE project_id=$4 AND month=$5`, quota, charged, now, projectID, month); err != nil {
+			return uuid.Nil, err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='revoked',revoked_at=$1,updated_at=$1 WHERE id=$2`, now, keyID); err != nil {
+		return uuid.Nil, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO api_key_audits(id,api_key_id,actor_user_id,action,comment,created_at) VALUES(gen_random_uuid(),$1,$2,'mentor_revoked',$3,$4)`, keyID, mentorID, comment, now); err != nil {
+		return uuid.Nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return uuid.Nil, err
+	}
+	return ownerID, nil
+}
+
 func (s *Store) StartAttempt(ctx context.Context, callID, providerID, bindingID uuid.UUID, providerName string) (uuid.UUID, error) {
 	id := uuid.Must(uuid.NewV7())
 	_, err := s.db.ExecContext(ctx, `INSERT INTO gateway_call_attempts(id,call_id,provider_id,binding_id,provider_name,status,created_at) VALUES($1,$2,$3,$4,$5,'connecting',now())`, id, callID, providerID, bindingID, providerName)
@@ -215,7 +570,7 @@ func (s *Store) Finalize(ctx context.Context, r Reservation, success bool, outco
 	}
 	if success {
 		_, err = tx.ExecContext(ctx, `INSERT INTO monthly_usage_cube(id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,charged_milli,charged_count,zero_cost_count,created_at,updated_at)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14,now(),now()) ON CONFLICT(month,project_id,user_id,api_key_id,model_id) DO UPDATE SET charged_milli=monthly_usage_cube.charged_milli+EXCLUDED.charged_milli,charged_count=monthly_usage_cube.charged_count+1,zero_cost_count=monthly_usage_cube.zero_cost_count+EXCLUDED.zero_cost_count,organization_name=EXCLUDED.organization_name,project_name=EXCLUDED.project_name,user_name=EXCLUDED.user_name,api_key_name=EXCLUDED.api_key_name,model_name=EXCLUDED.model_name,updated_at=now()`, uuid.Must(uuid.NewV7()), r.Month, r.OrganizationID, r.ProjectID, r.UserID, r.APIKeyID, r.ModelID, r.OrganizationName, r.ProjectName, r.UserName, r.APIKeyName, r.ModelName, r.MultiplierMilli, boolInt(r.MultiplierMilli == 0))
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now(),now()) ON CONFLICT(month,project_id,user_id,api_key_id,model_id) DO UPDATE SET charged_milli=monthly_usage_cube.charged_milli+EXCLUDED.charged_milli,charged_count=monthly_usage_cube.charged_count+EXCLUDED.charged_count,zero_cost_count=monthly_usage_cube.zero_cost_count+EXCLUDED.zero_cost_count,organization_name=EXCLUDED.organization_name,project_name=EXCLUDED.project_name,user_name=EXCLUDED.user_name,api_key_name=EXCLUDED.api_key_name,model_name=EXCLUDED.model_name,updated_at=now()`, uuid.Must(uuid.NewV7()), r.Month, r.OrganizationID, r.ProjectID, r.UserID, r.APIKeyID, r.ModelID, r.OrganizationName, r.ProjectName, r.UserName, r.APIKeyName, r.ModelName, r.MultiplierMilli, boolInt(r.MultiplierMilli > 0), boolInt(r.MultiplierMilli == 0))
 		if err != nil {
 			return err
 		}
@@ -242,8 +597,14 @@ type UsageSlice struct {
 	Calls   int64  `json:"calls,omitempty"`
 }
 type KeyUsage struct {
-	ID, Name, Status, Quota, Used, Pending, Overage string
-	Models                                          []UsageSlice
+	ID      string       `json:"id"`
+	Name    string       `json:"name"`
+	Status  string       `json:"status"`
+	Quota   string       `json:"quota"`
+	Used    string       `json:"used"`
+	Pending string       `json:"pending"`
+	Overage string       `json:"overage"`
+	Models  []UsageSlice `json:"models"`
 }
 type StudentUsage struct {
 	Month string     `json:"month"`
@@ -251,6 +612,11 @@ type StudentUsage struct {
 }
 
 func (s *Store) StudentUsage(ctx context.Context, userID uuid.UUID, month time.Time) (StudentUsage, error) {
+	if month.Equal(Month(time.Now())) {
+		if err := s.EnsureCurrentBuckets(ctx); err != nil {
+			return StudentUsage{}, err
+		}
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT k.id,k.name,k.status,b.quota_milli,b.charged_milli,b.pending_milli FROM api_keys k JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$2 WHERE k.owner_user_id=$1 AND (k.status IN ('approved','active') OR b.charged_milli>0) ORDER BY k.created_at DESC`, userID, month)
 	if err != nil {
 		return StudentUsage{}, err
@@ -265,6 +631,7 @@ func (s *Store) StudentUsage(ctx context.Context, userID uuid.UUID, month time.T
 			return result, err
 		}
 		item.ID = id.String()
+		item.Models = []UsageSlice{}
 		item.Quota = domain.FormatCredits(q)
 		item.Used = domain.FormatCredits(u)
 		item.Pending = domain.FormatCredits(p)
@@ -296,19 +663,41 @@ func (s *Store) StudentUsage(ctx context.Context, userID uuid.UUID, month time.T
 }
 
 type ProjectUsage struct {
-	Month, ProjectID, ProjectName, Quota, Allocated, Charged, Pending, Available string
-	Members                                                                      []MemberUsage
-	Models                                                                       []UsageSlice
-	FreeModels                                                                   []UsageSlice
+	Month       string        `json:"month"`
+	ProjectID   string        `json:"project_id"`
+	ProjectName string        `json:"project_name"`
+	Quota       string        `json:"quota"`
+	Allocated   string        `json:"allocated"`
+	Charged     string        `json:"charged"`
+	Pending     string        `json:"pending"`
+	Available   string        `json:"available"`
+	Members     []MemberUsage `json:"members"`
+	Models      []UsageSlice  `json:"models"`
+	FreeModels  []UsageSlice  `json:"free_models"`
 }
 type MemberUsage struct {
-	UserID, UserName, Credits string
-	Keys                      []KeyMemberUsage
+	UserID   string           `json:"user_id"`
+	UserName string           `json:"user_name"`
+	Credits  string           `json:"credits"`
+	Keys     []KeyMemberUsage `json:"keys"`
 }
-type KeyMemberUsage struct{ ID, Name, Status, Quota, Used string }
+type KeyMemberUsage struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Quota      string `json:"quota"`
+	Allocation string `json:"allocation"`
+	Used       string `json:"used"`
+}
 
 func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month time.Time) (ProjectUsage, error) {
+	if month.Equal(Month(time.Now())) {
+		if err := s.EnsureCurrentBuckets(ctx); err != nil {
+			return ProjectUsage{}, err
+		}
+	}
 	var v ProjectUsage
+	v.Members, v.Models, v.FreeModels = []MemberUsage{}, []UsageSlice{}, []UsageSlice{}
 	var q, a, c, p int64
 	err := s.db.QueryRowContext(ctx, `SELECT p.name,b.quota_milli,b.allocated_milli,b.charged_milli,b.pending_milli FROM projects p JOIN project_month_credit_buckets b ON b.project_id=p.id AND b.month=$2 WHERE p.id=$1`, projectID, month).Scan(&v.ProjectName, &q, &a, &c, &p)
 	if err != nil {
@@ -339,6 +728,7 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 		}
 		m.UserID = uid.String()
 		m.Credits = domain.FormatCredits(credit)
+		m.Keys = []KeyMemberUsage{}
 		kr, err := s.db.QueryContext(ctx, `SELECT k.id,k.name,k.status,b.quota_milli,b.charged_milli FROM api_keys k JOIN api_key_month_credit_buckets b ON b.api_key_id=k.id AND b.month=$3 WHERE k.project_id=$1 AND k.owner_user_id=$2 AND (k.status IN ('approved','active') OR b.charged_milli>0) ORDER BY k.name`, projectID, uid, month)
 		if err != nil {
 			return v, err
@@ -354,6 +744,11 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 			ki.ID = kid.String()
 			ki.Quota = domain.FormatCredits(kq)
 			ki.Used = domain.FormatCredits(ku)
+			if ki.Status == "revoked" {
+				ki.Allocation = ki.Used
+			} else {
+				ki.Allocation = ki.Quota
+			}
 			m.Keys = append(m.Keys, ki)
 		}
 		kr.Close()
@@ -415,14 +810,35 @@ type LogFilter struct {
 	Limit                                int
 }
 type CallLog struct {
-	ID, RequestID, ProjectID, ProjectName, UserID, UserName, APIKeyID, APIKeyName, ModelID, ModelName, ProviderName, Protocol, Path, Multiplier, Credits, BillingState, Outcome, ErrorCategory, ErrorMessage string
-	CreatedAt                                                                                                                                                                                                time.Time
-	Attempts                                                                                                                                                                                                 []AttemptLog
+	ID            string       `json:"id"`
+	RequestID     string       `json:"request_id"`
+	ProjectID     string       `json:"project_id"`
+	ProjectName   string       `json:"project_name"`
+	UserID        string       `json:"user_id"`
+	UserName      string       `json:"user_name"`
+	APIKeyID      string       `json:"api_key_id"`
+	APIKeyName    string       `json:"api_key_name"`
+	ModelID       string       `json:"model_id"`
+	ModelName     string       `json:"model_name"`
+	ProviderName  string       `json:"provider_name"`
+	Protocol      string       `json:"protocol"`
+	Path          string       `json:"path"`
+	Multiplier    string       `json:"multiplier"`
+	Credits       string       `json:"credits"`
+	BillingState  string       `json:"billing_state"`
+	Outcome       string       `json:"outcome"`
+	ErrorCategory string       `json:"error_category"`
+	ErrorMessage  string       `json:"error_message"`
+	CreatedAt     time.Time    `json:"created_at"`
+	Attempts      []AttemptLog `json:"attempts,omitempty"`
 }
 type AttemptLog struct {
-	ProviderName, Status, ErrorCategory, ErrorMessage string
-	HTTPStatus                                        *int
-	LatencyMS                                         int64
+	ProviderName  string `json:"provider_name"`
+	Status        string `json:"status"`
+	ErrorCategory string `json:"error_category"`
+	ErrorMessage  string `json:"error_message"`
+	HTTPStatus    *int   `json:"http_status,omitempty"`
+	LatencyMS     int64  `json:"latency_ms"`
 }
 type Page[T any] struct {
 	Items      []T     `json:"items"`
@@ -498,20 +914,18 @@ func (s *Store) MentorCallLogs(ctx context.Context, mentorID uuid.UUID, f LogFil
 }
 
 func (s *Store) MentorCallLog(ctx context.Context, mentorID, callID uuid.UUID) (CallLog, error) {
-	page, err := s.MentorCallLogs(ctx, mentorID, LogFilter{Limit: 100})
+	var ids [4]uuid.UUID
+	var multiplier, credits int64
+	var item CallLog
+	err := s.db.QueryRowContext(ctx, `SELECT c.id,c.request_id,c.project_id,c.project_name,c.user_id,c.user_name,c.api_key_id,c.api_key_name,c.model_id,c.model_name,COALESCE(c.provider_name,''),c.protocol,c.request_path,c.multiplier_milli,c.credit_milli,c.billing_state,c.outcome,COALESCE(c.error_category,''),COALESCE(c.error_message,''),c.created_at FROM gateway_calls c WHERE c.id=$1 AND EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=c.project_id AND pm.user_id=$2)`, callID, mentorID).Scan(&ids[0], &item.RequestID, &ids[1], &item.ProjectName, &ids[2], &item.UserName, &ids[3], &item.APIKeyName, &item.ModelID, &item.ModelName, &item.ProviderName, &item.Protocol, &item.Path, &multiplier, &credits, &item.BillingState, &item.Outcome, &item.ErrorCategory, &item.ErrorMessage, &item.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CallLog{}, domain.NewError(domain.CodeNotFound, "call log not found")
+	}
 	if err != nil {
 		return CallLog{}, err
 	}
-	var item *CallLog
-	for i := range page.Items {
-		if page.Items[i].ID == callID.String() {
-			item = &page.Items[i]
-			break
-		}
-	}
-	if item == nil {
-		return CallLog{}, domain.NewError(domain.CodeNotFound, "call log not found")
-	}
+	item.ID, item.ProjectID, item.UserID, item.APIKeyID = ids[0].String(), ids[1].String(), ids[2].String(), ids[3].String()
+	item.Multiplier, item.Credits = domain.FormatCredits(multiplier), domain.FormatCredits(credits)
 	rows, err := s.db.QueryContext(ctx, `SELECT provider_name,status,http_status,COALESCE(error_category,''),COALESCE(error_message,''),latency_ms FROM gateway_call_attempts WHERE call_id=$1 ORDER BY created_at`, callID)
 	if err != nil {
 		return CallLog{}, err
@@ -524,15 +938,25 @@ func (s *Store) MentorCallLog(ctx context.Context, mentorID, callID uuid.UUID) (
 		}
 		item.Attempts = append(item.Attempts, a)
 	}
-	return *item, nil
+	return item, nil
 }
 
 type InputMonitorItem struct {
-	CallID, ProjectID, ProjectName, UserID, UserName, APIKeyName, ModelName, ProviderName, Credits, Outcome, Preview string
-	ContentBytes                                                                                                     int64
-	Truncated                                                                                                        bool
-	CreatedAt                                                                                                        time.Time
-	Content                                                                                                          *string `json:"content,omitempty"`
+	CallID       string    `json:"call_id"`
+	ProjectID    string    `json:"project_id"`
+	ProjectName  string    `json:"project_name"`
+	UserID       string    `json:"user_id"`
+	UserName     string    `json:"user_name"`
+	APIKeyName   string    `json:"api_key_name"`
+	ModelName    string    `json:"model_name"`
+	ProviderName string    `json:"provider_name"`
+	Credits      string    `json:"credits"`
+	Outcome      string    `json:"outcome"`
+	Preview      string    `json:"preview"`
+	ContentBytes int64     `json:"content_bytes"`
+	Truncated    bool      `json:"truncated"`
+	CreatedAt    time.Time `json:"created_at"`
+	Content      *string   `json:"content,omitempty"`
 }
 type InputFilter struct {
 	LogFilter
@@ -548,9 +972,37 @@ func (s *Store) MentorInputs(ctx context.Context, mentorID uuid.UUID, f InputFil
 	}
 	args := []any{mentorID}
 	where := []string{`i.visible=true`, `i.created_at>=now()-interval '90 days'`, `EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=i.project_id AND pm.user_id=$1)`}
+	add := func(condition string, value any) {
+		args = append(args, value)
+		where = append(where, fmt.Sprintf(condition, len(args)))
+	}
+	if f.ProjectID != nil {
+		add("c.project_id=$%d", *f.ProjectID)
+	}
+	if f.UserID != nil {
+		add("c.user_id=$%d", *f.UserID)
+	}
+	if f.APIKeyID != nil {
+		add("c.api_key_id=$%d", *f.APIKeyID)
+	}
+	if f.ModelID != nil {
+		add("c.model_id=$%d", *f.ModelID)
+	}
+	if f.Status != "" {
+		add("c.outcome=$%d", f.Status)
+	}
+	if f.Start != nil {
+		add("c.created_at>=$%d", *f.Start)
+	}
+	if f.End != nil {
+		add("c.created_at<$%d", *f.End)
+	}
+	if f.Cursor != nil {
+		args = append(args, f.Cursor.CreatedAt, f.Cursor.ID)
+		where = append(where, fmt.Sprintf("(c.created_at,c.id)<($%d,$%d)", len(args)-1, len(args)))
+	}
 	if f.Query != "" {
-		args = append(args, "%"+f.Query+"%")
-		where = append(where, fmt.Sprintf("i.content ILIKE $%d", len(args)))
+		add("i.content ILIKE $%d", "%"+f.Query+"%")
 	}
 	args = append(args, f.Limit+1)
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -583,6 +1035,14 @@ func (s *Store) MentorInputs(ctx context.Context, mentorID uuid.UUID, f InputFil
 		ids = append(ids, input.String())
 	}
 	rows.Close()
+	if len(page.Items) > f.Limit {
+		last := page.Items[f.Limit-1]
+		id, _ := uuid.Parse(last.CallID)
+		cursor := EncodeCursor(Cursor{CreatedAt: last.CreatedAt, ID: id})
+		page.NextCursor = &cursor
+		page.Items = page.Items[:f.Limit]
+		ids = ids[:f.Limit]
+	}
 	scope, _ := json.Marshal(map[string]any{"q": f.Query})
 	resultIDs, _ := json.Marshal(ids)
 	_, err = tx.ExecContext(ctx, `INSERT INTO prompt_access_audits(id,actor_user_id,access_type,query_scope,result_ids,result_count,created_at) VALUES($1,$2,'list',$3,$4,$5,now())`, uuid.Must(uuid.NewV7()), mentorID, scope, resultIDs, len(ids))
@@ -627,29 +1087,10 @@ func (s *Store) MentorInput(ctx context.Context, mentorID, callID uuid.UUID) (In
 }
 
 func (s *Store) RecoverAndClean(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,request_id,month,organization_id,project_id,user_id,api_key_id,model_id,organization_name,project_name,user_name,api_key_name,model_name,multiplier_milli FROM gateway_calls WHERE billing_state='pending' AND lease_expires_at<now() ORDER BY lease_expires_at LIMIT 100`)
-	if err != nil {
+	if err := s.RecoverExpired(ctx); err != nil {
 		return err
 	}
-	list := []Reservation{}
-	for rows.Next() {
-		var r Reservation
-		if err := rows.Scan(&r.CallID, &r.RequestID, &r.Month, &r.OrganizationID, &r.ProjectID, &r.UserID, &r.APIKeyID, &r.ModelID, &r.OrganizationName, &r.ProjectName, &r.UserName, &r.APIKeyName, &r.ModelName, &r.MultiplierMilli); err != nil {
-			rows.Close()
-			return err
-		}
-		list = append(list, r)
-	}
-	rows.Close()
-	for _, r := range list {
-		if err := s.Finalize(ctx, r, true, "outcome_unknown", "recovered_after_crash", "request outcome is unknown after process recovery", nil, ""); err != nil {
-			return err
-		}
-	}
-	_, err = s.db.ExecContext(ctx, `DELETE FROM monitored_inputs WHERE created_at<now()-interval '90 days' LIMIT 1000`)
-	if err != nil {
-		_, err = s.db.ExecContext(ctx, `DELETE FROM monitored_inputs WHERE id IN(SELECT id FROM monitored_inputs WHERE created_at<now()-interval '90 days' LIMIT 1000)`)
-	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM monitored_inputs WHERE id IN(SELECT id FROM monitored_inputs WHERE created_at<now()-interval '90 days' LIMIT 1000)`)
 	if err != nil {
 		return err
 	}

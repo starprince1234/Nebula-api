@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	netmail "net/mail"
 	"net/url"
@@ -251,22 +252,11 @@ func (s *Service) UpdateMentorKeyQuota(ctx context.Context, mentorID, keyID uuid
 	if quota < 0 || quota > domain.MaxCreditMilli || strings.TrimSpace(reason) == "" {
 		return domain.NewError(domain.CodeValidation, "quota and reason are required")
 	}
-	key, err := s.db.APIKey.Query().Where(apikey.IDEQ(keyID), apikey.StatusIn(apikey.StatusApproved, apikey.StatusActive)).Only(ctx)
-	if ent.IsNotFound(err) {
-		return domain.NewError(domain.CodeNotFound, "API key not found")
-	}
-	if err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "query API key", err)
-	}
-	responsible, err := s.db.ProjectMember.Query().Where(projectmember.ProjectIDEQ(key.ProjectID), projectmember.UserIDEQ(mentorID)).Exist(ctx)
-	if err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "query mentor responsibility", err)
-	}
-	if !responsible {
-		return domain.NewError(domain.CodeNotFound, "API key not found")
-	}
-	_, err = s.db.APIKey.UpdateOneID(keyID).SetMonthlyCreditQuotaMilli(quota).Save(ctx)
-	if err != nil {
+	if err := s.usage.UpdateKeyQuota(ctx, mentorID, keyID, quota, strings.TrimSpace(reason)); err != nil {
+		var appErr *domain.Error
+		if errors.As(err, &appErr) {
+			return err
+		}
 		return domain.WrapError(domain.CodeDependencyUnavailable, "update API key quota", err)
 	}
 	return nil

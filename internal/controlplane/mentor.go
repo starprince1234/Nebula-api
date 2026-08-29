@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/starprince1234/Nebula-api/internal/domain"
@@ -304,54 +305,16 @@ func (s *Service) RevokeKeyAsMentor(ctx context.Context, mentorID, keyID uuid.UU
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.Tx(ctx)
+	ownerID, err := s.usage.RevokeKey(ctx, mentorID, keyID, comment)
 	if err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "start key revocation transaction", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	key, err := tx.APIKey.Query().Where(
-		apikey.IDEQ(keyID),
-		apikey.StatusEQ(apikey.StatusActive),
-	).Only(ctx)
-	if ent.IsNotFound(err) {
-		return domain.NewError(domain.CodeInvalidTransition, "API key is not active")
-	}
-	if err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "query API key", err)
-	}
-	responsible, err := tx.ProjectMember.Query().Where(
-		projectmember.ProjectIDEQ(key.ProjectID),
-		projectmember.UserIDEQ(mentorID),
-	).Exist(ctx)
-	if err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "query mentor responsibility", err)
-	}
-	if !responsible {
-		return domain.NewError(domain.CodeNotFound, "API key not found")
-	}
-	revokedAt := s.now().UTC()
-	updated, err := tx.APIKey.Update().Where(
-		apikey.IDEQ(keyID),
-		apikey.StatusEQ(apikey.StatusActive),
-	).SetStatus(apikey.StatusRevoked).SetRevokedAt(revokedAt).Save(ctx)
-	if err != nil {
+		var appErr *domain.Error
+		if errors.As(err, &appErr) {
+			return err
+		}
 		return domain.WrapError(domain.CodeDependencyUnavailable, "revoke API key", err)
 	}
-	if updated != 1 {
-		return domain.NewError(domain.CodeInvalidTransition, "API key was changed concurrently")
-	}
-	if _, err := tx.APIKeyAudit.Create().
-		SetAPIKeyID(keyID).
-		SetActorUserID(mentorID).
-		SetAction(apikeyaudit.ActionMentorRevoked).
-		SetComment(comment).
-		Save(ctx); err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "create revocation audit", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return domain.WrapError(domain.CodeDependencyUnavailable, "commit key revocation", err)
-	}
-	s.publishKeyStatus(ctx, key.OwnerUserID, keyID, domain.KeyRevoked, revokedAt)
+	revokedAt := s.now().UTC()
+	s.publishKeyStatus(ctx, ownerID, keyID, domain.KeyRevoked, revokedAt)
 	return nil
 }
 

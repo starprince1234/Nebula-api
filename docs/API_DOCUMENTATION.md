@@ -2,6 +2,8 @@
 
 ## 1. 文档范围与状态
 
+`0.7.0` credits 字段统一返回最多三位小数的定点字符串，usage/call/input DTO 统一使用 snake_case。学生申请、导师 approve、老师 approve 的 `requested_monthly_credits` / `monthly_credits` 均为当前必填契约，不提供旧 approve body 兼容。
+
 本文档定义首期控制面 `/api/v1` 与模型网关 `/v1` 的已实现契约。Gin Handler、控制面 Service、Redis SSE、审批事务和网关运行逻辑均已落盘；实际运行依赖已初始化的 PostgreSQL、Redis 和有效环境配置。
 
 契约依据参考项目真实 Controller、Schema 与 Gateway 路由重新设计，不兼容旧 `/api/nebula/gateway`、无 `/v1` 路径别名或 internal usage/monitor 路由。

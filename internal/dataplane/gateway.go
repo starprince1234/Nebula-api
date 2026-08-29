@@ -298,9 +298,6 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 			}
 			continue
 		}
-		if r, ok := reservation.(usage.Reservation); ok {
-			_ = g.usage.MarkSent(original.Context(), r.CallID)
-		}
 		response, err := g.client.Do(request)
 		cleanup()
 		if err != nil {
@@ -308,6 +305,9 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 				_ = g.usage.FinishAttempt(original.Context(), attemptID, false, nil, "connection", err.Error(), attemptStarted)
 			}
 			continue
+		}
+		if r, ok := reservation.(usage.Reservation); ok {
+			_ = g.usage.MarkSent(original.Context(), r.CallID)
 		}
 		if attemptID != uuid.Nil {
 			_ = g.usage.FinishAttempt(original.Context(), attemptID, response.StatusCode >= 200 && response.StatusCode < 300, &response.StatusCode, "", "", attemptStarted)
@@ -326,9 +326,17 @@ func (g *Gateway) proxyHTTP(w http.ResponseWriter, original *http.Request, repla
 		if r, ok := reservation.(usage.Reservation); ok {
 			success := response.StatusCode >= 200 && response.StatusCode < 300
 			if success {
-				_ = g.usage.Finalize(original.Context(), r, true, "succeeded", "", "", &candidate.Provider.ID, candidate.Provider.Name)
+				if err := g.usage.Finalize(original.Context(), r, true, "succeeded", "", "", &candidate.Provider.ID, candidate.Provider.Name); err != nil {
+					response.Body.Close()
+					writeProtocolError(w, original.URL.Path, http.StatusServiceUnavailable, "server_error", "billing_unavailable", "Unable to finalize model usage.", "")
+					return
+				}
 			} else {
-				_ = g.usage.Finalize(original.Context(), r, false, "upstream_failed", "http", response.Status, &candidate.Provider.ID, candidate.Provider.Name)
+				if err := g.usage.Finalize(original.Context(), r, false, "upstream_failed", "http", response.Status, &candidate.Provider.ID, candidate.Provider.Name); err != nil {
+					response.Body.Close()
+					writeProtocolError(w, original.URL.Path, http.StatusServiceUnavailable, "server_error", "billing_unavailable", "Unable to finalize model usage.", "")
+					return
+				}
 			}
 		}
 		if resourceType, ok := createdResourceType(original.Method, original.URL.Path); ok && response.StatusCode >= 200 && response.StatusCode < 300 {
@@ -1289,6 +1297,9 @@ func extractModel(contentType string, replay *replayBody) (string, error) {
 }
 
 func extractInputSnapshot(requestPath, contentType string, replay *replayBody) (string, string) {
+	if requestPath == "/v1/embeddings" || requestPath == "/v1/moderations" || requestPath == "/v2/rerank" || requestPath == "/v1/responses/compact" || requestPath == "/v1/images/variations" || requestPath == "/v1/audio/transcriptions" || requestPath == "/v1/audio/translations" {
+		return "", ""
+	}
 	if replay == nil {
 		return "", ""
 	}
@@ -1337,7 +1348,16 @@ func extractInputSnapshot(requestPath, contentType string, replay *replayBody) (
 	if messages, ok := payload["messages"].([]any); ok {
 		for i := len(messages) - 1; i >= 0; i-- {
 			if m, ok := messages[i].(map[string]any); ok && strings.EqualFold(fmt.Sprint(m["role"]), "user") {
-				if text := textFromJSONValue(m["content"]); text != "" {
+				if text := allTextFromJSONValue(m["content"]); text != "" {
+					return text, "user_message"
+				}
+			}
+		}
+	}
+	if contents, ok := payload["contents"].([]any); ok {
+		for i := len(contents) - 1; i >= 0; i-- {
+			if item, ok := contents[i].(map[string]any); ok && strings.EqualFold(fmt.Sprint(item["role"]), "user") {
+				if text := allTextFromJSONValue(item["parts"]); text != "" {
 					return text, "user_message"
 				}
 			}
@@ -1345,12 +1365,42 @@ func extractInputSnapshot(requestPath, contentType string, replay *replayBody) (
 	}
 	if input, ok := payload["input"].([]any); ok {
 		for i := len(input) - 1; i >= 0; i-- {
-			if text := textFromJSONValue(input[i]); text != "" {
+			item, isObject := input[i].(map[string]any)
+			if isObject && item["role"] != nil && !strings.EqualFold(fmt.Sprint(item["role"]), "user") {
+				continue
+			}
+			if text := allTextFromJSONValue(input[i]); text != "" {
 				return text, "input_text"
 			}
 		}
 	}
 	return "", ""
+}
+
+func allTextFromJSONValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			if text := allTextFromJSONValue(item); text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, "\n")
+	case map[string]any:
+		typeName, _ := v["type"].(string)
+		if typeName != "" && typeName != "text" && typeName != "input_text" {
+			return ""
+		}
+		for _, key := range []string{"text", "input_text", "content"} {
+			if text := allTextFromJSONValue(v[key]); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 func textFromJSONValue(value any) string {

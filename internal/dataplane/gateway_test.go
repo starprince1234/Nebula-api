@@ -363,3 +363,31 @@ func TestCaptureBodyLimit(t *testing.T) {
 		t.Fatal("oversized request body was accepted")
 	}
 }
+
+func TestExtractInputSnapshotUsesLastUserText(t *testing.T) {
+	t.Parallel()
+	replay, err := captureBody(io.NopCloser(strings.NewReader(`{"model":"gpt","messages":[{"role":"user","content":"first"},{"role":"assistant","content":"answer"},{"role":"user","content":[{"type":"text","text":"second-a"},{"type":"image_url","image_url":"data:image/png;base64,..."},{"type":"text","text":"second-b"}]}]}`)), 4096)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer replay.Close()
+	text, source := extractInputSnapshot("/v1/chat/completions", "application/json", replay)
+	if text != "second-a\nsecond-b" || source != "user_message" {
+		t.Fatalf("unexpected snapshot %q (%s)", text, source)
+	}
+}
+
+func TestExtractInputSnapshotSkipsUnmonitoredRoutes(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"/v1/embeddings", "/v1/moderations", "/v2/rerank", "/v1/responses/compact", "/v1/images/variations", "/v1/audio/transcriptions", "/v1/audio/translations"} {
+		replay, err := captureBody(io.NopCloser(strings.NewReader(`{"model":"gpt","prompt":"sensitive","input":"sensitive"}`)), 1024)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text, source := extractInputSnapshot(path, "application/json", replay)
+		_ = replay.Close()
+		if text != "" || source != "" {
+			t.Fatalf("route %s generated a monitored input", path)
+		}
+	}
+}

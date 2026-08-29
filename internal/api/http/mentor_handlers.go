@@ -99,7 +99,11 @@ func (s *Server) reviewKeyAsMentor(approve bool) gin.HandlerFunc {
 		}
 		comment := input.Comment
 		var quota []int64
-		if approve && strings.TrimSpace(input.MonthlyCredits) != "" {
+		if approve && strings.TrimSpace(input.MonthlyCredits) == "" {
+			writeError(c, domain.NewError(domain.CodeValidation, "monthly_credits is required"))
+			return
+		}
+		if approve {
 			value, err := domain.ParseCredits(input.MonthlyCredits)
 			if err != nil {
 				writeError(c, err)

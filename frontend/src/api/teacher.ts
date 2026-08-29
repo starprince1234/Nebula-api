@@ -24,5 +24,5 @@ export const teacherAPI = {
   updateBinding: (id: string, body: BindingUpdate) => patch<Binding>(`/api/v1/teacher/model-bindings/${id}`, body),
   keyReviews: () => get<ApiKey[]>('/api/v1/teacher/api-key-reviews'),
   keyReview: (id: string) => get<ApiKey>(`/api/v1/teacher/api-key-reviews/${id}`),
-  reviewKey: (id: string, approve: boolean, comment?: string) => post<void>(`/api/v1/teacher/api-key-reviews/${id}/${approve ? 'approve' : 'reject'}`, comment ? { comment } : undefined)
+  reviewKey: (id: string, approve: boolean, monthly_credits?: string, comment?: string) => post<void>(`/api/v1/teacher/api-key-reviews/${id}/${approve ? 'approve' : 'reject'}`, { ...(approve ? { monthly_credits } : {}), ...(comment ? { comment } : {}) })
 }

@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { mentorAPI } from '../../api/mentor'
 import type { InputMonitorItem } from '../../api/types'
-const rows = ref<InputMonitorItem[]>([])
-const selected = ref<InputMonitorItem | null>(null)
-async function load() { rows.value = (await mentorAPI.inputs()).items }
-async function detail(id: string) { selected.value = await mentorAPI.input(id) }
-onMounted(load)
+import { APIError } from '../../api/client'
+import AppDialog from '../../components/AppDialog.vue'
+import EmptyState from '../../components/EmptyState.vue'
+import { useVisibilityPolling } from '../../composables/useVisibilityPolling'
+
+const rows = ref<InputMonitorItem[]>([]), selected = ref<InputMonitorItem | null>(null), nextCursor = ref<string | null>(null), error = ref('')
+const filter = reactive({ q: '', project_id: '', user_id: '', api_key_id: '', model_id: '', status: '', start: '', end: '' })
+function query(cursor = '') { const entries: Array<[string,string]>=Object.entries(filter).filter(([,value])=>value).map(([key,value])=>[key,(key==='start'||key==='end')?new Date(value).toISOString():value]);const q=new URLSearchParams(entries);if(cursor)q.set('cursor',cursor);return q.toString() }
+async function load(append = false) { try { const page = await mentorAPI.inputs(query(append ? nextCursor.value ?? '' : '')); rows.value = append ? rows.value.concat(page.items) : page.items; nextCursor.value = page.next_cursor ?? null; error.value = '' } catch (caught) { error.value = caught instanceof APIError ? caught.message : '加载输入监控失败' } }
+async function detail(id:string){try{selected.value=await mentorAPI.input(id)}catch(caught){error.value=caught instanceof APIError?caught.message:'加载完整输入失败'}}
+useVisibilityPolling(() => load())
 </script>
-<template><section class="page"><div class="page-heading"><h1>输入监控</h1><button class="button secondary" @click="load">刷新</button></div><section class="panel"><div v-for="row in rows" :key="row.call_id" class="list-row"><div><strong>{{row.user_name}} · {{row.project_name}}</strong><p class="muted">{{row.preview}}</p></div><button class="button ghost" @click="detail(row.call_id)">查看完整输入</button></div></section><div v-if="selected" class="panel"><h2>{{selected.model_name}} · {{selected.user_name}}</h2><pre>{{selected.content}}</pre><button class="button secondary" @click="selected=null">关闭</button></div></section></template>
+
+<template><section class="page"><div class="page-heading"><div><p class="eyebrow">MENTOR · SENSITIVE</p><h1>输入监控</h1><p class="muted">仅保存可计费操作的文本输入快照；列表访问和全文访问都会写入不可变审计。</p></div><button class="button secondary" @click="load()">刷新</button></div><p v-if="error" class="error banner">{{error}}</p><section class="panel"><div class="filter-grid"><label>关键词（至少 3 字符）<input v-model="filter.q" minlength="3"></label><label>项目 ID<input v-model="filter.project_id"></label><label>用户 ID<input v-model="filter.user_id"></label><label>Key ID<input v-model="filter.api_key_id"></label><label>模型 ID<input v-model="filter.model_id"></label><label>结果<select v-model="filter.status"><option value="">全部</option><option value="succeeded">成功</option><option value="outcome_unknown">结果未知</option></select></label></div><button class="button primary" @click="load()">查询</button></section><section class="panel"><table v-if="rows.length" class="usage-table"><thead><tr><th>时间</th><th>用户</th><th>项目 / Key</th><th>模型 / 供应商</th><th>输入预览（Sensitive）</th><th></th></tr></thead><tbody><tr v-for="row in rows" :key="row.call_id"><td>{{new Date(row.created_at).toLocaleString()}}</td><td>{{row.user_name}}</td><td>{{row.project_name}}<br><span class="muted">{{row.api_key_name}}</span></td><td>{{row.model_name}}<br><span class="muted">{{row.provider_name||'未确定'}}</span></td><td>{{row.preview}}{{row.truncated?'…':''}}<br><span class="muted">{{row.content_bytes}} bytes · {{row.credits}} credits</span></td><td><button class="button ghost" @click="detail(row.call_id)">查看全文</button></td></tr></tbody></table><EmptyState v-else title="暂无可见文本输入" description="失败请求不会保留提示词；不支持文本提取的协议也不会生成监控记录。"/><button v-if="nextCursor" class="button secondary wide" @click="load(true)">加载更多</button></section><AppDialog :open="Boolean(selected)" title="完整输入 · Sensitive" wide @update:open="selected=$event?selected:null"><template v-if="selected"><p>{{selected.user_name}} · {{selected.project_name}} · {{selected.model_name}}</p><pre class="sensitive-text">{{selected.content}}</pre><p class="muted">{{selected.content_bytes}} bytes · {{new Date(selected.created_at).toLocaleString()}}</p></template></AppDialog></section></template>

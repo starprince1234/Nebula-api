@@ -27,15 +27,24 @@ func main() {
 	}
 	defer client.Close()
 	store := usage.NewStore(sqlDB)
+	if err := store.RunMaintenance(ctx, true); err != nil {
+		slog.Error("initial maintenance cycle failed", "error", err)
+	}
 	ticker := time.NewTicker(time.Minute)
+	hourly := time.NewTicker(time.Hour)
 	defer ticker.Stop()
+	defer hourly.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := store.RecoverAndClean(ctx); err != nil {
+			if err := store.RunMaintenance(ctx, false); err != nil {
 				slog.Error("maintenance cycle failed", "error", err)
+			}
+		case <-hourly.C:
+			if err := store.RunMaintenance(ctx, true); err != nil {
+				slog.Error("hourly maintenance cycle failed", "error", err)
 			}
 		}
 	}

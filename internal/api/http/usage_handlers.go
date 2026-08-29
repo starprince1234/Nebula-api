@@ -53,8 +53,8 @@ func (s *Server) updateMentorKeyQuota(c *gin.Context) {
 		return
 	}
 	var input struct {
-		MonthlyCredits string `json:"monthly_credits" binding:"required"`
-		Reason         string `json:"reason" binding:"required"`
+		MonthlyCredits    string `json:"monthly_credits" binding:"required"`
+		QuotaChangeReason string `json:"quota_change_reason" binding:"required"`
 	}
 	if !bindJSON(c, &input) {
 		return
@@ -64,7 +64,7 @@ func (s *Server) updateMentorKeyQuota(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	if err := s.service.UpdateMentorKeyQuota(c.Request.Context(), identity(c).UserID, id, quota, input.Reason); err != nil {
+	if err := s.service.UpdateMentorKeyQuota(c.Request.Context(), identity(c).UserID, id, quota, input.QuotaChangeReason); err != nil {
 		writeError(c, err)
 		return
 	}
@@ -82,6 +82,15 @@ func parseLogFilter(c *gin.Context) (usage.LogFilter, error) {
 		return f, err
 	}
 	f.Cursor = cur
+	for name, destination := range map[string]**time.Time{"start": &f.Start, "end": &f.End} {
+		if raw := strings.TrimSpace(c.Query(name)); raw != "" {
+			parsed, parseErr := time.Parse(time.RFC3339, raw)
+			if parseErr != nil {
+				return f, domain.NewError(domain.CodeValidation, name+" must use RFC3339")
+			}
+			*destination = &parsed
+		}
+	}
 	for name, dst := range map[string]**uuid.UUID{"project_id": &f.ProjectID, "user_id": &f.UserID, "api_key_id": &f.APIKeyID, "model_id": &f.ModelID} {
 		if raw := strings.TrimSpace(c.Query(name)); raw != "" {
 			id, err := controlplane.UUID(raw)

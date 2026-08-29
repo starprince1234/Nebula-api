@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -19,7 +20,6 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/project"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/projectmember"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
-	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 )
 
@@ -324,24 +324,20 @@ func (s *Service) CreateProject(ctx context.Context, input ProjectInput) (Projec
 }
 
 func (s *Service) UpdateProject(ctx context.Context, actorID, id uuid.UUID, input ProjectInput) (ProjectView, error) {
-	builder := s.db.Project.UpdateOneID(id)
-	var oldQuota *int64
-	if input.MonthlyCreditQuotaMilli != nil {
-		current, err := s.db.Project.Get(ctx, id)
-		if err != nil {
-			if ent.IsNotFound(err) {
-				return ProjectView{}, domain.NewError(domain.CodeNotFound, "project not found")
-			}
-			return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "query project", err)
-		}
-		oldQuota = &current.MonthlyCreditQuotaMilli
-	}
 	if input.MonthlyCreditQuotaMilli != nil {
 		if strings.TrimSpace(input.QuotaChangeReason) == "" {
 			return ProjectView{}, domain.NewError(domain.CodeValidation, "quota change reason is required")
 		}
-		builder.SetMonthlyCreditQuotaMilli(*input.MonthlyCreditQuotaMilli)
+		if err := s.usage.UpdateProjectQuota(ctx, actorID, id, *input.MonthlyCreditQuotaMilli, input.QuotaChangeReason); err != nil {
+			var appErr *domain.Error
+			if errors.As(err, &appErr) {
+				return ProjectView{}, err
+			}
+			return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update project quota", err)
+		}
+		input.MonthlyCreditQuotaMilli = nil
 	}
+	builder := s.db.Project.UpdateOneID(id)
 	if input.Name != "" {
 		name, err := ValidateName(input.Name, 128)
 		if err != nil {
@@ -374,11 +370,6 @@ func (s *Service) UpdateProject(ctx context.Context, actorID, id uuid.UUID, inpu
 	}
 	if err != nil {
 		return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update project", err)
-	}
-	if input.MonthlyCreditQuotaMilli != nil && oldQuota != nil {
-		if _, auditErr := s.db.QuotaAdjustmentAudit.Create().SetOwnerType(quotaadjustmentaudit.OwnerTypeProject).SetOwnerID(id).SetActorUserID(actorID).SetOldQuotaMilli(*oldQuota).SetNewQuotaMilli(*input.MonthlyCreditQuotaMilli).SetReason(input.QuotaChangeReason).Save(ctx); auditErr != nil {
-			return ProjectView{}, domain.WrapError(domain.CodeDependencyUnavailable, "create project quota audit", auditErr)
-		}
 	}
 	return projectView(row, false), nil
 }
@@ -1058,6 +1049,21 @@ func (s *Service) ReviewKeyAsTeacher(ctx context.Context, teacherID, keyID uuid.
 	comment, err := ValidateComment(action, comment)
 	if err != nil {
 		return err
+	}
+	if approve {
+		if len(monthly) != 1 {
+			return domain.NewError(domain.CodeValidation, "monthly credits are required")
+		}
+		ownerID, approveErr := s.usage.ApproveKey(ctx, teacherID, keyID, monthly[0], comment)
+		if approveErr != nil {
+			var appErr *domain.Error
+			if errors.As(approveErr, &appErr) {
+				return approveErr
+			}
+			return domain.WrapError(domain.CodeDependencyUnavailable, "approve API key allocation", approveErr)
+		}
+		s.publishKeyStatus(ctx, ownerID, keyID, string(apikey.StatusApproved), s.now().UTC())
+		return nil
 	}
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
