@@ -85,7 +85,9 @@ async function saveModel() {
       void model_id
       const changed = body.credit_multiplier !== selected.value.model.credit_multiplier
       if (changed && !multiplierReason.value.trim()) { error.value = '修改倍率必须填写变更原因'; return }
-      selected.value.model = await teacherAPI.updateModel(selected.value.model.id, { ...body, ...(changed ? { multiplier_change_reason: multiplierReason.value.trim() } : {}) })
+      const updateBody = { ...body, ...(changed ? { multiplier_change_reason: multiplierReason.value.trim() } : {}) }
+      if (updateBody.credit_multiplier === null) delete updateBody.credit_multiplier
+      selected.value.model = await teacherAPI.updateModel(selected.value.model.id, updateBody)
       toast.success('模型配置已更新')
     } else {
       await teacherAPI.createModel({ model_id: modelForm.model_id, display_name: modelForm.display_name, description: modelForm.description, category: modelForm.category, capabilities: modelForm.capabilities, input_modalities: modelForm.input_modalities, output_modalities: modelForm.output_modalities, is_common: modelForm.is_common, status: 'pending_configuration', ...(modelForm.credit_multiplier === null ? {} : { credit_multiplier: modelForm.credit_multiplier }), ...(modelForm.context_window === null ? {} : { context_window: modelForm.context_window }), ...(modelForm.max_output_tokens === null ? {} : { max_output_tokens: modelForm.max_output_tokens }) })
