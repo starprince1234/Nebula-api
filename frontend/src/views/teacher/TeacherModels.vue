@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { teacherAPI } from '../../api/teacher'
-import type { Binding, BindingAdapter, Model, ModelCategory, ModelStatus, Provider } from '../../api/types'
+import type { Binding, BindingAdapter, Model, ModelCategory, ModelStatus, ModelUpdate, Provider } from '../../api/types'
 import { APIError } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge.vue'
 import AppDialog from '../../components/AppDialog.vue'
@@ -85,8 +85,8 @@ async function saveModel() {
       void model_id
       const changed = body.credit_multiplier !== selected.value.model.credit_multiplier
       if (changed && !multiplierReason.value.trim()) { error.value = '修改倍率必须填写变更原因'; return }
-      const updateBody = { ...body, ...(changed ? { multiplier_change_reason: multiplierReason.value.trim() } : {}) }
-      if (updateBody.credit_multiplier === null) delete updateBody.credit_multiplier
+      const { credit_multiplier, ...modelFields } = body
+      const updateBody: ModelUpdate = { ...modelFields, ...(credit_multiplier === null ? {} : { credit_multiplier }), ...(changed ? { multiplier_change_reason: multiplierReason.value.trim() } : {}) }
       selected.value.model = await teacherAPI.updateModel(selected.value.model.id, updateBody)
       toast.success('模型配置已更新')
     } else {
