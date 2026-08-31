@@ -100,7 +100,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 .\scripts\compose.ps1 logs --tail 100 backend
 ```
 
-本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`maintenance`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
+本地 Compose 期望：`postgres`、`redis`、`backend` 为 healthy，`frontend` 为 running，`migrate` 为 exited (0)。生产 Compose 使用 `compose.production.yaml`，期望 `postgres`、`redis`、`backend`、`maintenance`、`model-catalog`、`cloudflared` 运行，`migrate` exited (0)，且不运行 frontend。健康响应不得包含 DSN、secret 或异常文本。
 
 ### 2.5 生产部署验证
 
@@ -171,6 +171,9 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 学生看得到项目但提交失败 | 项目没有 ACTIVE 负责导师 | 导师申请该项目并由老师批准 | 查看项目 `has_mentor` 与 ACTIVE project member |
 | 申请提示 Key 名称冲突 | 同一学生已有同名进行中/生效 Key，citext 不区分大小写 | 更换名称，或等待原申请进入 rejected/revoked | 查询自己的 Key 列表，核对状态和大小写 |
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
+| 老师新增模型搜不到 Matrix 候选 | `model-catalog` 未启动、`MATRIX_APIKEY` 缺失或最近同步失败 | 检查生产 worker 状态和日志；失败保留上次快照，不清表、不把目录暴露给学生 | `docker compose -p nebula-api -f compose.production.yaml ps model-catalog`；日志不得包含 API Key |
+| 一键配置拒绝测试地址 | 手写 Base URL 解析到 localhost、私网、链路本地或云元数据地址 | 使用公网 HTTP/HTTPS 上游，或先注册经审核的供应商 | 不得关闭连接阶段 DNS/IP 校验或允许重定向绕过 |
+| 学生 `0x` 模型显示 0 次而老师有记录 | 学生查询遗漏 `zero_cost_count` | 学生调用数使用 `charged_count + zero_cost_count`，0 credits 行仍返回 | `go test ./internal/usage`；对照学生个人用量与老师/导师免费模型汇总 |
 | 导师看不到待审 Key | 导师不是目标项目的 ACTIVE 负责成员，或已被其他导师处理 | 完成项目申请，或刷新状态 | 查项目成员关系和 Key 当前状态；首个有效初审胜出 |
 | 导师/老师重复审批得到 409 | 条件更新阻止并发重复状态迁移 | 刷新详情，不要重复提交 | 检查审计时间线和当前状态，不要直接改数据库 |
 | 老师终审返回 `503 DEPENDENCY_UNAVAILABLE`，页面提示终审未完成 | 终审事务的数据库操作失败；曾出现项目月 bucket 更新 SQL 使用 `$1..$4` 但只传 3 个参数，pgx 报 `mismatched param and argument count` | 保持终审事务向 bucket 更新完整传入额度、时间、项目 ID 和月份；失败时事务必须回滚，修复后重新终审 | 从响应复制 `request_id`，在 backend 日志中按该 ID 定位真实错误；运行 `go test ./internal/usage -run TestApproveKeyBindsProjectBucketMonth` 和 `cd frontend; npm run test -- src/api/client.test.ts` |

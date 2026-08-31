@@ -163,6 +163,33 @@ func (_u *ModelUpdate) ClearContextWindow() *ModelUpdate {
 	return _u
 }
 
+// SetMaxInputTokens sets the "max_input_tokens" field.
+func (_u *ModelUpdate) SetMaxInputTokens(v int) *ModelUpdate {
+	_u.mutation.ResetMaxInputTokens()
+	_u.mutation.SetMaxInputTokens(v)
+	return _u
+}
+
+// SetNillableMaxInputTokens sets the "max_input_tokens" field if the given value is not nil.
+func (_u *ModelUpdate) SetNillableMaxInputTokens(v *int) *ModelUpdate {
+	if v != nil {
+		_u.SetMaxInputTokens(*v)
+	}
+	return _u
+}
+
+// AddMaxInputTokens adds value to the "max_input_tokens" field.
+func (_u *ModelUpdate) AddMaxInputTokens(v int) *ModelUpdate {
+	_u.mutation.AddMaxInputTokens(v)
+	return _u
+}
+
+// ClearMaxInputTokens clears the value of the "max_input_tokens" field.
+func (_u *ModelUpdate) ClearMaxInputTokens() *ModelUpdate {
+	_u.mutation.ClearMaxInputTokens()
+	return _u
+}
+
 // SetMaxOutputTokens sets the "max_output_tokens" field.
 func (_u *ModelUpdate) SetMaxOutputTokens(v int) *ModelUpdate {
 	_u.mutation.ResetMaxOutputTokens()
@@ -385,6 +412,11 @@ func (_u *ModelUpdate) check() error {
 			return &ValidationError{Name: "context_window", err: fmt.Errorf(`ent: validator failed for field "Model.context_window": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.MaxInputTokens(); ok {
+		if err := model.MaxInputTokensValidator(v); err != nil {
+			return &ValidationError{Name: "max_input_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_input_tokens": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxOutputTokens(); ok {
 		if err := model.MaxOutputTokensValidator(v); err != nil {
 			return &ValidationError{Name: "max_output_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_output_tokens": %w`, err)}
@@ -465,6 +497,15 @@ func (_u *ModelUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ContextWindowCleared() {
 		_spec.ClearField(model.FieldContextWindow, field.TypeInt)
+	}
+	if value, ok := _u.mutation.MaxInputTokens(); ok {
+		_spec.SetField(model.FieldMaxInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxInputTokens(); ok {
+		_spec.AddField(model.FieldMaxInputTokens, field.TypeInt, value)
+	}
+	if _u.mutation.MaxInputTokensCleared() {
+		_spec.ClearField(model.FieldMaxInputTokens, field.TypeInt)
 	}
 	if value, ok := _u.mutation.MaxOutputTokens(); ok {
 		_spec.SetField(model.FieldMaxOutputTokens, field.TypeInt, value)
@@ -731,6 +772,33 @@ func (_u *ModelUpdateOne) ClearContextWindow() *ModelUpdateOne {
 	return _u
 }
 
+// SetMaxInputTokens sets the "max_input_tokens" field.
+func (_u *ModelUpdateOne) SetMaxInputTokens(v int) *ModelUpdateOne {
+	_u.mutation.ResetMaxInputTokens()
+	_u.mutation.SetMaxInputTokens(v)
+	return _u
+}
+
+// SetNillableMaxInputTokens sets the "max_input_tokens" field if the given value is not nil.
+func (_u *ModelUpdateOne) SetNillableMaxInputTokens(v *int) *ModelUpdateOne {
+	if v != nil {
+		_u.SetMaxInputTokens(*v)
+	}
+	return _u
+}
+
+// AddMaxInputTokens adds value to the "max_input_tokens" field.
+func (_u *ModelUpdateOne) AddMaxInputTokens(v int) *ModelUpdateOne {
+	_u.mutation.AddMaxInputTokens(v)
+	return _u
+}
+
+// ClearMaxInputTokens clears the value of the "max_input_tokens" field.
+func (_u *ModelUpdateOne) ClearMaxInputTokens() *ModelUpdateOne {
+	_u.mutation.ClearMaxInputTokens()
+	return _u
+}
+
 // SetMaxOutputTokens sets the "max_output_tokens" field.
 func (_u *ModelUpdateOne) SetMaxOutputTokens(v int) *ModelUpdateOne {
 	_u.mutation.ResetMaxOutputTokens()
@@ -966,6 +1034,11 @@ func (_u *ModelUpdateOne) check() error {
 			return &ValidationError{Name: "context_window", err: fmt.Errorf(`ent: validator failed for field "Model.context_window": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.MaxInputTokens(); ok {
+		if err := model.MaxInputTokensValidator(v); err != nil {
+			return &ValidationError{Name: "max_input_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_input_tokens": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.MaxOutputTokens(); ok {
 		if err := model.MaxOutputTokensValidator(v); err != nil {
 			return &ValidationError{Name: "max_output_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_output_tokens": %w`, err)}
@@ -1063,6 +1136,15 @@ func (_u *ModelUpdateOne) sqlSave(ctx context.Context) (_node *Model, err error)
 	}
 	if _u.mutation.ContextWindowCleared() {
 		_spec.ClearField(model.FieldContextWindow, field.TypeInt)
+	}
+	if value, ok := _u.mutation.MaxInputTokens(); ok {
+		_spec.SetField(model.FieldMaxInputTokens, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxInputTokens(); ok {
+		_spec.AddField(model.FieldMaxInputTokens, field.TypeInt, value)
+	}
+	if _u.mutation.MaxInputTokensCleared() {
+		_spec.ClearField(model.FieldMaxInputTokens, field.TypeInt)
 	}
 	if value, ok := _u.mutation.MaxOutputTokens(); ok {
 		_spec.SetField(model.FieldMaxOutputTokens, field.TypeInt, value)

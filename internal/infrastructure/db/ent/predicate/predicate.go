@@ -27,6 +27,9 @@ type GatewayCallAttempt func(*sql.Selector)
 // MaintenanceState is the predicate function for maintenancestate builders.
 type MaintenanceState func(*sql.Selector)
 
+// MatrixModelCatalog is the predicate function for matrixmodelcatalog builders.
+type MatrixModelCatalog func(*sql.Selector)
+
 // MentorProjectApplication is the predicate function for mentorprojectapplication builders.
 type MentorProjectApplication func(*sql.Selector)
 

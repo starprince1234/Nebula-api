@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -329,6 +330,7 @@ type modelPayload struct {
 	InputModalities        []string `json:"input_modalities"`
 	OutputModalities       []string `json:"output_modalities"`
 	ContextWindow          *int     `json:"context_window"`
+	MaxInputTokens         *int     `json:"max_input_tokens"`
 	MaxOutputTokens        *int     `json:"max_output_tokens"`
 	IsCommon               *bool    `json:"is_common"`
 	Status                 *string  `json:"status"`
@@ -364,6 +366,7 @@ type modelPatchPayload struct {
 	OutputModalities       []string           `json:"output_modalities"`
 	ContextWindow          nullableIntPayload `json:"context_window"`
 	MaxOutputTokens        nullableIntPayload `json:"max_output_tokens"`
+	MaxInputTokens         nullableIntPayload `json:"max_input_tokens"`
 	IsCommon               *bool              `json:"is_common"`
 	Status                 *string            `json:"status"`
 	CreditMultiplier       string             `json:"credit_multiplier"`
@@ -383,6 +386,7 @@ func (payload modelPayload) input() controlplane.ModelInput {
 		Description: payload.Description, Category: payload.Category,
 		Capabilities: payload.Capabilities, InputModalities: payload.InputModalities,
 		OutputModalities: payload.OutputModalities, ContextWindow: payload.ContextWindow,
+		MaxInputTokens:  payload.MaxInputTokens,
 		MaxOutputTokens: payload.MaxOutputTokens, IsCommon: payload.IsCommon, Status: payload.Status,
 		CreditMultiplierMilli: multiplier, MultiplierChangeReason: payload.MultiplierChangeReason,
 	}
@@ -395,6 +399,56 @@ func (s *Server) teacherModels(c *gin.Context) {
 		return
 	}
 	respondList(c, rows)
+}
+
+func (s *Server) teacherModelCatalogCandidates(c *gin.Context) {
+	page, pageSize := 1, 20
+	if raw := c.Query("page"); raw != "" {
+		if _, err := fmt.Sscan(raw, &page); err != nil {
+			writeError(c, domain.NewError(domain.CodeValidation, "invalid page"))
+			return
+		}
+	}
+	if raw := c.Query("page_size"); raw != "" {
+		if _, err := fmt.Sscan(raw, &pageSize); err != nil {
+			writeError(c, domain.NewError(domain.CodeValidation, "invalid page_size"))
+			return
+		}
+	}
+	result, err := s.service.ModelCatalogCandidates(c.Request.Context(), c.Query("q"), page, pageSize)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	respond(c, http.StatusOK, result)
+}
+
+func (s *Server) probeModel(c *gin.Context) {
+	var input struct {
+		ProviderID        string   `json:"provider_id"`
+		BaseURL           string   `json:"base_url"`
+		Credential        string   `json:"credential"`
+		UpstreamModelName string   `json:"upstream_model_name" binding:"required"`
+		Endpoints         []string `json:"endpoints" binding:"required"`
+	}
+	if !bindJSON(c, &input) {
+		return
+	}
+	var providerID *uuid.UUID
+	if strings.TrimSpace(input.ProviderID) != "" {
+		id, err := controlplane.UUID(input.ProviderID)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		providerID = &id
+	}
+	result, err := s.service.ProbeModel(c.Request.Context(), controlplane.ProbeInput{ProviderID: providerID, BaseURL: input.BaseURL, Credential: input.Credential, UpstreamModelName: input.UpstreamModelName, Endpoints: input.Endpoints})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	respond(c, http.StatusOK, result)
 }
 
 func (s *Server) createModel(c *gin.Context) {
@@ -421,8 +475,9 @@ func (s *Server) createModel(c *gin.Context) {
 }
 
 func (s *Server) teacherModel(c *gin.Context) {
-	modelID, ok := pathID(c, "model_id")
-	if !ok {
+	modelID := strings.TrimSpace(c.Query("model_id"))
+	if modelID == "" {
+		writeError(c, domain.NewError(domain.CodeValidation, "model_id is required"))
 		return
 	}
 	model, bindings, err := s.service.TeacherModel(c.Request.Context(), modelID)
@@ -434,11 +489,10 @@ func (s *Server) teacherModel(c *gin.Context) {
 }
 
 func (s *Server) updateModel(c *gin.Context) {
-	modelID, ok := pathID(c, "model_id")
-	if !ok {
-		return
+	var input struct {
+		ModelID string `json:"model_id" binding:"required"`
+		modelPatchPayload
 	}
-	var input modelPatchPayload
 	if !bindJSON(c, &input) {
 		return
 	}
@@ -451,11 +505,12 @@ func (s *Server) updateModel(c *gin.Context) {
 		}
 		multiplier = &value
 	}
-	view, err := s.service.UpdateModel(c.Request.Context(), identity(c).UserID, modelID, controlplane.ModelInput{
+	view, err := s.service.UpdateModel(c.Request.Context(), identity(c).UserID, input.ModelID, controlplane.ModelInput{
 		DisplayName: input.DisplayName, Description: input.Description, Category: input.Category,
 		Capabilities: input.Capabilities, InputModalities: input.InputModalities,
 		OutputModalities: input.OutputModalities, ContextWindow: input.ContextWindow.Value,
 		ContextWindowSet: input.ContextWindow.Set, MaxOutputTokens: input.MaxOutputTokens.Value,
+		MaxInputTokens: input.MaxInputTokens.Value, MaxInputTokensSet: input.MaxInputTokens.Set,
 		MaxOutputTokensSet: input.MaxOutputTokens.Set, IsCommon: input.IsCommon, Status: input.Status,
 		CreditMultiplierMilli: multiplier, MultiplierChangeReason: input.MultiplierChangeReason,
 	})
@@ -467,11 +522,8 @@ func (s *Server) updateModel(c *gin.Context) {
 }
 
 func (s *Server) createBinding(c *gin.Context) {
-	modelID, ok := pathID(c, "model_id")
-	if !ok {
-		return
-	}
 	var input struct {
+		ModelID           string `json:"model_id" binding:"required"`
 		ProviderID        string `json:"provider_id" binding:"required"`
 		UpstreamModelName string `json:"upstream_model_name" binding:"required"`
 		Adapter           string `json:"adapter" binding:"required"`
@@ -493,7 +545,7 @@ func (s *Server) createBinding(c *gin.Context) {
 	if input.Status == "" {
 		input.Status = "active"
 	}
-	view, err := s.service.CreateBinding(c.Request.Context(), modelID, controlplane.BindingInput{
+	view, err := s.service.CreateBinding(c.Request.Context(), input.ModelID, controlplane.BindingInput{
 		ProviderID: providerID, UpstreamModelName: input.UpstreamModelName,
 		Adapter: input.Adapter, Priority: priority, Status: input.Status,
 	})

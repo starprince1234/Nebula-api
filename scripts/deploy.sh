@@ -81,6 +81,7 @@ required_secrets=(
   TEST_MENTOR_3_PASSWORD
   SMTP_HOST
   SMTP_FROM
+  MATRIX_APIKEY
 )
 for name in "${required_secrets[@]}"; do
   value="${!name:-}"
@@ -239,6 +240,9 @@ pause_between_stages
 printf 'Starting maintenance worker\n'
 "${compose[@]}" up -d --no-build --no-deps --force-recreate maintenance
 wait_for_healthy_service maintenance
+printf 'Starting Matrix model catalog worker\n'
+"${compose[@]}" up -d --no-build --no-deps --force-recreate model-catalog
+wait_for_healthy_service model-catalog
 pause_between_stages
 
 printf 'Starting Cloudflare Tunnel\n'

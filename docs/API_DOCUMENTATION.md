@@ -232,12 +232,11 @@ data: {"revision":"01K2..."}
   "name": "research-key",
   "organization_id": "uuid",
   "project_id": "uuid",
-  "model_ids": ["gpt-4.1-mini"],
-  "requested_models": [{"model_id":"new-lab-model","display_name":"Lab Model","description":null,"category":"text","capabilities":["chat"],"input_modalities":["text"],"output_modalities":["text"],"context_window":null,"max_output_tokens":null}]
+  "models": [{"model_id":"gpt-4.1-mini"},{"model_id":"new-lab-model","display_name":"Lab Model"}]
 }
 ```
 
-- `model_ids` 与 `requested_models` 合计为 1 至 100 个大小写不敏感去重后的模型 ID。新模型必须在 `requested_models` 中提交完整模型卡片字段。
+- `models` 为 1 至 100 个大小写不敏感去重后的模型引用。`display_name` 选填；新模型省略时默认等于 `model_id`，已有模型始终复用平台权威信息。
 - 服务端校验项目确实属于 `organization_id`，但只持久化 `project_id`，避免组织归属冗余。
 - 新 `model_id` 大小写不敏感幂等创建为 `pending_configuration`。
 - 创建申请、候选模型和 `api_key_models` 必须在一个事务完成。
@@ -335,9 +334,11 @@ data: {"revision":"01K2..."}
 | 供应商 | PATCH | `/api/v1/teacher/providers/{provider_id}` | 修改名称、URL、状态；可替换凭据 |
 | 模型 | GET | `/api/v1/teacher/models` | 全部模型去重视图与 `route_ready` |
 | 模型 | POST | `/api/v1/teacher/models` | 主动添加模型 |
-| 模型 | GET | `/api/v1/teacher/models/{model_id}` | 模型及 binding 详情 |
-| 模型 | PATCH | `/api/v1/teacher/models/{model_id}` | 配置模型元数据、常用标记和状态 |
-| Binding | POST | `/api/v1/teacher/models/{model_id}/bindings` | 添加供应商 binding |
+| 模型 | GET | `/api/v1/teacher/models/detail?model_id=...` | 按业务模型 ID 查询模型及 binding 详情 |
+| 模型 | PATCH | `/api/v1/teacher/models/configuration` | 请求体携带 `model_id`，配置模型元数据、常用标记和状态 |
+| Binding | POST | `/api/v1/teacher/model-bindings` | 请求体携带 `model_id`，添加供应商 binding |
+| Matrix 目录 | GET | `/api/v1/teacher/model-catalog-candidates?q=&page=&page_size=` | 老师新增模型向导分页搜索 |
+| 模型测试 | POST | `/api/v1/teacher/model-probes` | 真实测试文本/检索端点并提取明确容量字段 |
 | Binding | PATCH | `/api/v1/teacher/model-bindings/{binding_id}` | 修改上游名、adapter、priority 或状态 |
 | Key 终审 | GET | `/api/v1/teacher/api-key-reviews` | 只列出 `pending_teacher` 摘要 |
 | Key 终审 | GET | `/api/v1/teacher/api-key-reviews/{api_key_id}` | 待终审摘要详情 |
@@ -370,7 +371,7 @@ data: {"revision":"01K2..."}
 
 模型创建/修改使用核心模型字段。将模型改为 `active` 前必须至少存在一个 ACTIVE binding，且对应 provider 为 ACTIVE。Binding 请求形状：
 
-`context_window` 和 `max_output_tokens` 在 PATCH 中支持三态：省略保持不变、`null` 清空、正整数更新。`model_id` 创建后只读。激活模型、停用 provider 或停用 binding 会在事务内锁定相关路由记录；若操作会令 ACTIVE 模型失去最后可用路由，返回 `409 MODEL_ROUTING_REQUIRED`，并在 `details.model_ids` 给出受影响模型。
+`context_window`、`max_input_tokens` 和 `max_output_tokens` 在 PATCH 中支持三态：省略保持不变、`null` 清空、正整数更新；它们只表示模型容量，不参与计费。`model_id` 创建后只读。能力只允许 `reasoning`、`vision`、`tool_calling`、`structured_output`、`web_search`、`coding`、`embeddings`、`rerank`、`realtime`、`image_generation`、`video_generation`、`speech_to_text`、`text_to_speech`。激活模型、停用 provider 或停用 binding 会在事务内锁定相关路由记录；若操作会令 ACTIVE 模型失去最后可用路由，返回 `409 MODEL_ROUTING_REQUIRED`，并在 `details.model_ids` 给出受影响模型。
 
 ```json
 {
@@ -402,7 +403,7 @@ data: {"revision":"01K2..."}
 
 老师模型列表的集合是所有 `models`，即平台用户曾申请模型的大小写不敏感去重并集加老师主动添加的模型；不返回申请次数或申请用户身份。
 
-学生在申请 Key 阶段直接填写新模型完整卡片字段（`model_id`、`display_name`、`description`、`category`、`capabilities`、`input_modalities`、`output_modalities`、`context_window`、`max_output_tokens`）。服务端在提交事务内按 `model_id` 查询：已有模型直接复用平台权威配置；不存在时以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。模型申请审批通过并完成配置后，自动出现在学生模型广场。
+学生在申请 Key 阶段只填写 `model_id` 和可选 `display_name`。服务端在提交事务内按 `model_id` 查询：已有模型直接复用平台权威配置；不存在时以 `pending_configuration` 创建。并发创建同一 ID 时首个成功记录为权威，后续申请复用该记录。模型申请审批通过并完成配置后，自动出现在学生模型广场。
 
 ### 7.3 Key 终审可见范围
 
@@ -466,9 +467,11 @@ data: {"revision":"01K2..."}
 - Realtime 使用 `Authorization` Header；浏览器无法设置 Header 时可使用标准 `Sec-WebSocket-Protocol` 承载凭据，不接受查询参数中的 API Key。
 - Responses WebSocket 使用同一个 `/v1/responses`，在首个 `response.create` frame 中提取公开 model 并改写为上游 model；`OpenAI-Beta`、Codex metadata Header、`previous_response_id`、`prompt_cache_key`、加密 reasoning/compaction item 和未知字段均透明保留。
 - Key 必须为 `active`，所请求 `model` 必须位于 `api_key_models` 白名单，模型、binding 和 provider 均须为 `active`。
-- `/v1/models` 仅返回当前 Key 白名单中当前可路由的模型。
+- `/v1/models` 返回当前 Key 关联的全部白名单模型，不以状态或路由就绪过滤；真正调用时仍要求模型、匹配 adapter 的 binding 和 provider 均为 active。
 
 网关按模型倍率执行月度 credit 额度检查与调用记录；目录查询、视频状态查询和内容下载不计费。
+
+老师模型 Probe 支持 `chat_completions`、`responses`、`messages`、`embeddings`、`rerank`。已注册供应商只提交 `provider_id`，凭据不返回浏览器；手写 Key 不持久化。手写 Base URL 只允许公网 HTTP/HTTPS，不跟随重定向，并在连接阶段再次拒绝私网、localhost、链路本地和云元数据地址。响应最多返回 64 KiB；只识别明确命名的 context/max input/max output 容量字段，不把 usage、价格、Content-Length 或 `max_bytes` 当成容量。
 
 ### 8.3 代理与故障切换
 

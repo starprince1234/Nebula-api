@@ -41,22 +41,14 @@ func (s *Server) studentModels(c *gin.Context) {
 
 func (s *Server) submitAPIKey(c *gin.Context) {
 	var input struct {
-		Name                    string   `json:"name" binding:"required"`
-		OrganizationID          string   `json:"organization_id" binding:"required"`
-		ProjectID               string   `json:"project_id" binding:"required"`
-		ModelIDs                []string `json:"model_ids"`
-		RequestedMonthlyCredits string   `json:"requested_monthly_credits" binding:"required"`
-		RequestedModels         []struct {
-			ModelID          string   `json:"model_id" binding:"required"`
-			DisplayName      string   `json:"display_name" binding:"required"`
-			Description      *string  `json:"description"`
-			Category         string   `json:"category" binding:"required"`
-			Capabilities     []string `json:"capabilities" binding:"required"`
-			InputModalities  []string `json:"input_modalities" binding:"required"`
-			OutputModalities []string `json:"output_modalities" binding:"required"`
-			ContextWindow    *int     `json:"context_window"`
-			MaxOutputTokens  *int     `json:"max_output_tokens"`
-		} `json:"requested_models"`
+		Name           string `json:"name" binding:"required"`
+		OrganizationID string `json:"organization_id" binding:"required"`
+		ProjectID      string `json:"project_id" binding:"required"`
+		Models         []struct {
+			ModelID     string `json:"model_id" binding:"required"`
+			DisplayName string `json:"display_name"`
+		} `json:"models" binding:"required"`
+		RequestedMonthlyCredits string `json:"requested_monthly_credits" binding:"required"`
 	}
 	if !bindJSON(c, &input) {
 		return
@@ -76,18 +68,13 @@ func (s *Server) submitAPIKey(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	requested := make([]controlplane.RequestedModelInput, 0, len(input.RequestedModels))
-	for _, item := range input.RequestedModels {
-		requested = append(requested, controlplane.RequestedModelInput{
-			ModelID: item.ModelID, DisplayName: item.DisplayName, Description: item.Description,
-			Category: item.Category, Capabilities: item.Capabilities,
-			InputModalities: item.InputModalities, OutputModalities: item.OutputModalities,
-			ContextWindow: item.ContextWindow, MaxOutputTokens: item.MaxOutputTokens,
-		})
+	requested := make([]controlplane.RequestedModelInput, 0, len(input.Models))
+	for _, item := range input.Models {
+		requested = append(requested, controlplane.RequestedModelInput{ModelID: item.ModelID, DisplayName: item.DisplayName})
 	}
 	view, err := s.service.SubmitAPIKey(c.Request.Context(), identity(c).UserID, controlplane.SubmitAPIKeyInput{
 		Name: input.Name, OrganizationID: organizationID, ProjectID: projectID,
-		ModelIDs: input.ModelIDs, RequestedModels: requested,
+		Models:                  requested,
 		RequestedMonthlyCredits: requestedCredits,
 	})
 	if err != nil {

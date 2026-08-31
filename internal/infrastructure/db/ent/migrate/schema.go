@@ -305,6 +305,35 @@ var (
 		Columns:    MaintenanceStateColumns,
 		PrimaryKey: []*schema.Column{MaintenanceStateColumns[0]},
 	}
+	// MatrixModelCatalogColumns holds the columns for the "matrix_model_catalog" table.
+	MatrixModelCatalogColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "model_id", Type: field.TypeString, Unique: true, Size: 256, SchemaType: map[string]string{"postgres": "citext"}},
+		{Name: "description", Type: field.TypeString, Nullable: true, Size: 4096},
+		{Name: "owned_by", Type: field.TypeJSON},
+		{Name: "model_types", Type: field.TypeJSON},
+		{Name: "supported_endpoint_types", Type: field.TypeJSON},
+		{Name: "tags", Type: field.TypeJSON},
+		{Name: "raw_entries", Type: field.TypeJSON},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
+		{Name: "last_seen_at", Type: field.TypeTime},
+		{Name: "synced_at", Type: field.TypeTime},
+	}
+	// MatrixModelCatalogTable holds the schema information for the "matrix_model_catalog" table.
+	MatrixModelCatalogTable = &schema.Table{
+		Name:       "matrix_model_catalog",
+		Columns:    MatrixModelCatalogColumns,
+		PrimaryKey: []*schema.Column{MatrixModelCatalogColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "matrixmodelcatalog_status_model_id",
+				Unique:  false,
+				Columns: []*schema.Column{MatrixModelCatalogColumns[10], MatrixModelCatalogColumns[3]},
+			},
+		},
+	}
 	// MentorProjectApplicationsColumns holds the columns for the "mentor_project_applications" table.
 	MentorProjectApplicationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
@@ -375,6 +404,7 @@ var (
 		{Name: "input_modalities", Type: field.TypeJSON},
 		{Name: "output_modalities", Type: field.TypeJSON},
 		{Name: "context_window", Type: field.TypeInt, Nullable: true},
+		{Name: "max_input_tokens", Type: field.TypeInt, Nullable: true},
 		{Name: "max_output_tokens", Type: field.TypeInt, Nullable: true},
 		{Name: "is_common", Type: field.TypeBool, Default: false},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending_configuration", "active", "inactive"}, Default: "pending_configuration"},
@@ -389,12 +419,12 @@ var (
 			{
 				Name:    "model_status_is_common",
 				Unique:  false,
-				Columns: []*schema.Column{ModelsColumns[13], ModelsColumns[12]},
+				Columns: []*schema.Column{ModelsColumns[14], ModelsColumns[13]},
 			},
 			{
 				Name:    "model_category_status",
 				Unique:  false,
-				Columns: []*schema.Column{ModelsColumns[6], ModelsColumns[13]},
+				Columns: []*schema.Column{ModelsColumns[6], ModelsColumns[14]},
 			},
 		},
 	}
@@ -846,6 +876,7 @@ var (
 		GatewayCallsTable,
 		GatewayCallAttemptsTable,
 		MaintenanceStateTable,
+		MatrixModelCatalogTable,
 		MentorProjectApplicationsTable,
 		ModelsTable,
 		ModelBindingsTable,
@@ -900,6 +931,9 @@ func init() {
 	}
 	MaintenanceStateTable.Annotation = &entsql.Annotation{
 		Table: "maintenance_state",
+	}
+	MatrixModelCatalogTable.Annotation = &entsql.Annotation{
+		Table: "matrix_model_catalog",
 	}
 	MentorProjectApplicationsTable.ForeignKeys[0].RefTable = ProjectsTable
 	MentorProjectApplicationsTable.ForeignKeys[1].RefTable = UsersTable

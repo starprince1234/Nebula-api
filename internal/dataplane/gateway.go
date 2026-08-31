@@ -191,12 +191,7 @@ func (g *Gateway) authenticate(r *http.Request) (*ent.APIKey, error) {
 
 func (g *Gateway) serveModels(w http.ResponseWriter, r *http.Request, key *ent.APIKey) {
 	rows, err := g.db.Model.Query().Where(
-		entmodel.StatusEQ(entmodel.StatusActive),
 		entmodel.HasAPIKeyModelsWith(apikeymodel.APIKeyIDEQ(key.ID)),
-		entmodel.HasBindingsWith(
-			modelbinding.StatusEQ(modelbinding.StatusActive),
-			modelbinding.HasProviderWith(provider.StatusEQ(provider.StatusActive)),
-		),
 	).Order(ent.Asc(entmodel.FieldModelID)).All(r.Context())
 	if err != nil {
 		writeOpenAIError(w, http.StatusServiceUnavailable, "server_error", "dependency_unavailable", "Model catalog is unavailable.", "")

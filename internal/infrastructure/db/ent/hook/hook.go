@@ -93,6 +93,18 @@ func (f MaintenanceStateFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MaintenanceStateMutation", m)
 }
 
+// The MatrixModelCatalogFunc type is an adapter to allow the use of ordinary
+// function as MatrixModelCatalog mutator.
+type MatrixModelCatalogFunc func(context.Context, *ent.MatrixModelCatalogMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MatrixModelCatalogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MatrixModelCatalogMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MatrixModelCatalogMutation", m)
+}
+
 // The MentorProjectApplicationFunc type is an adapter to allow the use of ordinary
 // function as MentorProjectApplication mutator.
 type MentorProjectApplicationFunc func(context.Context, *ent.MentorProjectApplicationMutation) (ent.Value, error)

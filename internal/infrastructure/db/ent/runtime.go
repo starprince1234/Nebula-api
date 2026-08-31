@@ -13,6 +13,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/matrixmodelcatalog"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
@@ -27,8 +28,8 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/promptaccessaudit"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/quotaadjustmentaudit"
-	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/schema"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/user"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -354,6 +355,69 @@ func init() {
 	maintenancestateDescID := maintenancestateMixinFields0[0].Descriptor()
 	// maintenancestate.DefaultID holds the default value on creation for the id field.
 	maintenancestate.DefaultID = maintenancestateDescID.Default.(func() uuid.UUID)
+	matrixmodelcatalogMixin := schema.MatrixModelCatalog{}.Mixin()
+	matrixmodelcatalogMixinFields0 := matrixmodelcatalogMixin[0].Fields()
+	_ = matrixmodelcatalogMixinFields0
+	matrixmodelcatalogMixinFields1 := matrixmodelcatalogMixin[1].Fields()
+	_ = matrixmodelcatalogMixinFields1
+	matrixmodelcatalogFields := schema.MatrixModelCatalog{}.Fields()
+	_ = matrixmodelcatalogFields
+	// matrixmodelcatalogDescCreatedAt is the schema descriptor for created_at field.
+	matrixmodelcatalogDescCreatedAt := matrixmodelcatalogMixinFields1[0].Descriptor()
+	// matrixmodelcatalog.DefaultCreatedAt holds the default value on creation for the created_at field.
+	matrixmodelcatalog.DefaultCreatedAt = matrixmodelcatalogDescCreatedAt.Default.(func() time.Time)
+	// matrixmodelcatalogDescUpdatedAt is the schema descriptor for updated_at field.
+	matrixmodelcatalogDescUpdatedAt := matrixmodelcatalogMixinFields1[1].Descriptor()
+	// matrixmodelcatalog.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	matrixmodelcatalog.DefaultUpdatedAt = matrixmodelcatalogDescUpdatedAt.Default.(func() time.Time)
+	// matrixmodelcatalog.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	matrixmodelcatalog.UpdateDefaultUpdatedAt = matrixmodelcatalogDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// matrixmodelcatalogDescModelID is the schema descriptor for model_id field.
+	matrixmodelcatalogDescModelID := matrixmodelcatalogFields[0].Descriptor()
+	// matrixmodelcatalog.ModelIDValidator is a validator for the "model_id" field. It is called by the builders before save.
+	matrixmodelcatalog.ModelIDValidator = func() func(string) error {
+		validators := matrixmodelcatalogDescModelID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(model_id string) error {
+			for _, fn := range fns {
+				if err := fn(model_id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// matrixmodelcatalogDescDescription is the schema descriptor for description field.
+	matrixmodelcatalogDescDescription := matrixmodelcatalogFields[1].Descriptor()
+	// matrixmodelcatalog.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
+	matrixmodelcatalog.DescriptionValidator = matrixmodelcatalogDescDescription.Validators[0].(func(string) error)
+	// matrixmodelcatalogDescOwnedBy is the schema descriptor for owned_by field.
+	matrixmodelcatalogDescOwnedBy := matrixmodelcatalogFields[2].Descriptor()
+	// matrixmodelcatalog.DefaultOwnedBy holds the default value on creation for the owned_by field.
+	matrixmodelcatalog.DefaultOwnedBy = matrixmodelcatalogDescOwnedBy.Default.([]string)
+	// matrixmodelcatalogDescModelTypes is the schema descriptor for model_types field.
+	matrixmodelcatalogDescModelTypes := matrixmodelcatalogFields[3].Descriptor()
+	// matrixmodelcatalog.DefaultModelTypes holds the default value on creation for the model_types field.
+	matrixmodelcatalog.DefaultModelTypes = matrixmodelcatalogDescModelTypes.Default.([]string)
+	// matrixmodelcatalogDescSupportedEndpointTypes is the schema descriptor for supported_endpoint_types field.
+	matrixmodelcatalogDescSupportedEndpointTypes := matrixmodelcatalogFields[4].Descriptor()
+	// matrixmodelcatalog.DefaultSupportedEndpointTypes holds the default value on creation for the supported_endpoint_types field.
+	matrixmodelcatalog.DefaultSupportedEndpointTypes = matrixmodelcatalogDescSupportedEndpointTypes.Default.([]string)
+	// matrixmodelcatalogDescTags is the schema descriptor for tags field.
+	matrixmodelcatalogDescTags := matrixmodelcatalogFields[5].Descriptor()
+	// matrixmodelcatalog.DefaultTags holds the default value on creation for the tags field.
+	matrixmodelcatalog.DefaultTags = matrixmodelcatalogDescTags.Default.([]string)
+	// matrixmodelcatalogDescRawEntries is the schema descriptor for raw_entries field.
+	matrixmodelcatalogDescRawEntries := matrixmodelcatalogFields[6].Descriptor()
+	// matrixmodelcatalog.DefaultRawEntries holds the default value on creation for the raw_entries field.
+	matrixmodelcatalog.DefaultRawEntries = matrixmodelcatalogDescRawEntries.Default.([]map[string]interface{})
+	// matrixmodelcatalogDescID is the schema descriptor for id field.
+	matrixmodelcatalogDescID := matrixmodelcatalogMixinFields0[0].Descriptor()
+	// matrixmodelcatalog.DefaultID holds the default value on creation for the id field.
+	matrixmodelcatalog.DefaultID = matrixmodelcatalogDescID.Default.(func() uuid.UUID)
 	mentorprojectapplicationMixin := schema.MentorProjectApplication{}.Mixin()
 	mentorprojectapplicationMixinFields0 := mentorprojectapplicationMixin[0].Fields()
 	_ = mentorprojectapplicationMixinFields0
@@ -446,16 +510,20 @@ func init() {
 	modelDescContextWindow := modelFields[7].Descriptor()
 	// model.ContextWindowValidator is a validator for the "context_window" field. It is called by the builders before save.
 	model.ContextWindowValidator = modelDescContextWindow.Validators[0].(func(int) error)
+	// modelDescMaxInputTokens is the schema descriptor for max_input_tokens field.
+	modelDescMaxInputTokens := modelFields[8].Descriptor()
+	// model.MaxInputTokensValidator is a validator for the "max_input_tokens" field. It is called by the builders before save.
+	model.MaxInputTokensValidator = modelDescMaxInputTokens.Validators[0].(func(int) error)
 	// modelDescMaxOutputTokens is the schema descriptor for max_output_tokens field.
-	modelDescMaxOutputTokens := modelFields[8].Descriptor()
+	modelDescMaxOutputTokens := modelFields[9].Descriptor()
 	// model.MaxOutputTokensValidator is a validator for the "max_output_tokens" field. It is called by the builders before save.
 	model.MaxOutputTokensValidator = modelDescMaxOutputTokens.Validators[0].(func(int) error)
 	// modelDescIsCommon is the schema descriptor for is_common field.
-	modelDescIsCommon := modelFields[9].Descriptor()
+	modelDescIsCommon := modelFields[10].Descriptor()
 	// model.DefaultIsCommon holds the default value on creation for the is_common field.
 	model.DefaultIsCommon = modelDescIsCommon.Default.(bool)
 	// modelDescCreditMultiplierMilli is the schema descriptor for credit_multiplier_milli field.
-	modelDescCreditMultiplierMilli := modelFields[11].Descriptor()
+	modelDescCreditMultiplierMilli := modelFields[12].Descriptor()
 	// model.CreditMultiplierMilliValidator is a validator for the "credit_multiplier_milli" field. It is called by the builders before save.
 	model.CreditMultiplierMilliValidator = func() func(int64) error {
 		validators := modelDescCreditMultiplierMilli.Validators

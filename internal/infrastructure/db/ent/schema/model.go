@@ -43,6 +43,7 @@ func (Model) Fields() []ent.Field {
 		field.JSON("input_modalities", []string{}).Default([]string{}),
 		field.JSON("output_modalities", []string{}).Default([]string{}),
 		field.Int("context_window").Optional().Nillable().Positive(),
+		field.Int("max_input_tokens").Optional().Nillable().Positive(),
 		field.Int("max_output_tokens").Optional().Nillable().Positive(),
 		field.Bool("is_common").Default(false),
 		field.Enum("status").

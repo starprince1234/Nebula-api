@@ -91,7 +91,7 @@ func parseLogFilter(c *gin.Context) (usage.LogFilter, error) {
 			*destination = &parsed
 		}
 	}
-	for name, dst := range map[string]**uuid.UUID{"project_id": &f.ProjectID, "user_id": &f.UserID, "api_key_id": &f.APIKeyID, "model_id": &f.ModelID} {
+	for name, dst := range map[string]**uuid.UUID{"project_id": &f.ProjectID, "user_id": &f.UserID, "api_key_id": &f.APIKeyID} {
 		if raw := strings.TrimSpace(c.Query(name)); raw != "" {
 			id, err := controlplane.UUID(raw)
 			if err != nil {
@@ -99,6 +99,9 @@ func parseLogFilter(c *gin.Context) (usage.LogFilter, error) {
 			}
 			*dst = &id
 		}
+	}
+	if raw := strings.TrimSpace(c.Query("model_id")); raw != "" {
+		f.ModelID = &raw
 	}
 	return f, nil
 }

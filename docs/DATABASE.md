@@ -158,6 +158,7 @@
 | `input_modalities` | jsonb string[] | 否 | `[]` | 输入模态集合 |
 | `output_modalities` | jsonb string[] | 否 | `[]` | 输出模态集合 |
 | `context_window` | integer | 是 | NULL | 正整数 |
+| `max_input_tokens` | integer | 是 | NULL | 正整数；模型容量，不参与计费 |
 | `max_output_tokens` | integer | 是 | NULL | 正整数 |
 | `is_common` | boolean | 否 | false | 是否属于全局常用模型 |
 | `status` | enum | 否 | `pending_configuration` | `pending_configuration/active/inactive` |
@@ -166,7 +167,11 @@
 
 索引：唯一索引 `model_id`；普通索引 `(status, is_common)`、`(category, status)`。
 
-学生提交申请时可直接输入尚不存在的 `model_id` 并提交完整模型卡片元数据，无需先调用模型检查接口。系统按 `model_id` 大小写不敏感去重，首个成功创建事务确定权威元数据，状态为 `pending_configuration`；后续并发申请复用既有记录。老师配置并启用模型后才能终审相关 Key，审批完成后学生模型广场自动刷新。
+学生提交申请时只提供 `model_id` 和可选 `display_name`。系统按 `model_id` 大小写不敏感去重；不存在时以名称默认等于 ID 的 `pending_configuration` 模型创建，已存在时忽略申请名称并复用平台权威配置。`capabilities` 只允许固定枚举，v0.8 迁移将历史自由文本能力全部清空。
+
+### 4.8.1 `matrix_model_catalog`
+
+Matrix 候选目录以 `model_id citext UNIQUE` 保存合并后的描述、owner、模型类型、端点类型、标签、原始条目数组、状态、最后出现时间和同步时间。同 ID 多条源记录合并为一行；集合取并集，描述选择最长非空纯文本，原始条目保留。成功快照中消失的记录标为 `inactive`，失败快照不改变上次成功数据。该表不直接关联学生白名单或平台 `models`。
 
 ### 4.9 `model_bindings`
 

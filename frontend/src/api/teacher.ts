@@ -1,5 +1,5 @@
 import { get, page, patch, post } from './client'
-import type { ApiKey, Application, Binding, BindingCreate, BindingUpdate, MentorCandidate, Model, ModelCreate, ModelUpdate, Organization, OrganizationCreate, OrganizationUpdate, Project, ProjectCreate, ProjectUpdate, Provider, ProviderCreate, ProviderUpdate, ProjectUsage } from './types'
+import type { ApiKey, Application, Binding, BindingCreate, BindingUpdate, MentorCandidate, Model, ModelCatalogPage, ModelCreate, ModelUpdate, Organization, OrganizationCreate, OrganizationUpdate, ProbeEndpoint, ProbeResponse, Project, ProjectCreate, ProjectUpdate, Provider, ProviderCreate, ProviderUpdate, ProjectUsage } from './types'
 export const teacherAPI = {
   invite: (email: string) => post<{ invited: boolean }>('/api/v1/teacher/invitations', { email }),
   organizations: () => get<Organization[]>('/api/v1/teacher/organizations'),
@@ -18,10 +18,12 @@ export const teacherAPI = {
   updateProvider: (id: string, body: ProviderUpdate) => patch<Provider>(`/api/v1/teacher/providers/${id}`, body),
   models: () => get<Model[]>('/api/v1/teacher/models'),
   createModel: (body: ModelCreate) => post<Model>('/api/v1/teacher/models', body),
-  updateModel: (id: string, body: ModelUpdate) => patch<Model>(`/api/v1/teacher/models/${id}`, body),
-  model: (id: string) => get<{ model: Model; bindings: Binding[] }>(`/api/v1/teacher/models/${id}`),
-  createBinding: (id: string, body: BindingCreate) => post<Binding>(`/api/v1/teacher/models/${id}/bindings`, body),
+  updateModel: (body: ModelUpdate) => patch<Model>('/api/v1/teacher/models/configuration', body),
+  model: (modelID: string) => get<{ model: Model; bindings: Binding[] }>(`/api/v1/teacher/models/detail?${new URLSearchParams({model_id:modelID})}`),
+  createBinding: (modelID: string, body: BindingCreate) => post<Binding>('/api/v1/teacher/model-bindings', {model_id:modelID,...body}),
   updateBinding: (id: string, body: BindingUpdate) => patch<Binding>(`/api/v1/teacher/model-bindings/${id}`, body),
+  catalogCandidates:(query='',pageNumber=1,pageSize=20)=>get<ModelCatalogPage>(`/api/v1/teacher/model-catalog-candidates?${new URLSearchParams({q:query,page:String(pageNumber),page_size:String(pageSize)})}`),
+  probeModel:(body:{provider_id?:string;base_url?:string;credential?:string;upstream_model_name:string;endpoints:ProbeEndpoint[]})=>post<ProbeResponse>('/api/v1/teacher/model-probes',body),
   keyReviews: () => get<ApiKey[]>('/api/v1/teacher/api-key-reviews'),
   keyReview: (id: string) => get<ApiKey>(`/api/v1/teacher/api-key-reviews/${id}`),
   reviewKey: (id: string, approve: boolean, monthly_credits?: string, comment?: string) => post<void>(`/api/v1/teacher/api-key-reviews/${id}/${approve ? 'approve' : 'reject'}`, { ...(approve ? { monthly_credits } : {}), ...(comment ? { comment } : {}) })

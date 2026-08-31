@@ -144,6 +144,21 @@ services:
     read_only: true
     restart: unless-stopped
 
+  model-catalog:
+    <<: *application-image
+    entrypoint: ["/app/nebula-model-catalog"]
+    environment:
+      DATABASE_URL:
+      MATRIX_APIKEY:
+    networks: [edge, data]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck: {disable: true}
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    restart: unless-stopped
+
   cloudflared:
     image: docker.m.daocloud.io/cloudflare/cloudflared:2025.8.1
     command: ["tunnel", "--no-autoupdate", "--protocol", "http2", "run"]

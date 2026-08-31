@@ -86,6 +86,11 @@ func ContextWindow(v int) predicate.Model {
 	return predicate.Model(sql.FieldEQ(FieldContextWindow, v))
 }
 
+// MaxInputTokens applies equality check predicate on the "max_input_tokens" field. It's identical to MaxInputTokensEQ.
+func MaxInputTokens(v int) predicate.Model {
+	return predicate.Model(sql.FieldEQ(FieldMaxInputTokens, v))
+}
+
 // MaxOutputTokens applies equality check predicate on the "max_output_tokens" field. It's identical to MaxOutputTokensEQ.
 func MaxOutputTokens(v int) predicate.Model {
 	return predicate.Model(sql.FieldEQ(FieldMaxOutputTokens, v))
@@ -454,6 +459,56 @@ func ContextWindowIsNil() predicate.Model {
 // ContextWindowNotNil applies the NotNil predicate on the "context_window" field.
 func ContextWindowNotNil() predicate.Model {
 	return predicate.Model(sql.FieldNotNull(FieldContextWindow))
+}
+
+// MaxInputTokensEQ applies the EQ predicate on the "max_input_tokens" field.
+func MaxInputTokensEQ(v int) predicate.Model {
+	return predicate.Model(sql.FieldEQ(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensNEQ applies the NEQ predicate on the "max_input_tokens" field.
+func MaxInputTokensNEQ(v int) predicate.Model {
+	return predicate.Model(sql.FieldNEQ(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensIn applies the In predicate on the "max_input_tokens" field.
+func MaxInputTokensIn(vs ...int) predicate.Model {
+	return predicate.Model(sql.FieldIn(FieldMaxInputTokens, vs...))
+}
+
+// MaxInputTokensNotIn applies the NotIn predicate on the "max_input_tokens" field.
+func MaxInputTokensNotIn(vs ...int) predicate.Model {
+	return predicate.Model(sql.FieldNotIn(FieldMaxInputTokens, vs...))
+}
+
+// MaxInputTokensGT applies the GT predicate on the "max_input_tokens" field.
+func MaxInputTokensGT(v int) predicate.Model {
+	return predicate.Model(sql.FieldGT(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensGTE applies the GTE predicate on the "max_input_tokens" field.
+func MaxInputTokensGTE(v int) predicate.Model {
+	return predicate.Model(sql.FieldGTE(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensLT applies the LT predicate on the "max_input_tokens" field.
+func MaxInputTokensLT(v int) predicate.Model {
+	return predicate.Model(sql.FieldLT(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensLTE applies the LTE predicate on the "max_input_tokens" field.
+func MaxInputTokensLTE(v int) predicate.Model {
+	return predicate.Model(sql.FieldLTE(FieldMaxInputTokens, v))
+}
+
+// MaxInputTokensIsNil applies the IsNil predicate on the "max_input_tokens" field.
+func MaxInputTokensIsNil() predicate.Model {
+	return predicate.Model(sql.FieldIsNull(FieldMaxInputTokens))
+}
+
+// MaxInputTokensNotNil applies the NotNil predicate on the "max_input_tokens" field.
+func MaxInputTokensNotNil() predicate.Model {
+	return predicate.Model(sql.FieldNotNull(FieldMaxInputTokens))
 }
 
 // MaxOutputTokensEQ applies the EQ predicate on the "max_output_tokens" field.

@@ -1,34 +1,21 @@
 package controlplane
 
-import (
-	"testing"
-
-	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
-)
+import "testing"
 
 func TestNormalizeRequestedModels(t *testing.T) {
-	contextWindow := 128000
-	ids, requested, err := normalizeRequestedModels([]string{"gpt-4.1"}, []RequestedModelInput{{
-		ModelID: " Lab-Model ", DisplayName: "Lab Model", Category: "multimodal",
-		Capabilities: []string{"vision", "Vision"}, InputModalities: []string{"text", "image"},
-		OutputModalities: []string{"text"}, ContextWindow: &contextWindow,
-	}})
+	models, err := normalizeRequestedModels([]RequestedModelInput{{ModelID: "gpt-4.1"}, {ModelID: " Lab-Model ", DisplayName: "Lab Model"}, {ModelID: "lab-model"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 2 || ids[1] != "Lab-Model" {
-		t.Fatalf("unexpected model IDs: %#v", ids)
-	}
-	item := requested["lab-model"]
-	if item.Category != string(model.CategoryMultimodal) || len(item.Capabilities) != 1 {
-		t.Fatalf("unexpected requested model: %#v", item)
+	if len(models) != 2 || models[1].ModelID != "Lab-Model" || models[1].DisplayName != "Lab Model" {
+		t.Fatalf("unexpected models: %#v", models)
 	}
 }
 
-func TestNormalizeRequestedModelsRequiresCompleteMetadata(t *testing.T) {
-	_, _, err := normalizeRequestedModels(nil, []RequestedModelInput{{ModelID: "lab-model", DisplayName: "Lab", Category: "text"}})
-	if err == nil {
-		t.Fatal("expected incomplete requested model to fail")
+func TestNormalizeRequestedModelsDefaultsDisplayName(t *testing.T) {
+	models, err := normalizeRequestedModels([]RequestedModelInput{{ModelID: "new-model"}})
+	if err != nil || len(models) != 1 || models[0].DisplayName != "new-model" {
+		t.Fatalf("unexpected models: %#v, err=%v", models, err)
 	}
 }
 

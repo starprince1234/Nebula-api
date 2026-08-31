@@ -23,6 +23,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/matrixmodelcatalog"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
@@ -59,6 +60,8 @@ type Client struct {
 	GatewayCallAttempt *GatewayCallAttemptClient
 	// MaintenanceState is the client for interacting with the MaintenanceState builders.
 	MaintenanceState *MaintenanceStateClient
+	// MatrixModelCatalog is the client for interacting with the MatrixModelCatalog builders.
+	MatrixModelCatalog *MatrixModelCatalogClient
 	// MentorProjectApplication is the client for interacting with the MentorProjectApplication builders.
 	MentorProjectApplication *MentorProjectApplicationClient
 	// Model is the client for interacting with the Model builders.
@@ -107,6 +110,7 @@ func (c *Client) init() {
 	c.GatewayCall = NewGatewayCallClient(c.config)
 	c.GatewayCallAttempt = NewGatewayCallAttemptClient(c.config)
 	c.MaintenanceState = NewMaintenanceStateClient(c.config)
+	c.MatrixModelCatalog = NewMatrixModelCatalogClient(c.config)
 	c.MentorProjectApplication = NewMentorProjectApplicationClient(c.config)
 	c.Model = NewModelClient(c.config)
 	c.ModelBinding = NewModelBindingClient(c.config)
@@ -221,6 +225,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		GatewayCall:              NewGatewayCallClient(cfg),
 		GatewayCallAttempt:       NewGatewayCallAttemptClient(cfg),
 		MaintenanceState:         NewMaintenanceStateClient(cfg),
+		MatrixModelCatalog:       NewMatrixModelCatalogClient(cfg),
 		MentorProjectApplication: NewMentorProjectApplicationClient(cfg),
 		Model:                    NewModelClient(cfg),
 		ModelBinding:             NewModelBindingClient(cfg),
@@ -262,6 +267,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		GatewayCall:              NewGatewayCallClient(cfg),
 		GatewayCallAttempt:       NewGatewayCallAttemptClient(cfg),
 		MaintenanceState:         NewMaintenanceStateClient(cfg),
+		MatrixModelCatalog:       NewMatrixModelCatalogClient(cfg),
 		MentorProjectApplication: NewMentorProjectApplicationClient(cfg),
 		Model:                    NewModelClient(cfg),
 		ModelBinding:             NewModelBindingClient(cfg),
@@ -307,7 +313,7 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.APIKeyMonthCreditBucket,
-		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState,
+		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState, c.MatrixModelCatalog,
 		c.MentorProjectApplication, c.Model, c.ModelBinding, c.ModelMultiplierAudit,
 		c.MonitoredInput, c.MonthlyUsageCube, c.Organization, c.OrganizationMember,
 		c.Project, c.ProjectMember, c.ProjectMonthCreditBucket, c.PromptAccessAudit,
@@ -322,7 +328,7 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.APIKey, c.APIKeyAudit, c.APIKeyModel, c.APIKeyMonthCreditBucket,
-		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState,
+		c.GatewayCall, c.GatewayCallAttempt, c.MaintenanceState, c.MatrixModelCatalog,
 		c.MentorProjectApplication, c.Model, c.ModelBinding, c.ModelMultiplierAudit,
 		c.MonitoredInput, c.MonthlyUsageCube, c.Organization, c.OrganizationMember,
 		c.Project, c.ProjectMember, c.ProjectMonthCreditBucket, c.PromptAccessAudit,
@@ -349,6 +355,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.GatewayCallAttempt.mutate(ctx, m)
 	case *MaintenanceStateMutation:
 		return c.MaintenanceState.mutate(ctx, m)
+	case *MatrixModelCatalogMutation:
+		return c.MatrixModelCatalog.mutate(ctx, m)
 	case *MentorProjectApplicationMutation:
 		return c.MentorProjectApplication.mutate(ctx, m)
 	case *ModelMutation:
@@ -1536,6 +1544,139 @@ func (c *MaintenanceStateClient) mutate(ctx context.Context, m *MaintenanceState
 		return (&MaintenanceStateDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown MaintenanceState mutation op: %q", m.Op())
+	}
+}
+
+// MatrixModelCatalogClient is a client for the MatrixModelCatalog schema.
+type MatrixModelCatalogClient struct {
+	config
+}
+
+// NewMatrixModelCatalogClient returns a client for the MatrixModelCatalog from the given config.
+func NewMatrixModelCatalogClient(c config) *MatrixModelCatalogClient {
+	return &MatrixModelCatalogClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `matrixmodelcatalog.Hooks(f(g(h())))`.
+func (c *MatrixModelCatalogClient) Use(hooks ...Hook) {
+	c.hooks.MatrixModelCatalog = append(c.hooks.MatrixModelCatalog, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `matrixmodelcatalog.Intercept(f(g(h())))`.
+func (c *MatrixModelCatalogClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MatrixModelCatalog = append(c.inters.MatrixModelCatalog, interceptors...)
+}
+
+// Create returns a builder for creating a MatrixModelCatalog entity.
+func (c *MatrixModelCatalogClient) Create() *MatrixModelCatalogCreate {
+	mutation := newMatrixModelCatalogMutation(c.config, OpCreate)
+	return &MatrixModelCatalogCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MatrixModelCatalog entities.
+func (c *MatrixModelCatalogClient) CreateBulk(builders ...*MatrixModelCatalogCreate) *MatrixModelCatalogCreateBulk {
+	return &MatrixModelCatalogCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *MatrixModelCatalogClient) MapCreateBulk(slice any, setFunc func(*MatrixModelCatalogCreate, int)) *MatrixModelCatalogCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &MatrixModelCatalogCreateBulk{err: fmt.Errorf("calling to MatrixModelCatalogClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*MatrixModelCatalogCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &MatrixModelCatalogCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MatrixModelCatalog.
+func (c *MatrixModelCatalogClient) Update() *MatrixModelCatalogUpdate {
+	mutation := newMatrixModelCatalogMutation(c.config, OpUpdate)
+	return &MatrixModelCatalogUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MatrixModelCatalogClient) UpdateOne(_m *MatrixModelCatalog) *MatrixModelCatalogUpdateOne {
+	mutation := newMatrixModelCatalogMutation(c.config, OpUpdateOne, withMatrixModelCatalog(_m))
+	return &MatrixModelCatalogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MatrixModelCatalogClient) UpdateOneID(id uuid.UUID) *MatrixModelCatalogUpdateOne {
+	mutation := newMatrixModelCatalogMutation(c.config, OpUpdateOne, withMatrixModelCatalogID(id))
+	return &MatrixModelCatalogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MatrixModelCatalog.
+func (c *MatrixModelCatalogClient) Delete() *MatrixModelCatalogDelete {
+	mutation := newMatrixModelCatalogMutation(c.config, OpDelete)
+	return &MatrixModelCatalogDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MatrixModelCatalogClient) DeleteOne(_m *MatrixModelCatalog) *MatrixModelCatalogDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MatrixModelCatalogClient) DeleteOneID(id uuid.UUID) *MatrixModelCatalogDeleteOne {
+	builder := c.Delete().Where(matrixmodelcatalog.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MatrixModelCatalogDeleteOne{builder}
+}
+
+// Query returns a query builder for MatrixModelCatalog.
+func (c *MatrixModelCatalogClient) Query() *MatrixModelCatalogQuery {
+	return &MatrixModelCatalogQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMatrixModelCatalog},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MatrixModelCatalog entity by its id.
+func (c *MatrixModelCatalogClient) Get(ctx context.Context, id uuid.UUID) (*MatrixModelCatalog, error) {
+	return c.Query().Where(matrixmodelcatalog.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MatrixModelCatalogClient) GetX(ctx context.Context, id uuid.UUID) *MatrixModelCatalog {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *MatrixModelCatalogClient) Hooks() []Hook {
+	return c.hooks.MatrixModelCatalog
+}
+
+// Interceptors returns the client interceptors.
+func (c *MatrixModelCatalogClient) Interceptors() []Interceptor {
+	return c.inters.MatrixModelCatalog
+}
+
+func (c *MatrixModelCatalogClient) mutate(ctx context.Context, m *MatrixModelCatalogMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MatrixModelCatalogCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MatrixModelCatalogUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MatrixModelCatalogUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MatrixModelCatalogDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MatrixModelCatalog mutation op: %q", m.Op())
 	}
 }
 
@@ -3986,18 +4127,18 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 type (
 	hooks struct {
 		APIKey, APIKeyAudit, APIKeyModel, APIKeyMonthCreditBucket, GatewayCall,
-		GatewayCallAttempt, MaintenanceState, MentorProjectApplication, Model,
-		ModelBinding, ModelMultiplierAudit, MonitoredInput, MonthlyUsageCube,
-		Organization, OrganizationMember, Project, ProjectMember,
-		ProjectMonthCreditBucket, PromptAccessAudit, Provider, QuotaAdjustmentAudit,
-		User []ent.Hook
+		GatewayCallAttempt, MaintenanceState, MatrixModelCatalog,
+		MentorProjectApplication, Model, ModelBinding, ModelMultiplierAudit,
+		MonitoredInput, MonthlyUsageCube, Organization, OrganizationMember, Project,
+		ProjectMember, ProjectMonthCreditBucket, PromptAccessAudit, Provider,
+		QuotaAdjustmentAudit, User []ent.Hook
 	}
 	inters struct {
 		APIKey, APIKeyAudit, APIKeyModel, APIKeyMonthCreditBucket, GatewayCall,
-		GatewayCallAttempt, MaintenanceState, MentorProjectApplication, Model,
-		ModelBinding, ModelMultiplierAudit, MonitoredInput, MonthlyUsageCube,
-		Organization, OrganizationMember, Project, ProjectMember,
-		ProjectMonthCreditBucket, PromptAccessAudit, Provider, QuotaAdjustmentAudit,
-		User []ent.Interceptor
+		GatewayCallAttempt, MaintenanceState, MatrixModelCatalog,
+		MentorProjectApplication, Model, ModelBinding, ModelMultiplierAudit,
+		MonitoredInput, MonthlyUsageCube, Organization, OrganizationMember, Project,
+		ProjectMember, ProjectMonthCreditBucket, PromptAccessAudit, Provider,
+		QuotaAdjustmentAudit, User []ent.Interceptor
 	}
 )

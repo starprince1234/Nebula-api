@@ -123,6 +123,20 @@ func (_c *ModelCreate) SetNillableContextWindow(v *int) *ModelCreate {
 	return _c
 }
 
+// SetMaxInputTokens sets the "max_input_tokens" field.
+func (_c *ModelCreate) SetMaxInputTokens(v int) *ModelCreate {
+	_c.mutation.SetMaxInputTokens(v)
+	return _c
+}
+
+// SetNillableMaxInputTokens sets the "max_input_tokens" field if the given value is not nil.
+func (_c *ModelCreate) SetNillableMaxInputTokens(v *int) *ModelCreate {
+	if v != nil {
+		_c.SetMaxInputTokens(*v)
+	}
+	return _c
+}
+
 // SetMaxOutputTokens sets the "max_output_tokens" field.
 func (_c *ModelCreate) SetMaxOutputTokens(v int) *ModelCreate {
 	_c.mutation.SetMaxOutputTokens(v)
@@ -347,6 +361,11 @@ func (_c *ModelCreate) check() error {
 			return &ValidationError{Name: "context_window", err: fmt.Errorf(`ent: validator failed for field "Model.context_window": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.MaxInputTokens(); ok {
+		if err := model.MaxInputTokensValidator(v); err != nil {
+			return &ValidationError{Name: "max_input_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_input_tokens": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.MaxOutputTokens(); ok {
 		if err := model.MaxOutputTokensValidator(v); err != nil {
 			return &ValidationError{Name: "max_output_tokens", err: fmt.Errorf(`ent: validator failed for field "Model.max_output_tokens": %w`, err)}
@@ -442,6 +461,10 @@ func (_c *ModelCreate) createSpec() (*Model, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ContextWindow(); ok {
 		_spec.SetField(model.FieldContextWindow, field.TypeInt, value)
 		_node.ContextWindow = &value
+	}
+	if value, ok := _c.mutation.MaxInputTokens(); ok {
+		_spec.SetField(model.FieldMaxInputTokens, field.TypeInt, value)
+		_node.MaxInputTokens = &value
 	}
 	if value, ok := _c.mutation.MaxOutputTokens(); ok {
 		_spec.SetField(model.FieldMaxOutputTokens, field.TypeInt, value)

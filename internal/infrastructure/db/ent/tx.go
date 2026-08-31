@@ -26,6 +26,8 @@ type Tx struct {
 	GatewayCallAttempt *GatewayCallAttemptClient
 	// MaintenanceState is the client for interacting with the MaintenanceState builders.
 	MaintenanceState *MaintenanceStateClient
+	// MatrixModelCatalog is the client for interacting with the MatrixModelCatalog builders.
+	MatrixModelCatalog *MatrixModelCatalogClient
 	// MentorProjectApplication is the client for interacting with the MentorProjectApplication builders.
 	MentorProjectApplication *MentorProjectApplicationClient
 	// Model is the client for interacting with the Model builders.
@@ -194,6 +196,7 @@ func (tx *Tx) init() {
 	tx.GatewayCall = NewGatewayCallClient(tx.config)
 	tx.GatewayCallAttempt = NewGatewayCallAttemptClient(tx.config)
 	tx.MaintenanceState = NewMaintenanceStateClient(tx.config)
+	tx.MatrixModelCatalog = NewMatrixModelCatalogClient(tx.config)
 	tx.MentorProjectApplication = NewMentorProjectApplicationClient(tx.config)
 	tx.Model = NewModelClient(tx.config)
 	tx.ModelBinding = NewModelBindingClient(tx.config)

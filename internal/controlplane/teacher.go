@@ -55,6 +55,8 @@ type ModelInput struct {
 	OutputModalities       []string
 	ContextWindow          *int
 	ContextWindowSet       bool
+	MaxInputTokens         *int
+	MaxInputTokensSet      bool
 	MaxOutputTokens        *int
 	MaxOutputTokensSet     bool
 	IsCommon               *bool
@@ -639,11 +641,15 @@ func (s *Service) CreateModel(ctx context.Context, input ModelInput) (ModelView,
 			return ModelView{}, domain.NewError(domain.CodeModelNotReady, "create a binding before activating the model")
 		}
 	}
+	capabilities, err := modelCapabilities(input.Capabilities)
+	if err != nil {
+		return ModelView{}, err
+	}
 	builder := s.db.Model.Create().
 		SetModelID(modelID).
 		SetDisplayName(displayName).
 		SetCategory(category).
-		SetCapabilities(cleanStringList(input.Capabilities)).
+		SetCapabilities(capabilities).
 		SetInputModalities(cleanStringList(input.InputModalities)).
 		SetOutputModalities(cleanStringList(input.OutputModalities)).
 		SetStatus(status)
@@ -655,6 +661,9 @@ func (s *Service) CreateModel(ctx context.Context, input ModelInput) (ModelView,
 	}
 	if input.ContextWindow != nil {
 		builder.SetContextWindow(*input.ContextWindow)
+	}
+	if input.MaxInputTokens != nil {
+		builder.SetMaxInputTokens(*input.MaxInputTokens)
 	}
 	if input.MaxOutputTokens != nil {
 		builder.SetMaxOutputTokens(*input.MaxOutputTokens)
@@ -675,8 +684,12 @@ func (s *Service) CreateModel(ctx context.Context, input ModelInput) (ModelView,
 	return modelView(row), nil
 }
 
-func (s *Service) TeacherModel(ctx context.Context, id uuid.UUID) (ModelView, []BindingView, error) {
-	row, err := s.db.Model.Get(ctx, id)
+func (s *Service) TeacherModel(ctx context.Context, publicModelID string) (ModelView, []BindingView, error) {
+	modelID, err := normalizeSingleModelID(publicModelID)
+	if err != nil {
+		return ModelView{}, nil, err
+	}
+	row, err := s.db.Model.Query().Where(entmodel.ModelIDEQ(modelID)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return ModelView{}, nil, domain.NewError(domain.CodeNotFound, "model not found")
 	}
@@ -684,30 +697,34 @@ func (s *Service) TeacherModel(ctx context.Context, id uuid.UUID) (ModelView, []
 		return ModelView{}, nil, domain.WrapError(domain.CodeDependencyUnavailable, "query model", err)
 	}
 	bindings, err := s.db.ModelBinding.Query().Where(
-		modelbinding.ModelIDEQ(id),
+		modelbinding.ModelIDEQ(row.ID),
 	).Order(ent.Asc(modelbinding.FieldPriority), ent.Asc(modelbinding.FieldID)).All(ctx)
 	if err != nil {
 		return ModelView{}, nil, domain.WrapError(domain.CodeDependencyUnavailable, "query model bindings", err)
 	}
 	result := make([]BindingView, 0, len(bindings))
 	for _, binding := range bindings {
-		result = append(result, bindingView(binding))
+		result = append(result, s.bindingView(ctx, binding))
 	}
 	view := modelView(row)
-	view.RouteReady, err = s.modelHasActiveRoute(ctx, id)
+	view.RouteReady, err = s.modelHasActiveRoute(ctx, row.ID)
 	if err != nil {
 		return ModelView{}, nil, err
 	}
 	return view, result, nil
 }
 
-func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input ModelInput) (ModelView, error) {
+func (s *Service) UpdateModel(ctx context.Context, actorID uuid.UUID, publicModelID string, input ModelInput) (ModelView, error) {
+	modelID, normalizeErr := normalizeSingleModelID(publicModelID)
+	if normalizeErr != nil {
+		return ModelView{}, normalizeErr
+	}
 	tx, err := s.db.Tx(ctx)
 	if err != nil {
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "start model update transaction", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	current, err := tx.Model.Query().Where(entmodel.IDEQ(id)).Only(ctx)
+	current, err := tx.Model.Query().Where(entmodel.ModelIDEQ(modelID)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return ModelView{}, domain.NewError(domain.CodeNotFound, "model not found")
 	}
@@ -743,7 +760,11 @@ func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input 
 		builder.SetCategory(category)
 	}
 	if input.Capabilities != nil {
-		builder.SetCapabilities(cleanStringList(input.Capabilities))
+		capabilities, err := modelCapabilities(input.Capabilities)
+		if err != nil {
+			return ModelView{}, err
+		}
+		builder.SetCapabilities(capabilities)
 	}
 	if input.InputModalities != nil {
 		builder.SetInputModalities(cleanStringList(input.InputModalities))
@@ -759,6 +780,16 @@ func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input 
 				return ModelView{}, domain.NewError(domain.CodeValidation, "context_window must be positive")
 			}
 			builder.SetContextWindow(*input.ContextWindow)
+		}
+	}
+	if input.MaxInputTokensSet {
+		if input.MaxInputTokens == nil {
+			builder.ClearMaxInputTokens()
+		} else {
+			if *input.MaxInputTokens <= 0 {
+				return ModelView{}, domain.NewError(domain.CodeValidation, "max_input_tokens must be positive")
+			}
+			builder.SetMaxInputTokens(*input.MaxInputTokens)
 		}
 	}
 	if input.MaxOutputTokensSet {
@@ -783,7 +814,7 @@ func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input 
 			if current.CreditMultiplierMilli == nil && input.CreditMultiplierMilli == nil {
 				return ModelView{}, domain.NewError(domain.CodeModelNotReady, "model credit multiplier is required")
 			}
-			ready, err := modelHasActiveRouteTx(ctx, tx, id)
+			ready, err := modelHasActiveRouteTx(ctx, tx, current.ID)
 			if err != nil {
 				return ModelView{}, err
 			}
@@ -800,7 +831,7 @@ func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input 
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update model", err)
 	}
 	if input.CreditMultiplierMilli != nil {
-		audit := tx.ModelMultiplierAudit.Create().SetModelID(id).SetActorUserID(actorID).SetNewMultiplierMilli(*input.CreditMultiplierMilli).SetReason(input.MultiplierChangeReason)
+		audit := tx.ModelMultiplierAudit.Create().SetModelID(current.ID).SetActorUserID(actorID).SetNewMultiplierMilli(*input.CreditMultiplierMilli).SetReason(input.MultiplierChangeReason)
 		if current.CreditMultiplierMilli != nil {
 			audit.SetOldMultiplierMilli(*current.CreditMultiplierMilli)
 		}
@@ -819,8 +850,13 @@ func (s *Service) UpdateModel(ctx context.Context, actorID, id uuid.UUID, input 
 	return modelView(row), nil
 }
 
-func (s *Service) CreateBinding(ctx context.Context, modelID uuid.UUID, input BindingInput) (BindingView, error) {
-	if _, err := s.db.Model.Get(ctx, modelID); ent.IsNotFound(err) {
+func (s *Service) CreateBinding(ctx context.Context, publicModelID string, input BindingInput) (BindingView, error) {
+	normalized, normalizeErr := normalizeSingleModelID(publicModelID)
+	if normalizeErr != nil {
+		return BindingView{}, normalizeErr
+	}
+	modelRow, err := s.db.Model.Query().Where(entmodel.ModelIDEQ(normalized)).Only(ctx)
+	if ent.IsNotFound(err) {
 		return BindingView{}, domain.NewError(domain.CodeNotFound, "model not found")
 	} else if err != nil {
 		return BindingView{}, domain.WrapError(domain.CodeDependencyUnavailable, "query model", err)
@@ -836,7 +872,7 @@ func (s *Service) CreateBinding(ctx context.Context, modelID uuid.UUID, input Bi
 		return BindingView{}, domain.NewError(domain.CodeNotFound, "provider not found")
 	}
 	row, err := s.db.ModelBinding.Create().
-		SetModelID(modelID).
+		SetModelID(modelRow.ID).
 		SetProviderID(input.ProviderID).
 		SetUpstreamModelName(strings.TrimSpace(input.UpstreamModelName)).
 		SetAdapter(modelbinding.Adapter(input.Adapter)).
@@ -849,7 +885,7 @@ func (s *Service) CreateBinding(ctx context.Context, modelID uuid.UUID, input Bi
 	if err != nil {
 		return BindingView{}, domain.WrapError(domain.CodeDependencyUnavailable, "create model binding", err)
 	}
-	return bindingView(row), nil
+	return s.bindingView(ctx, row), nil
 }
 
 func (s *Service) UpdateBinding(ctx context.Context, bindingID uuid.UUID, input BindingInput) (BindingView, error) {
@@ -899,7 +935,7 @@ func (s *Service) UpdateBinding(ctx context.Context, bindingID uuid.UUID, input 
 	if err := tx.Commit(); err != nil {
 		return BindingView{}, domain.WrapError(domain.CodeDependencyUnavailable, "commit binding update", err)
 	}
-	return bindingView(row), nil
+	return s.bindingView(ctx, row), nil
 }
 
 func ensureProviderCanBeDisabledTx(ctx context.Context, tx *ent.Tx, providerID uuid.UUID) error {
@@ -1024,11 +1060,11 @@ func (s *Service) TeacherKeyReview(ctx context.Context, keyID uuid.UUID) (APIKey
 
 func (s *Service) populateRouteReadiness(ctx context.Context, view *APIKeyView) error {
 	for i := range view.Models {
-		modelID, err := uuid.Parse(view.Models[i].ID)
+		modelRow, err := s.db.Model.Query().Where(entmodel.ModelIDEQ(view.Models[i].ModelID)).Only(ctx)
 		if err != nil {
-			return domain.NewError(domain.CodeDependencyUnavailable, "invalid model identity")
+			return domain.WrapError(domain.CodeDependencyUnavailable, "query model route identity", err)
 		}
-		ready, err := s.modelHasActiveRoute(ctx, modelID)
+		ready, err := s.modelHasActiveRoute(ctx, modelRow.ID)
 		if err != nil {
 			return err
 		}
@@ -1231,13 +1267,29 @@ func providerView(row *ent.Provider) ProviderView {
 	}
 }
 
-func bindingView(row *ent.ModelBinding) BindingView {
+func (s *Service) bindingView(ctx context.Context, row *ent.ModelBinding) BindingView {
+	publicModelID := ""
+	if modelRow, err := s.db.Model.Get(ctx, row.ModelID); err == nil {
+		publicModelID = modelRow.ModelID
+	}
 	return BindingView{
-		ID: row.ID.String(), ModelID: row.ModelID.String(), ProviderID: row.ProviderID.String(),
+		ID: row.ID.String(), ModelID: publicModelID, ProviderID: row.ProviderID.String(),
 		UpstreamModelName: row.UpstreamModelName, Adapter: string(row.Adapter),
 		Priority: row.Priority, Status: string(row.Status),
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+var allowedModelCapabilities = map[string]struct{}{"reasoning": {}, "vision": {}, "tool_calling": {}, "structured_output": {}, "web_search": {}, "coding": {}, "embeddings": {}, "rerank": {}, "realtime": {}, "image_generation": {}, "video_generation": {}, "speech_to_text": {}, "text_to_speech": {}}
+
+func modelCapabilities(values []string) ([]string, error) {
+	cleaned := cleanStringList(values)
+	for _, value := range cleaned {
+		if _, ok := allowedModelCapabilities[value]; !ok {
+			return nil, domain.NewError(domain.CodeValidation, "invalid model capability")
+		}
+	}
+	return cleaned, nil
 }
 
 func resourceStatus(value *string, fallback string) (string, error) {
@@ -1339,11 +1391,11 @@ func validBindingAdapter(value string) bool {
 }
 
 func normalizeSingleModelID(value string) (string, error) {
-	values, err := normalizeModelIDs([]string{value})
-	if err != nil {
-		return "", err
+	value = strings.TrimSpace(value)
+	if value == "" || len([]rune(value)) > 256 {
+		return "", domain.NewError(domain.CodeValidation, "invalid model ID")
 	}
-	return values[0], nil
+	return value, nil
 }
 
 func cleanStringList(values []string) []string {

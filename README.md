@@ -1,6 +1,6 @@
 # Nebula
 
-Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。学生申请 Key 时可直接添加新模型卡片，审批完成后模型自动进入模型广场。
+Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。学生申请 Key 时只需提交模型 ID 和可选名称，老师通过四节点向导补全模型信息、Binding 与启用状态。
 
 只读参考项目位于 `D:\VScodeProjects\NebulaCloud\nebula-ai`。本仓库重新实现业务，不兼容参考项目旧表、旧路由或历史数据。
 
@@ -48,6 +48,7 @@ Compose 项目名固定为 `nebula-api`。Compose 项目是容器、网络和卷
 | `migrate` | `nebula-api-backend:<VERSION>` | 一次性执行 `cmd/migrate`，成功后退出 | 不暴露 |
 | `backend` | `nebula-api-backend:<VERSION>` | 控制面、SSE 和模型网关 | `127.0.0.1:8080` |
 | `maintenance` | `nebula-api-backend:<VERSION>` | 月度 bucket 预建与过期 usage lease 恢复 | 不暴露 |
+| `model-catalog` | `nebula-api-backend:<VERSION>` | Matrix 候选目录启动同步与北京时间每日快照 | 不暴露 |
 | `cloudflared` | `docker.m.daocloud.io/cloudflare/cloudflared:2025.8.1` | Cloudflare Tunnel 到后端内部端口 | 不暴露宿主机端口 |
 
 PostgreSQL 和 Redis 只加入内部 `data` 网络；backend 同时加入 `edge` 和 `data` 网络，cloudflared 直接加入 `edge` 网络访问 backend 并连接 Cloudflare edge，不再经过主机代理或 TUN。数据分别保存在 Docker 命名卷 `nebula-api_postgres-data` 与 `nebula-api_redis-data`。应用容器以非 root 用户运行，丢弃 Linux capabilities，启用 `no-new-privileges` 和只读根文件系统。生产 PostgreSQL 使用仓库内版本化的 Docker 26.1.4 默认 seccomp profile，并将未知 syscall 的拒绝 errno 设为 `ENOSYS`，使旧版宿主机 libseccomp 能让 PostgreSQL 对新 syscall 安全降级到兼容实现，而不关闭 seccomp 隔离。
@@ -108,6 +109,8 @@ VERSION                           应用镜像 SemVer
 
 固定测试账号使用 `TEST_STUDENT_1..3_{NAME,EMAIL,PASSWORD}` 和 `TEST_MENTOR_1..3_{NAME,EMAIL,PASSWORD}`。每组三个字段必须同时配置；服务启动时按规范化邮箱幂等创建 `active` 用户。已有同邮箱、同角色用户保持不变，不覆盖姓名、密码或状态；已有同邮箱但角色不一致时启动失败，防止 Secret 配置静默改变既有身份。生产部署要求六组账号全部配置在 Doppler `nebula-api/prd`，真实值不会写入仓库或日志。
 
+生产 `model-catalog` 还要求 Doppler `nebula-api/prd` 提供 `MATRIX_APIKEY`；本地 Compose 不启动该 worker，也不读取生产密钥。
+
 禁止把真实 `.env` 或任何凭据提交到仓库。
 
 Docker 启动固定从 Doppler 项目 `nebula-api` 的 `dev_personal` config 注入真实配置。`scripts/compose.ps1` 只在当前进程内将 Doppler 的本地 `DATABASE_URL`/`REDIS_URL` 主机改为 `postgres`/`redis` Compose DNS，并从数据库 URL 派生 PostgreSQL 初始化参数；其余应用配置原样注入。它不创建 `.env`，也不输出 secret。为防止误连外部数据库，脚本拒绝非 loopback/Compose service host，并要求 `HTTP_ADDRESS=:8080` 与本地端口契约一致。
@@ -167,7 +170,7 @@ Invoke-RestMethod http://127.0.0.1:8080/health/ready
 
 部署只有一个 job：GitHub Actions 使用 Runner 自带的 `curl` 通过 Doppler 按名 REST 接口读取五个 `DEPLOY_SSH_*` 凭据，再通过 SSH 将当前源码同步到 `/opt/nebula-api`。服务器直连 Doppler，以同一类按名 REST 查询读取生产应用配置，其中包括老师 bootstrap 和六组学生/导师测试账号。两端均不安装或调用 Doppler CLI，也不请求包含 dynamic secrets 的完整配置下载端点。服务器以 `COMPOSE_PARALLEL_LIMIT=1` 逐个拉取第三方镜像，Go 构建固定单核且 Dockerfile 各阶段不并行，并通过持久化 BuildKit cache 复用 module 与未变化 package 的编译结果；随后按 PostgreSQL、Redis、migrate、backend、maintenance、Cloudflare Tunnel 的顺序逐个启动，每阶段通过健康检查并等待十秒后才进入下一阶段。服务器验证内部 backend readiness 和 Tunnel edge 注册，GitHub Runner 再从公网验证 `https://api.lyn91r.cn/health/ready`。workflow 使用 concurrency 串行化生产部署，不会让两个 main push 同时修改部署目录。Actions 仅保存 Doppler 的只读 service token，token 和部署 SSH 凭据不会写入仓库、镜像构建参数或服务器文件。
 
-生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 只映射宿主机 loopback。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；cloudflared 固定使用 HTTP/2，通过 `edge` 网络直连 backend 与 Cloudflare edge。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。生产 PostgreSQL 同时加入隔离的 `data` 网络和仅该服务使用的 `management` 网络，并仅映射到服务器本机 `127.0.0.1:15432`，不接受公网连接。Windows DataGrip 使用 SSH tunnel 连接服务器后，将 PostgreSQL 数据源填写为 `127.0.0.1:15432`；不要把服务器 `5432` 暴露到公网。
+生产使用 `compose.production.yaml`，frontend 静态资源由 Vercel 托管，backend 只映射宿主机 loopback。GitHub Actions 在部署前执行 Ent 生成一致性、Go test/vet 与前端 typecheck/test/build。服务器按 PostgreSQL、Redis、migrate、backend、maintenance、model-catalog、Cloudflare Tunnel 顺序启动；`model-catalog` 通过 `edge` 访问 Matrix 公网、通过 `data` 写 PostgreSQL且不暴露端口。Cloudflare Public Hostname 配置为 `api.lyn91r.cn`，Service 配置为 `http://backend:8080`；cloudflared 固定使用 HTTP/2，通过 `edge` 网络直连 backend 与 Cloudflare edge。Vercel 项目的 Root Directory 必须为 `frontend`，`VITE_API_BASE_URL` 配置为 `https://api.lyn91r.cn`，正式前端地址为 `https://www.lyn91r.cn`。`frontend/vercel.json` 将所有前端 history 路由回退到 `/index.html`，保证 `/login`、`/teacher/...` 等地址可直接访问和刷新；静态资源仍由 Vercel 文件系统正常提供。生产 PostgreSQL 同时加入隔离的 `data` 网络和仅该服务使用的 `management` 网络，并仅映射到服务器本机 `127.0.0.1:15432`，不接受公网连接。Windows DataGrip 使用 SSH tunnel 连接服务器后，将 PostgreSQL 数据源填写为 `127.0.0.1:15432`；不要把服务器 `5432` 暴露到公网。
 
 ```powershell
 & "D:\PuTTY\plink.exe" -ssh -P 22 -L 8081:127.0.0.1:8081 root@<server-host>

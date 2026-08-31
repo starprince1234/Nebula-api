@@ -19,6 +19,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/matrixmodelcatalog"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
@@ -53,6 +54,7 @@ const (
 	TypeGatewayCall              = "GatewayCall"
 	TypeGatewayCallAttempt       = "GatewayCallAttempt"
 	TypeMaintenanceState         = "MaintenanceState"
+	TypeMatrixModelCatalog       = "MatrixModelCatalog"
 	TypeMentorProjectApplication = "MentorProjectApplication"
 	TypeModel                    = "Model"
 	TypeModelBinding             = "ModelBinding"
@@ -7527,6 +7529,1034 @@ func (m *MaintenanceStateMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown MaintenanceState edge %s", name)
 }
 
+// MatrixModelCatalogMutation represents an operation that mutates the MatrixModelCatalog nodes in the graph.
+type MatrixModelCatalogMutation struct {
+	config
+	op                             Op
+	typ                            string
+	id                             *uuid.UUID
+	created_at                     *time.Time
+	updated_at                     *time.Time
+	model_id                       *string
+	description                    *string
+	owned_by                       *[]string
+	appendowned_by                 []string
+	model_types                    *[]string
+	appendmodel_types              []string
+	supported_endpoint_types       *[]string
+	appendsupported_endpoint_types []string
+	tags                           *[]string
+	appendtags                     []string
+	raw_entries                    *[]map[string]interface{}
+	appendraw_entries              []map[string]interface{}
+	status                         *matrixmodelcatalog.Status
+	last_seen_at                   *time.Time
+	synced_at                      *time.Time
+	clearedFields                  map[string]struct{}
+	done                           bool
+	oldValue                       func(context.Context) (*MatrixModelCatalog, error)
+	predicates                     []predicate.MatrixModelCatalog
+}
+
+var _ ent.Mutation = (*MatrixModelCatalogMutation)(nil)
+
+// matrixmodelcatalogOption allows management of the mutation configuration using functional options.
+type matrixmodelcatalogOption func(*MatrixModelCatalogMutation)
+
+// newMatrixModelCatalogMutation creates new mutation for the MatrixModelCatalog entity.
+func newMatrixModelCatalogMutation(c config, op Op, opts ...matrixmodelcatalogOption) *MatrixModelCatalogMutation {
+	m := &MatrixModelCatalogMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeMatrixModelCatalog,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withMatrixModelCatalogID sets the ID field of the mutation.
+func withMatrixModelCatalogID(id uuid.UUID) matrixmodelcatalogOption {
+	return func(m *MatrixModelCatalogMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *MatrixModelCatalog
+		)
+		m.oldValue = func(ctx context.Context) (*MatrixModelCatalog, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().MatrixModelCatalog.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withMatrixModelCatalog sets the old MatrixModelCatalog of the mutation.
+func withMatrixModelCatalog(node *MatrixModelCatalog) matrixmodelcatalogOption {
+	return func(m *MatrixModelCatalogMutation) {
+		m.oldValue = func(context.Context) (*MatrixModelCatalog, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m MatrixModelCatalogMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m MatrixModelCatalogMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of MatrixModelCatalog entities.
+func (m *MatrixModelCatalogMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *MatrixModelCatalogMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *MatrixModelCatalogMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().MatrixModelCatalog.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *MatrixModelCatalogMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *MatrixModelCatalogMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *MatrixModelCatalogMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *MatrixModelCatalogMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *MatrixModelCatalogMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *MatrixModelCatalogMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetModelID sets the "model_id" field.
+func (m *MatrixModelCatalogMutation) SetModelID(s string) {
+	m.model_id = &s
+}
+
+// ModelID returns the value of the "model_id" field in the mutation.
+func (m *MatrixModelCatalogMutation) ModelID() (r string, exists bool) {
+	v := m.model_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelID returns the old "model_id" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldModelID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelID: %w", err)
+	}
+	return oldValue.ModelID, nil
+}
+
+// ResetModelID resets all changes to the "model_id" field.
+func (m *MatrixModelCatalogMutation) ResetModelID() {
+	m.model_id = nil
+}
+
+// SetDescription sets the "description" field.
+func (m *MatrixModelCatalogMutation) SetDescription(s string) {
+	m.description = &s
+}
+
+// Description returns the value of the "description" field in the mutation.
+func (m *MatrixModelCatalogMutation) Description() (r string, exists bool) {
+	v := m.description
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDescription returns the old "description" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldDescription(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDescription is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDescription requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDescription: %w", err)
+	}
+	return oldValue.Description, nil
+}
+
+// ClearDescription clears the value of the "description" field.
+func (m *MatrixModelCatalogMutation) ClearDescription() {
+	m.description = nil
+	m.clearedFields[matrixmodelcatalog.FieldDescription] = struct{}{}
+}
+
+// DescriptionCleared returns if the "description" field was cleared in this mutation.
+func (m *MatrixModelCatalogMutation) DescriptionCleared() bool {
+	_, ok := m.clearedFields[matrixmodelcatalog.FieldDescription]
+	return ok
+}
+
+// ResetDescription resets all changes to the "description" field.
+func (m *MatrixModelCatalogMutation) ResetDescription() {
+	m.description = nil
+	delete(m.clearedFields, matrixmodelcatalog.FieldDescription)
+}
+
+// SetOwnedBy sets the "owned_by" field.
+func (m *MatrixModelCatalogMutation) SetOwnedBy(s []string) {
+	m.owned_by = &s
+	m.appendowned_by = nil
+}
+
+// OwnedBy returns the value of the "owned_by" field in the mutation.
+func (m *MatrixModelCatalogMutation) OwnedBy() (r []string, exists bool) {
+	v := m.owned_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOwnedBy returns the old "owned_by" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldOwnedBy(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOwnedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOwnedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOwnedBy: %w", err)
+	}
+	return oldValue.OwnedBy, nil
+}
+
+// AppendOwnedBy adds s to the "owned_by" field.
+func (m *MatrixModelCatalogMutation) AppendOwnedBy(s []string) {
+	m.appendowned_by = append(m.appendowned_by, s...)
+}
+
+// AppendedOwnedBy returns the list of values that were appended to the "owned_by" field in this mutation.
+func (m *MatrixModelCatalogMutation) AppendedOwnedBy() ([]string, bool) {
+	if len(m.appendowned_by) == 0 {
+		return nil, false
+	}
+	return m.appendowned_by, true
+}
+
+// ResetOwnedBy resets all changes to the "owned_by" field.
+func (m *MatrixModelCatalogMutation) ResetOwnedBy() {
+	m.owned_by = nil
+	m.appendowned_by = nil
+}
+
+// SetModelTypes sets the "model_types" field.
+func (m *MatrixModelCatalogMutation) SetModelTypes(s []string) {
+	m.model_types = &s
+	m.appendmodel_types = nil
+}
+
+// ModelTypes returns the value of the "model_types" field in the mutation.
+func (m *MatrixModelCatalogMutation) ModelTypes() (r []string, exists bool) {
+	v := m.model_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModelTypes returns the old "model_types" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldModelTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModelTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModelTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModelTypes: %w", err)
+	}
+	return oldValue.ModelTypes, nil
+}
+
+// AppendModelTypes adds s to the "model_types" field.
+func (m *MatrixModelCatalogMutation) AppendModelTypes(s []string) {
+	m.appendmodel_types = append(m.appendmodel_types, s...)
+}
+
+// AppendedModelTypes returns the list of values that were appended to the "model_types" field in this mutation.
+func (m *MatrixModelCatalogMutation) AppendedModelTypes() ([]string, bool) {
+	if len(m.appendmodel_types) == 0 {
+		return nil, false
+	}
+	return m.appendmodel_types, true
+}
+
+// ResetModelTypes resets all changes to the "model_types" field.
+func (m *MatrixModelCatalogMutation) ResetModelTypes() {
+	m.model_types = nil
+	m.appendmodel_types = nil
+}
+
+// SetSupportedEndpointTypes sets the "supported_endpoint_types" field.
+func (m *MatrixModelCatalogMutation) SetSupportedEndpointTypes(s []string) {
+	m.supported_endpoint_types = &s
+	m.appendsupported_endpoint_types = nil
+}
+
+// SupportedEndpointTypes returns the value of the "supported_endpoint_types" field in the mutation.
+func (m *MatrixModelCatalogMutation) SupportedEndpointTypes() (r []string, exists bool) {
+	v := m.supported_endpoint_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSupportedEndpointTypes returns the old "supported_endpoint_types" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldSupportedEndpointTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSupportedEndpointTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSupportedEndpointTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSupportedEndpointTypes: %w", err)
+	}
+	return oldValue.SupportedEndpointTypes, nil
+}
+
+// AppendSupportedEndpointTypes adds s to the "supported_endpoint_types" field.
+func (m *MatrixModelCatalogMutation) AppendSupportedEndpointTypes(s []string) {
+	m.appendsupported_endpoint_types = append(m.appendsupported_endpoint_types, s...)
+}
+
+// AppendedSupportedEndpointTypes returns the list of values that were appended to the "supported_endpoint_types" field in this mutation.
+func (m *MatrixModelCatalogMutation) AppendedSupportedEndpointTypes() ([]string, bool) {
+	if len(m.appendsupported_endpoint_types) == 0 {
+		return nil, false
+	}
+	return m.appendsupported_endpoint_types, true
+}
+
+// ResetSupportedEndpointTypes resets all changes to the "supported_endpoint_types" field.
+func (m *MatrixModelCatalogMutation) ResetSupportedEndpointTypes() {
+	m.supported_endpoint_types = nil
+	m.appendsupported_endpoint_types = nil
+}
+
+// SetTags sets the "tags" field.
+func (m *MatrixModelCatalogMutation) SetTags(s []string) {
+	m.tags = &s
+	m.appendtags = nil
+}
+
+// Tags returns the value of the "tags" field in the mutation.
+func (m *MatrixModelCatalogMutation) Tags() (r []string, exists bool) {
+	v := m.tags
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTags returns the old "tags" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldTags(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTags is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTags requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTags: %w", err)
+	}
+	return oldValue.Tags, nil
+}
+
+// AppendTags adds s to the "tags" field.
+func (m *MatrixModelCatalogMutation) AppendTags(s []string) {
+	m.appendtags = append(m.appendtags, s...)
+}
+
+// AppendedTags returns the list of values that were appended to the "tags" field in this mutation.
+func (m *MatrixModelCatalogMutation) AppendedTags() ([]string, bool) {
+	if len(m.appendtags) == 0 {
+		return nil, false
+	}
+	return m.appendtags, true
+}
+
+// ResetTags resets all changes to the "tags" field.
+func (m *MatrixModelCatalogMutation) ResetTags() {
+	m.tags = nil
+	m.appendtags = nil
+}
+
+// SetRawEntries sets the "raw_entries" field.
+func (m *MatrixModelCatalogMutation) SetRawEntries(value []map[string]interface{}) {
+	m.raw_entries = &value
+	m.appendraw_entries = nil
+}
+
+// RawEntries returns the value of the "raw_entries" field in the mutation.
+func (m *MatrixModelCatalogMutation) RawEntries() (r []map[string]interface{}, exists bool) {
+	v := m.raw_entries
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRawEntries returns the old "raw_entries" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldRawEntries(ctx context.Context) (v []map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRawEntries is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRawEntries requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRawEntries: %w", err)
+	}
+	return oldValue.RawEntries, nil
+}
+
+// AppendRawEntries adds value to the "raw_entries" field.
+func (m *MatrixModelCatalogMutation) AppendRawEntries(value []map[string]interface{}) {
+	m.appendraw_entries = append(m.appendraw_entries, value...)
+}
+
+// AppendedRawEntries returns the list of values that were appended to the "raw_entries" field in this mutation.
+func (m *MatrixModelCatalogMutation) AppendedRawEntries() ([]map[string]interface{}, bool) {
+	if len(m.appendraw_entries) == 0 {
+		return nil, false
+	}
+	return m.appendraw_entries, true
+}
+
+// ResetRawEntries resets all changes to the "raw_entries" field.
+func (m *MatrixModelCatalogMutation) ResetRawEntries() {
+	m.raw_entries = nil
+	m.appendraw_entries = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *MatrixModelCatalogMutation) SetStatus(value matrixmodelcatalog.Status) {
+	m.status = &value
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *MatrixModelCatalogMutation) Status() (r matrixmodelcatalog.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldStatus(ctx context.Context) (v matrixmodelcatalog.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *MatrixModelCatalogMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetLastSeenAt sets the "last_seen_at" field.
+func (m *MatrixModelCatalogMutation) SetLastSeenAt(t time.Time) {
+	m.last_seen_at = &t
+}
+
+// LastSeenAt returns the value of the "last_seen_at" field in the mutation.
+func (m *MatrixModelCatalogMutation) LastSeenAt() (r time.Time, exists bool) {
+	v := m.last_seen_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastSeenAt returns the old "last_seen_at" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldLastSeenAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastSeenAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastSeenAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastSeenAt: %w", err)
+	}
+	return oldValue.LastSeenAt, nil
+}
+
+// ResetLastSeenAt resets all changes to the "last_seen_at" field.
+func (m *MatrixModelCatalogMutation) ResetLastSeenAt() {
+	m.last_seen_at = nil
+}
+
+// SetSyncedAt sets the "synced_at" field.
+func (m *MatrixModelCatalogMutation) SetSyncedAt(t time.Time) {
+	m.synced_at = &t
+}
+
+// SyncedAt returns the value of the "synced_at" field in the mutation.
+func (m *MatrixModelCatalogMutation) SyncedAt() (r time.Time, exists bool) {
+	v := m.synced_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSyncedAt returns the old "synced_at" field's value of the MatrixModelCatalog entity.
+// If the MatrixModelCatalog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *MatrixModelCatalogMutation) OldSyncedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSyncedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSyncedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSyncedAt: %w", err)
+	}
+	return oldValue.SyncedAt, nil
+}
+
+// ResetSyncedAt resets all changes to the "synced_at" field.
+func (m *MatrixModelCatalogMutation) ResetSyncedAt() {
+	m.synced_at = nil
+}
+
+// Where appends a list predicates to the MatrixModelCatalogMutation builder.
+func (m *MatrixModelCatalogMutation) Where(ps ...predicate.MatrixModelCatalog) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the MatrixModelCatalogMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *MatrixModelCatalogMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.MatrixModelCatalog, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *MatrixModelCatalogMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *MatrixModelCatalogMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (MatrixModelCatalog).
+func (m *MatrixModelCatalogMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *MatrixModelCatalogMutation) Fields() []string {
+	fields := make([]string, 0, 12)
+	if m.created_at != nil {
+		fields = append(fields, matrixmodelcatalog.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, matrixmodelcatalog.FieldUpdatedAt)
+	}
+	if m.model_id != nil {
+		fields = append(fields, matrixmodelcatalog.FieldModelID)
+	}
+	if m.description != nil {
+		fields = append(fields, matrixmodelcatalog.FieldDescription)
+	}
+	if m.owned_by != nil {
+		fields = append(fields, matrixmodelcatalog.FieldOwnedBy)
+	}
+	if m.model_types != nil {
+		fields = append(fields, matrixmodelcatalog.FieldModelTypes)
+	}
+	if m.supported_endpoint_types != nil {
+		fields = append(fields, matrixmodelcatalog.FieldSupportedEndpointTypes)
+	}
+	if m.tags != nil {
+		fields = append(fields, matrixmodelcatalog.FieldTags)
+	}
+	if m.raw_entries != nil {
+		fields = append(fields, matrixmodelcatalog.FieldRawEntries)
+	}
+	if m.status != nil {
+		fields = append(fields, matrixmodelcatalog.FieldStatus)
+	}
+	if m.last_seen_at != nil {
+		fields = append(fields, matrixmodelcatalog.FieldLastSeenAt)
+	}
+	if m.synced_at != nil {
+		fields = append(fields, matrixmodelcatalog.FieldSyncedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *MatrixModelCatalogMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case matrixmodelcatalog.FieldCreatedAt:
+		return m.CreatedAt()
+	case matrixmodelcatalog.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case matrixmodelcatalog.FieldModelID:
+		return m.ModelID()
+	case matrixmodelcatalog.FieldDescription:
+		return m.Description()
+	case matrixmodelcatalog.FieldOwnedBy:
+		return m.OwnedBy()
+	case matrixmodelcatalog.FieldModelTypes:
+		return m.ModelTypes()
+	case matrixmodelcatalog.FieldSupportedEndpointTypes:
+		return m.SupportedEndpointTypes()
+	case matrixmodelcatalog.FieldTags:
+		return m.Tags()
+	case matrixmodelcatalog.FieldRawEntries:
+		return m.RawEntries()
+	case matrixmodelcatalog.FieldStatus:
+		return m.Status()
+	case matrixmodelcatalog.FieldLastSeenAt:
+		return m.LastSeenAt()
+	case matrixmodelcatalog.FieldSyncedAt:
+		return m.SyncedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *MatrixModelCatalogMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case matrixmodelcatalog.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case matrixmodelcatalog.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case matrixmodelcatalog.FieldModelID:
+		return m.OldModelID(ctx)
+	case matrixmodelcatalog.FieldDescription:
+		return m.OldDescription(ctx)
+	case matrixmodelcatalog.FieldOwnedBy:
+		return m.OldOwnedBy(ctx)
+	case matrixmodelcatalog.FieldModelTypes:
+		return m.OldModelTypes(ctx)
+	case matrixmodelcatalog.FieldSupportedEndpointTypes:
+		return m.OldSupportedEndpointTypes(ctx)
+	case matrixmodelcatalog.FieldTags:
+		return m.OldTags(ctx)
+	case matrixmodelcatalog.FieldRawEntries:
+		return m.OldRawEntries(ctx)
+	case matrixmodelcatalog.FieldStatus:
+		return m.OldStatus(ctx)
+	case matrixmodelcatalog.FieldLastSeenAt:
+		return m.OldLastSeenAt(ctx)
+	case matrixmodelcatalog.FieldSyncedAt:
+		return m.OldSyncedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown MatrixModelCatalog field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MatrixModelCatalogMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case matrixmodelcatalog.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case matrixmodelcatalog.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case matrixmodelcatalog.FieldModelID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelID(v)
+		return nil
+	case matrixmodelcatalog.FieldDescription:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDescription(v)
+		return nil
+	case matrixmodelcatalog.FieldOwnedBy:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOwnedBy(v)
+		return nil
+	case matrixmodelcatalog.FieldModelTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModelTypes(v)
+		return nil
+	case matrixmodelcatalog.FieldSupportedEndpointTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSupportedEndpointTypes(v)
+		return nil
+	case matrixmodelcatalog.FieldTags:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTags(v)
+		return nil
+	case matrixmodelcatalog.FieldRawEntries:
+		v, ok := value.([]map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRawEntries(v)
+		return nil
+	case matrixmodelcatalog.FieldStatus:
+		v, ok := value.(matrixmodelcatalog.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case matrixmodelcatalog.FieldLastSeenAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastSeenAt(v)
+		return nil
+	case matrixmodelcatalog.FieldSyncedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSyncedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown MatrixModelCatalog field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *MatrixModelCatalogMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *MatrixModelCatalogMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *MatrixModelCatalogMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown MatrixModelCatalog numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *MatrixModelCatalogMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(matrixmodelcatalog.FieldDescription) {
+		fields = append(fields, matrixmodelcatalog.FieldDescription)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *MatrixModelCatalogMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *MatrixModelCatalogMutation) ClearField(name string) error {
+	switch name {
+	case matrixmodelcatalog.FieldDescription:
+		m.ClearDescription()
+		return nil
+	}
+	return fmt.Errorf("unknown MatrixModelCatalog nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *MatrixModelCatalogMutation) ResetField(name string) error {
+	switch name {
+	case matrixmodelcatalog.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case matrixmodelcatalog.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case matrixmodelcatalog.FieldModelID:
+		m.ResetModelID()
+		return nil
+	case matrixmodelcatalog.FieldDescription:
+		m.ResetDescription()
+		return nil
+	case matrixmodelcatalog.FieldOwnedBy:
+		m.ResetOwnedBy()
+		return nil
+	case matrixmodelcatalog.FieldModelTypes:
+		m.ResetModelTypes()
+		return nil
+	case matrixmodelcatalog.FieldSupportedEndpointTypes:
+		m.ResetSupportedEndpointTypes()
+		return nil
+	case matrixmodelcatalog.FieldTags:
+		m.ResetTags()
+		return nil
+	case matrixmodelcatalog.FieldRawEntries:
+		m.ResetRawEntries()
+		return nil
+	case matrixmodelcatalog.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case matrixmodelcatalog.FieldLastSeenAt:
+		m.ResetLastSeenAt()
+		return nil
+	case matrixmodelcatalog.FieldSyncedAt:
+		m.ResetSyncedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown MatrixModelCatalog field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *MatrixModelCatalogMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *MatrixModelCatalogMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *MatrixModelCatalogMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *MatrixModelCatalogMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *MatrixModelCatalogMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *MatrixModelCatalogMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *MatrixModelCatalogMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown MatrixModelCatalog unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *MatrixModelCatalogMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown MatrixModelCatalog edge %s", name)
+}
+
 // MentorProjectApplicationMutation represents an operation that mutates the MentorProjectApplication nodes in the graph.
 type MentorProjectApplicationMutation struct {
 	config
@@ -8422,6 +9452,8 @@ type ModelMutation struct {
 	appendoutput_modalities    []string
 	context_window             *int
 	addcontext_window          *int
+	max_input_tokens           *int
+	addmax_input_tokens        *int
 	max_output_tokens          *int
 	addmax_output_tokens       *int
 	is_common                  *bool
@@ -8996,6 +10028,76 @@ func (m *ModelMutation) ResetContextWindow() {
 	delete(m.clearedFields, model.FieldContextWindow)
 }
 
+// SetMaxInputTokens sets the "max_input_tokens" field.
+func (m *ModelMutation) SetMaxInputTokens(i int) {
+	m.max_input_tokens = &i
+	m.addmax_input_tokens = nil
+}
+
+// MaxInputTokens returns the value of the "max_input_tokens" field in the mutation.
+func (m *ModelMutation) MaxInputTokens() (r int, exists bool) {
+	v := m.max_input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxInputTokens returns the old "max_input_tokens" field's value of the Model entity.
+// If the Model object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ModelMutation) OldMaxInputTokens(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxInputTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxInputTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxInputTokens: %w", err)
+	}
+	return oldValue.MaxInputTokens, nil
+}
+
+// AddMaxInputTokens adds i to the "max_input_tokens" field.
+func (m *ModelMutation) AddMaxInputTokens(i int) {
+	if m.addmax_input_tokens != nil {
+		*m.addmax_input_tokens += i
+	} else {
+		m.addmax_input_tokens = &i
+	}
+}
+
+// AddedMaxInputTokens returns the value that was added to the "max_input_tokens" field in this mutation.
+func (m *ModelMutation) AddedMaxInputTokens() (r int, exists bool) {
+	v := m.addmax_input_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMaxInputTokens clears the value of the "max_input_tokens" field.
+func (m *ModelMutation) ClearMaxInputTokens() {
+	m.max_input_tokens = nil
+	m.addmax_input_tokens = nil
+	m.clearedFields[model.FieldMaxInputTokens] = struct{}{}
+}
+
+// MaxInputTokensCleared returns if the "max_input_tokens" field was cleared in this mutation.
+func (m *ModelMutation) MaxInputTokensCleared() bool {
+	_, ok := m.clearedFields[model.FieldMaxInputTokens]
+	return ok
+}
+
+// ResetMaxInputTokens resets all changes to the "max_input_tokens" field.
+func (m *ModelMutation) ResetMaxInputTokens() {
+	m.max_input_tokens = nil
+	m.addmax_input_tokens = nil
+	delete(m.clearedFields, model.FieldMaxInputTokens)
+}
+
 // SetMaxOutputTokens sets the "max_output_tokens" field.
 func (m *ModelMutation) SetMaxOutputTokens(i int) {
 	m.max_output_tokens = &i
@@ -9350,7 +10452,7 @@ func (m *ModelMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ModelMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.created_at != nil {
 		fields = append(fields, model.FieldCreatedAt)
 	}
@@ -9380,6 +10482,9 @@ func (m *ModelMutation) Fields() []string {
 	}
 	if m.context_window != nil {
 		fields = append(fields, model.FieldContextWindow)
+	}
+	if m.max_input_tokens != nil {
+		fields = append(fields, model.FieldMaxInputTokens)
 	}
 	if m.max_output_tokens != nil {
 		fields = append(fields, model.FieldMaxOutputTokens)
@@ -9421,6 +10526,8 @@ func (m *ModelMutation) Field(name string) (ent.Value, bool) {
 		return m.OutputModalities()
 	case model.FieldContextWindow:
 		return m.ContextWindow()
+	case model.FieldMaxInputTokens:
+		return m.MaxInputTokens()
 	case model.FieldMaxOutputTokens:
 		return m.MaxOutputTokens()
 	case model.FieldIsCommon:
@@ -9458,6 +10565,8 @@ func (m *ModelMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldOutputModalities(ctx)
 	case model.FieldContextWindow:
 		return m.OldContextWindow(ctx)
+	case model.FieldMaxInputTokens:
+		return m.OldMaxInputTokens(ctx)
 	case model.FieldMaxOutputTokens:
 		return m.OldMaxOutputTokens(ctx)
 	case model.FieldIsCommon:
@@ -9545,6 +10654,13 @@ func (m *ModelMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetContextWindow(v)
 		return nil
+	case model.FieldMaxInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxInputTokens(v)
+		return nil
 	case model.FieldMaxOutputTokens:
 		v, ok := value.(int)
 		if !ok {
@@ -9584,6 +10700,9 @@ func (m *ModelMutation) AddedFields() []string {
 	if m.addcontext_window != nil {
 		fields = append(fields, model.FieldContextWindow)
 	}
+	if m.addmax_input_tokens != nil {
+		fields = append(fields, model.FieldMaxInputTokens)
+	}
 	if m.addmax_output_tokens != nil {
 		fields = append(fields, model.FieldMaxOutputTokens)
 	}
@@ -9600,6 +10719,8 @@ func (m *ModelMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case model.FieldContextWindow:
 		return m.AddedContextWindow()
+	case model.FieldMaxInputTokens:
+		return m.AddedMaxInputTokens()
 	case model.FieldMaxOutputTokens:
 		return m.AddedMaxOutputTokens()
 	case model.FieldCreditMultiplierMilli:
@@ -9619,6 +10740,13 @@ func (m *ModelMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddContextWindow(v)
+		return nil
+	case model.FieldMaxInputTokens:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxInputTokens(v)
 		return nil
 	case model.FieldMaxOutputTokens:
 		v, ok := value.(int)
@@ -9648,6 +10776,9 @@ func (m *ModelMutation) ClearedFields() []string {
 	if m.FieldCleared(model.FieldContextWindow) {
 		fields = append(fields, model.FieldContextWindow)
 	}
+	if m.FieldCleared(model.FieldMaxInputTokens) {
+		fields = append(fields, model.FieldMaxInputTokens)
+	}
 	if m.FieldCleared(model.FieldMaxOutputTokens) {
 		fields = append(fields, model.FieldMaxOutputTokens)
 	}
@@ -9673,6 +10804,9 @@ func (m *ModelMutation) ClearField(name string) error {
 		return nil
 	case model.FieldContextWindow:
 		m.ClearContextWindow()
+		return nil
+	case model.FieldMaxInputTokens:
+		m.ClearMaxInputTokens()
 		return nil
 	case model.FieldMaxOutputTokens:
 		m.ClearMaxOutputTokens()
@@ -9717,6 +10851,9 @@ func (m *ModelMutation) ResetField(name string) error {
 		return nil
 	case model.FieldContextWindow:
 		m.ResetContextWindow()
+		return nil
+	case model.FieldMaxInputTokens:
+		m.ResetMaxInputTokens()
 		return nil
 	case model.FieldMaxOutputTokens:
 		m.ResetMaxOutputTokens()

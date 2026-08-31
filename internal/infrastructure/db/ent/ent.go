@@ -19,6 +19,7 @@ import (
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycall"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/gatewaycallattempt"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/maintenancestate"
+	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/matrixmodelcatalog"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/mentorprojectapplication"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/model"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/modelbinding"
@@ -101,6 +102,7 @@ func checkColumn(t, c string) error {
 			gatewaycall.Table:              gatewaycall.ValidColumn,
 			gatewaycallattempt.Table:       gatewaycallattempt.ValidColumn,
 			maintenancestate.Table:         maintenancestate.ValidColumn,
+			matrixmodelcatalog.Table:       matrixmodelcatalog.ValidColumn,
 			mentorprojectapplication.Table: mentorprojectapplication.ValidColumn,
 			model.Table:                    model.ValidColumn,
 			modelbinding.Table:             modelbinding.ValidColumn,

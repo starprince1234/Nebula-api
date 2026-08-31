@@ -1,144 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { teacherAPI } from '../../api/teacher'
-import type { Binding, BindingAdapter, Model, ModelCategory, ModelStatus, ModelUpdate, Provider } from '../../api/types'
-import { APIError } from '../../api/client'
-import StatusBadge from '../../components/StatusBadge.vue'
-import AppDialog from '../../components/AppDialog.vue'
-import ModelForm from '../../components/ModelForm.vue'
-import LoadingRegion from '../../components/LoadingRegion.vue'
-import { useLoadState } from '../../composables/useLoadState'
-import { useToast } from '../../composables/useToast'
-import { modelCardStatus } from '../../utils/models'
-
-const adapterOptions: Array<{ value: BindingAdapter; label: string; description: string }> = [
-  { value: 'openai_compatible', label: 'OpenAI Chat / Completions', description: '用于 /v1/chat/completions 与 /v1/completions' },
-  { value: 'openai_responses', label: 'OpenAI Responses', description: '用于 HTTP/WebSocket /v1/responses 与 /v1/responses/compact，支持 Codex CLI' },
-  { value: 'openai_embeddings', label: 'OpenAI Embeddings', description: '用于 /v1/embeddings' },
-  { value: 'openai_images', label: 'OpenAI Images', description: '用于 /v1/images/generations、edits 与 variations' },
-  { value: 'openai_audio', label: 'OpenAI Audio', description: '用于 /v1/audio/transcriptions、translations 与 speech' },
-  { value: 'openai_video', label: 'OpenAI Videos', description: '用于 /v1/videos 的创建、查询、内容下载与 remix' },
-  { value: 'openai_realtime', label: 'OpenAI Realtime', description: '用于 /v1/realtime WebSocket' },
-  { value: 'openai_moderations', label: 'OpenAI Moderations', description: '用于 /v1/moderations' },
-  { value: 'anthropic', label: 'Anthropic Messages', description: '用于 /v1/messages' },
-  { value: 'cohere_rerank_v2', label: 'Cohere Rerank v2', description: '用于官方 /v2/rerank' },
-  { value: 'google_gemini_v1beta', label: 'Google Gemini v1beta', description: '用于原生 generateContent、streamGenerateContent、embedContent 与 batchEmbedContents' },
-]
-
-const rows = ref<Model[]>([])
-const providers = ref<Provider[]>([])
-const tab = ref<'common' | 'all'>('common')
-const query = ref('')
-const category = ref('')
-const status = ref('')
-const selected = ref<{ model: Model; bindings: Binding[] } | null>(null)
-const createOpen = ref(false)
-const bindingOpen = ref(false)
-const editingBinding = ref<Binding | null>(null)
-const error = ref('')
-const routingModels = ref<string[]>([])
-const toast = useToast()
-const route = useRoute()
-const router = useRouter()
-const loadState = useLoadState()
-
-const filtered = computed(() => rows.value
-  .filter(model => (tab.value === 'all' || model.is_common)
-    && (!query.value || `${model.display_name} ${model.model_id}`.toLowerCase().includes(query.value.toLowerCase()))
-    && (!category.value || model.category === category.value)
-    && (!status.value || model.status === status.value))
-  .sort((left, right) => left.display_name.localeCompare(right.display_name)))
-const pending = computed(() => rows.value.filter(model => modelCardStatus(model) === 'pending_configuration').length)
-const modelForm = reactive({ model_id: '', display_name: '', description: '', category: 'text' as ModelCategory, capabilities: [] as string[], input_modalities: [] as string[], output_modalities: [] as string[], context_window: null as number | null, max_output_tokens: null as number | null, is_common: false, status: 'pending_configuration' as ModelStatus, credit_multiplier: null as string | null })
-const multiplierReason = ref('')
-const bindingForm = reactive({ provider_id: '', upstream_model_name: '', adapter: 'openai_compatible' as BindingAdapter, priority: 100, status: 'active' as 'active' | 'inactive' })
-const adapterDescription = computed(() => adapterOptions.find(option => option.value === bindingForm.adapter)?.description ?? '')
-
-async function load() {
-  await loadState.run(async () => {
-    try {
-      [rows.value, providers.value] = await Promise.all([teacherAPI.models(), teacherAPI.providers()])
-      const target = String(route.query.model || '')
-      if (target) {
-        const row = rows.value.find(model => model.id === target)
-        if (row) await open(row)
-      }
-    } catch (caught) { error.value = msg(caught) }
-  })
-}
-
-async function open(model: Model) {
-  try {
-    selected.value = await teacherAPI.model(model.id)
-    Object.assign(modelForm, selected.value.model)
-    multiplierReason.value = ''
-    await router.replace({ query: { model: model.id } })
-  } catch (caught) { error.value = msg(caught) }
-}
-
-function close() { selected.value = null; void router.replace({ query: {} }) }
-async function saveModel() {
-  try {
-    if (selected.value) {
-      const { model_id, ...body } = modelForm
-      void model_id
-      const changed = body.credit_multiplier !== selected.value.model.credit_multiplier
-      if (changed && !multiplierReason.value.trim()) { error.value = '修改倍率必须填写变更原因'; return }
-      const { credit_multiplier, ...modelFields } = body
-      const updateBody: ModelUpdate = { ...modelFields, ...(credit_multiplier === null ? {} : { credit_multiplier }), ...(changed ? { multiplier_change_reason: multiplierReason.value.trim() } : {}) }
-      selected.value.model = await teacherAPI.updateModel(selected.value.model.id, updateBody)
-      toast.success('模型配置已更新')
-    } else {
-      await teacherAPI.createModel({ model_id: modelForm.model_id, display_name: modelForm.display_name, description: modelForm.description, category: modelForm.category, capabilities: modelForm.capabilities, input_modalities: modelForm.input_modalities, output_modalities: modelForm.output_modalities, is_common: modelForm.is_common, status: 'pending_configuration', ...(modelForm.credit_multiplier === null ? {} : { credit_multiplier: modelForm.credit_multiplier }), ...(modelForm.context_window === null ? {} : { context_window: modelForm.context_window }), ...(modelForm.max_output_tokens === null ? {} : { max_output_tokens: modelForm.max_output_tokens }) })
-      createOpen.value = false
-      toast.success('模型已创建，状态为待配置')
-    }
-    await load()
-  } catch (caught) { handle(caught) }
-}
-
-function openBinding(binding?: Binding) {
-  editingBinding.value = binding ?? null
-  Object.assign(bindingForm, { provider_id: binding?.provider_id ?? '', upstream_model_name: binding?.upstream_model_name ?? '', adapter: binding?.adapter ?? 'openai_compatible', priority: binding?.priority ?? 100, status: binding?.status ?? 'active' })
-  bindingOpen.value = true
-}
-
-async function saveBinding() {
-  if (!selected.value) return
-  try {
-    if (editingBinding.value) await teacherAPI.updateBinding(editingBinding.value.id, { upstream_model_name: bindingForm.upstream_model_name, adapter: bindingForm.adapter, priority: bindingForm.priority, status: bindingForm.status })
-    else await teacherAPI.createBinding(selected.value.model.id, bindingForm)
-    selected.value = await teacherAPI.model(selected.value.model.id)
-    bindingOpen.value = false
-    toast.success('Binding 已保存')
-    await load()
-  } catch (caught) { handle(caught) }
-}
-
-async function toggle(model: Model) {
-  if (model.status === 'active' && !confirm('停用模型会影响使用该模型的 Key，是否继续？')) return
-  try { await teacherAPI.updateModel(model.id, { status: model.status === 'active' ? 'inactive' : 'active' }); await load() } catch (caught) { handle(caught) }
-}
-
-function handle(caught: unknown) {
-  if (caught instanceof APIError && caught.code === 'MODEL_ROUTING_REQUIRED' && !Array.isArray(caught.details)) {
-    const details = caught.details as { model_ids?: string[] } | undefined
-    routingModels.value = details?.model_ids ?? []
-  } else error.value = msg(caught)
-}
-function msg(caught: unknown) { return caught instanceof APIError ? caught.message : '请求失败' }
-onMounted(load)
+import{computed,onMounted,reactive,ref}from'vue';import{useRoute,useRouter}from'vue-router';import{teacherAPI}from'../../api/teacher';import type{Binding,BindingAdapter,Model,ModelCapability,ModelStatus,Provider,ProbeEndpoint}from'../../api/types';import{APIError}from'../../api/client';import StatusBadge from'../../components/StatusBadge.vue';import AppDialog from'../../components/AppDialog.vue';import LoadingRegion from'../../components/LoadingRegion.vue';import{useLoadState}from'../../composables/useLoadState';import{useToast}from'../../composables/useToast';import{capabilityLabel,capabilityOptions,formatTokenK,parseTokenK}from'../../utils/modelCatalog'
+const adapterOptions:Array<{value:BindingAdapter;label:string}>= [{value:'openai_compatible',label:'OpenAI Chat / Completions'},{value:'openai_responses',label:'OpenAI Responses'},{value:'openai_embeddings',label:'OpenAI Embeddings'},{value:'anthropic',label:'Anthropic Messages'},{value:'cohere_rerank_v2',label:'Cohere Rerank v2'}]
+const rows=ref<Model[]>([]),providers=ref<Provider[]>([]),tab=ref<'common'|'all'>('common'),query=ref(''),selected=ref<{model:Model;bindings:Binding[]}|null>(null),dialogOpen=ref(false),step=ref(1),error=ref(''),catalog=ref<any[]>([]),catalogPage=ref(1),catalogTotal=ref(0),catalogQuery=ref(''),probeOpen=ref(false),probeResults=ref<any>(null),multiplierReason=ref(''),bindingOpen=ref(false),editingBinding=ref<Binding|null>(null),toast=useToast(),loadState=useLoadState(),route=useRoute(),router=useRouter()
+const modelForm=reactive<any>({model_id:'',display_name:'',description:'',category:'text',capabilities:[] as ModelCapability[],input_modalities:[] as string[],output_modalities:[] as string[],context_window:null,max_input_tokens:null,max_output_tokens:null,is_common:false,status:'pending_configuration' as ModelStatus,credit_multiplier:'1.000'})
+const bindingForm=reactive({provider_id:'',upstream_model_name:'',adapter:'openai_compatible' as BindingAdapter,priority:100,status:'active' as 'active'|'inactive'}),probeForm=reactive<{provider_id:string;base_url:string;credential:string;upstream_model_name:string;endpoints:ProbeEndpoint[]}>({provider_id:'',base_url:'',credential:'',upstream_model_name:'',endpoints:['chat_completions']})
+const filtered=computed(()=>rows.value.filter(model=>(tab.value==='all'||model.is_common)&&(!query.value||`${model.display_name} ${model.model_id}`.toLowerCase().includes(query.value.toLowerCase()))).sort((a,b)=>a.display_name.localeCompare(b.display_name))),maxCatalogPage=computed(()=>Math.max(1,Math.ceil(catalogTotal.value/20)))
+async function load(){await loadState.run(async()=>{try{[rows.value,providers.value]=await Promise.all([teacherAPI.models(),teacherAPI.providers()]);const target=String(route.query.model||'');if(target){const row=rows.value.find(item=>item.model_id===target);if(row)await open(row)}}catch(e){error.value=msg(e)}})}
+function reset(){Object.assign(modelForm,{model_id:'',display_name:'',description:'',category:'text',capabilities:[],input_modalities:[],output_modalities:[],context_window:null,max_input_tokens:null,max_output_tokens:null,is_common:false,status:'pending_configuration',credit_multiplier:'1.000'});selected.value=null;step.value=1;dialogOpen.value=true;multiplierReason.value='';catalog.value=[];catalogQuery.value=''}
+async function open(model:Model){selected.value=await teacherAPI.model(model.model_id);Object.assign(modelForm,selected.value.model);step.value=1;dialogOpen.value=true;await router.replace({query:{model:model.model_id}})}function close(){dialogOpen.value=false;selected.value=null;void router.replace({query:{}})}
+async function searchCatalog(){catalogQuery.value=modelForm.model_id;const page=await teacherAPI.catalogCandidates(catalogQuery.value,catalogPage.value,20);catalog.value=page.items;catalogTotal.value=page.total}function chooseCandidate(item:any){modelForm.model_id=item.model_id;modelForm.display_name=item.model_id;modelForm.description=item.description||'';Object.assign(modelForm,item.suggestion);catalog.value=[]}
+function toggleCapability(value:ModelCapability){const i=modelForm.capabilities.indexOf(value);i>=0?modelForm.capabilities.splice(i,1):modelForm.capabilities.push(value)}
+async function saveBase(){try{const body:any={model_id:modelForm.model_id,display_name:modelForm.display_name,description:modelForm.description,category:modelForm.category,capabilities:modelForm.capabilities,input_modalities:modelForm.input_modalities,output_modalities:modelForm.output_modalities,context_window:modelForm.context_window,max_input_tokens:modelForm.max_input_tokens,max_output_tokens:modelForm.max_output_tokens,is_common:modelForm.is_common};if(selected.value){if(modelForm.credit_multiplier!==selected.value.model.credit_multiplier){body.credit_multiplier=modelForm.credit_multiplier;body.multiplier_change_reason=multiplierReason.value.trim()}await teacherAPI.updateModel(body)}else await teacherAPI.createModel({...body,credit_multiplier:modelForm.credit_multiplier,status:'pending_configuration'});selected.value=await teacherAPI.model(modelForm.model_id);Object.assign(modelForm,selected.value.model);toast.success('基础配置已保存');step.value=3;await load()}catch(e){error.value=msg(e)}}
+async function probe(){try{probeForm.upstream_model_name=probeForm.upstream_model_name||modelForm.model_id;probeResults.value=await teacherAPI.probeModel({provider_id:probeForm.provider_id||undefined,base_url:probeForm.base_url||undefined,credential:probeForm.credential||undefined,upstream_model_name:probeForm.upstream_model_name,endpoints:probeForm.endpoints});const limits=probeResults.value.limits||{};if(limits.context_window)modelForm.context_window=limits.context_window;if(limits.max_input_tokens)modelForm.max_input_tokens=limits.max_input_tokens;if(limits.max_output_tokens)modelForm.max_output_tokens=limits.max_output_tokens;toast.success('测试完成，响应体保留在当前弹窗')}catch(e){error.value=msg(e)}}
+function openBinding(binding?:Binding){editingBinding.value=binding||null;Object.assign(bindingForm,{provider_id:binding?.provider_id||'',upstream_model_name:binding?.upstream_model_name||modelForm.model_id,adapter:binding?.adapter||'openai_compatible',priority:binding?.priority||100,status:binding?.status||'active'});bindingOpen.value=true}async function saveBinding(){try{if(editingBinding.value)await teacherAPI.updateBinding(editingBinding.value.id,bindingForm);else await teacherAPI.createBinding(modelForm.model_id,bindingForm);selected.value=await teacherAPI.model(modelForm.model_id);bindingOpen.value=false;step.value=4;toast.success('Binding 已保存');await load()}catch(e){error.value=msg(e)}}
+async function toggleStatus(){try{const next=modelForm.status==='active'?'inactive':'active';await teacherAPI.updateModel({model_id:modelForm.model_id,status:next});toast.success(next==='active'?'模型已启用':'模型已停用');await load();close()}catch(e){error.value=msg(e)}}function msg(e:unknown){return e instanceof APIError?e.message:'请求失败'};onMounted(load)
 </script>
-
-<template>
-  <section class="page">
-    <div class="page-heading"><div><p class="eyebrow">TEACHER</p><h1>模型管理</h1><p class="muted">配置模型元数据、计费倍率、常用标记和供应商 Binding。</p></div><button class="button primary" @click="createOpen=true;Object.assign(modelForm,{model_id:'',display_name:'',description:'',category:'text',capabilities:[],input_modalities:[],output_modalities:[],context_window:null,max_output_tokens:null,is_common:false,status:'pending_configuration',credit_multiplier:null});multiplierReason=''">新增模型</button></div>
-    <p v-if="error" class="error banner">{{ error }}</p>
-    <section class="panel"><div class="segmented"><button :class="{active:tab==='common'}" @click="tab='common'">常用模型</button><button :class="{active:tab==='all'}" @click="tab='all'">所有模型 <span v-if="pending">{{ pending }}</span></button></div><div class="grid two"><label>搜索<input v-model="query" placeholder="名称或 model_id"></label><div class="row"><label>类别<select v-model="category"><option value="">全部</option><option v-for="value in ['text','image','audio','video','multimodal','embedding','rerank']" :key="value">{{ value }}</option></select></label><label>状态<select v-model="status"><option value="">全部</option><option value="pending_configuration">待配置</option><option value="active">启用</option><option value="inactive">停用</option></select></label></div></div></section>
-    <LoadingRegion :initial-loading="loadState.initialLoading.value" :refreshing="loadState.refreshing.value" variant="cards" label="正在加载模型"><div class="grid two" style="margin-top:20px"><article v-for="model in filtered" :key="model.id" class="panel"><div class="row"><div><strong>{{ model.display_name }}</strong><p class="muted">{{ model.model_id }} · {{ model.category }}</p></div><StatusBadge :status="modelCardStatus(model)" /></div><p class="muted">{{ model.description || '暂无说明' }}</p><div class="chip-list"><span class="chip">{{ model.credit_multiplier ?? '未配置' }}x</span><span v-if="model.is_common" class="chip">常用</span></div><div class="actions"><button class="button ghost" @click="open(model)">配置</button><button class="button" :class="model.status==='active'?'danger':'secondary'" :disabled="model.status!=='active'&&!model.route_ready" @click="toggle(model)">{{ model.status === 'active' ? '停用' : '启用' }}</button></div></article></div></LoadingRegion>
-    <AppDialog :open="Boolean(selected)||createOpen" :title="selected?selected.model.display_name:'新增模型'" wide @update:open="$event?null:(createOpen=false,close())"><ModelForm :model="modelForm" :readonly-model-id="Boolean(selected)" @submit="saveModel"><template #before-submit><label>计费倍率（每次调用 credits）<input v-model="modelForm.credit_multiplier" inputmode="decimal" :required="modelForm.status==='active'"></label><label v-if="selected&&modelForm.credit_multiplier!==selected.model.credit_multiplier">倍率变更原因<textarea v-model="multiplierReason" rows="3" required></textarea></label></template></ModelForm><template v-if="selected"><hr><div class="row"><h2>Bindings</h2><button class="button secondary" @click="openBinding()">新增 Binding</button></div><article v-for="binding in selected.bindings" :key="binding.id" class="list-row"><div><strong>{{ binding.upstream_model_name }}</strong><p class="muted">{{ adapterOptions.find(option=>option.value===binding.adapter)?.label || binding.adapter }} · 优先级 {{ binding.priority }}</p></div><div class="actions"><StatusBadge :status="binding.status" /><button class="button ghost" @click="openBinding(binding)">编辑</button></div></article></template></AppDialog>
-    <AppDialog :open="bindingOpen" :title="editingBinding?'编辑 Binding':'新增 Binding'" @update:open="bindingOpen=$event"><form @submit.prevent="saveBinding"><label v-if="!editingBinding">供应商<select v-model="bindingForm.provider_id" required><option value="">请选择</option><option v-for="provider in providers" :key="provider.id" :value="provider.id">{{ provider.name }}</option></select></label><label>上游模型名<input v-model="bindingForm.upstream_model_name" required></label><label>Adapter<select v-model="bindingForm.adapter"><option v-for="option in adapterOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select><small class="muted">{{ adapterDescription }}</small></label><label>优先级<input v-model.number="bindingForm.priority" type="number" min="0" required></label><label>状态<select v-model="bindingForm.status"><option value="active">启用</option><option value="inactive">停用</option></select></label><div class="actions"><button class="button primary">保存</button></div></form></AppDialog>
-    <AppDialog :open="Boolean(routingModels.length)" title="路由配置不足" @update:open="routingModels=$event?routingModels:[]"><p>以下 ACTIVE 模型会失去最后一条可用路由：</p><div class="chip-list"><span v-for="id in routingModels" :key="id" class="chip">{{ id }}</span></div></AppDialog>
-  </section>
-</template>
+<template><section class="page"><div class="page-heading"><div><p class="eyebrow">TEACHER</p><h1>模型管理</h1><p class="muted">配置模型元数据、计费倍率、常用标记和供应商 Binding。</p></div><button class="button primary" @click="reset">新增模型</button></div><p v-if="error" class="error banner">{{error}}</p><section class="panel"><div class="segmented"><button :class="{active:tab==='common'}" @click="tab='common'">常用模型</button><button :class="{active:tab==='all'}" @click="tab='all'">全部模型 <span>{{rows.length}}</span></button></div><label>搜索<input v-model="query" placeholder="名称或 model_id"></label></section><LoadingRegion :initial-loading="loadState.initialLoading.value" :refreshing="loadState.refreshing.value" variant="cards" label="正在加载模型"><div class="grid two" style="margin-top:20px"><article v-for="model in filtered" :key="model.model_id" class="panel"><div class="row"><div><strong>{{model.display_name}}</strong><p class="muted">{{model.model_id}} · {{model.category}}</p></div><StatusBadge :status="model.status"/></div><div class="chip-list"><span class="chip">{{model.credit_multiplier??'未配置'}}x</span><span v-for="capability in model.capabilities" :key="capability" class="chip">{{capabilityLabel(capability)}}</span></div><div class="actions"><button class="button ghost" @click="open(model)">配置</button></div></article></div></LoadingRegion><AppDialog :open="dialogOpen" :title="selected?selected.model.display_name:'新增模型'" wide @update:open="$event?null:close()"><div class="wizard-steps"><button v-for="item in [{n:1,t:'模型标识'},{n:2,t:'基础配置'},{n:3,t:'Binding'},{n:4,t:'启用确认'}]" :key="item.n" class="wizard-step" :class="{active:step===item.n,done:step>item.n}" :disabled="!selected&&item.n>step" @click="(selected||item.n<=step)&&(step=item.n)"><span>{{item.n}}</span>{{item.t}}</button></div><section v-if="step===1"><div class="grid two"><label>模型 ID<input v-model="modelForm.model_id" :readonly="Boolean(selected)" required @input="searchCatalog"></label><label>模型名称<input v-model="modelForm.display_name" required></label></div><div v-if="!selected&&catalog.length"><div v-for="item in catalog" :key="item.model_id" class="list-row"><div><strong>{{item.model_id}}</strong><p class="muted">{{item.description||'无描述'}}</p></div><button class="button ghost" @click="chooseCandidate(item)">选择</button></div><div class="pagination"><button class="button ghost" :disabled="catalogPage<=1" @click="catalogPage--;searchCatalog()">←</button><span>{{catalogPage}} / {{maxCatalogPage}}</span><button class="button ghost" :disabled="catalogPage>=maxCatalogPage" @click="catalogPage++;searchCatalog()">→</button></div></div><div class="actions"><button class="button primary" :disabled="!modelForm.model_id||!modelForm.display_name" @click="step=2">下一步</button></div></section><section v-else-if="step===2"><label>描述<textarea v-model="modelForm.description" rows="3"/></label><div class="grid two"><label>类别<select v-model="modelForm.category"><option v-for="value in ['text','image','audio','video','multimodal','embedding','rerank']" :key="value">{{value}}</option></select></label><label>计费倍率<input v-model="modelForm.credit_multiplier"></label></div><div class="grid two"><fieldset><legend>输入模态</legend><label v-for="value in ['text','image','audio','video']" :key="value" class="checkbox-option"><input v-model="modelForm.input_modalities" type="checkbox" :value="value">{{value}}</label></fieldset><fieldset><legend>输出模态</legend><label v-for="value in ['text','image','audio','video']" :key="value" class="checkbox-option"><input v-model="modelForm.output_modalities" type="checkbox" :value="value">{{value}}</label></fieldset></div><fieldset><legend>能力</legend><label v-for="item in capabilityOptions" :key="item.value" class="checkbox-option"><input type="checkbox" :checked="modelForm.capabilities.includes(item.value)" @change="toggleCapability(item.value)">{{item.label}}</label></fieldset><div class="grid three"><label>上下文长度（K）<input :value="modelForm.context_window?formatTokenK(modelForm.context_window).replace('K',''):''" @input="modelForm.context_window=parseTokenK(($event.target as HTMLInputElement).value)"></label><label>最大输入（K）<input :value="modelForm.max_input_tokens?formatTokenK(modelForm.max_input_tokens).replace('K',''):''" @input="modelForm.max_input_tokens=parseTokenK(($event.target as HTMLInputElement).value)"></label><label>最大输出（K）<input :value="modelForm.max_output_tokens?formatTokenK(modelForm.max_output_tokens).replace('K',''):''" @input="modelForm.max_output_tokens=parseTokenK(($event.target as HTMLInputElement).value)"></label></div><label class="checkbox-option"><input v-model="modelForm.is_common" type="checkbox">全局常用模型</label><label v-if="selected&&modelForm.credit_multiplier!==selected.model.credit_multiplier">倍率变更原因<textarea v-model="multiplierReason"/></label><div class="actions"><button class="button secondary" @click="probeOpen=true">一键配置</button><button class="button primary" @click="saveBase">保存基础配置</button></div></section><section v-else-if="step===3"><div class="row"><h2>供应商 Binding</h2><button class="button secondary" @click="openBinding()">＋</button></div><article v-for="binding in (selected?.bindings||[])" :key="binding.id" class="list-row"><div><strong>{{providers.find(p=>p.id===binding.provider_id)?.name||'供应商'}}</strong><p class="muted">{{binding.adapter}} · 优先级 {{binding.priority}}</p></div><button class="button ghost" @click="openBinding(binding)">编辑</button></article><p v-if="!selected?.bindings.length" class="empty">请点击右上角＋新增 Binding</p></section><section v-else><p>基础配置已保存，并且至少存在一条 active Binding 后才能启用模型。</p><div class="actions"><button class="button" :class="modelForm.status==='active'?'danger':'primary'" :disabled="modelForm.status!=='active'&&!selected?.model.route_ready" @click="toggleStatus">{{modelForm.status==='active'?'停用模型':'启用模型'}}</button></div></section></AppDialog><AppDialog :open="bindingOpen" :title="editingBinding?'编辑 Binding':'新增 Binding'" @update:open="bindingOpen=$event"><form @submit.prevent="saveBinding"><label>供应商<select v-model="bindingForm.provider_id" required><option value="">请选择</option><option v-for="provider in providers" :key="provider.id" :value="provider.id">{{provider.name}}</option></select></label><label>上游模型名<input v-model="bindingForm.upstream_model_name" required></label><label>端点类型<select v-model="bindingForm.adapter"><option v-for="item in adapterOptions" :key="item.value" :value="item.value">{{item.label}}</option></select></label><label>优先级<input v-model.number="bindingForm.priority" type="number" min="0"></label><div class="actions"><button class="button primary">保存</button></div></form></AppDialog><AppDialog :open="probeOpen" title="一键配置" wide @update:open="probeOpen=$event"><form @submit.prevent="probe"><label>注册供应商<select v-model="probeForm.provider_id"><option value="">手写供应商</option><option v-for="provider in providers" :key="provider.id" :value="provider.id">{{provider.name}}</option></select></label><template v-if="!probeForm.provider_id"><label>测试端点<input v-model="probeForm.base_url" placeholder="https://example.com"></label><label>测试 Key<input v-model="probeForm.credential" type="password"></label></template><label>上游模型名<input v-model="probeForm.upstream_model_name"></label><fieldset><legend>测试端点</legend><label v-for="item in [{v:'chat_completions',t:'Chat / Completions'},{v:'responses',t:'Responses'},{v:'messages',t:'Messages'},{v:'embeddings',t:'Embeddings'},{v:'rerank',t:'Rerank'}]" :key="item.v" class="checkbox-option"><input v-model="probeForm.endpoints" type="checkbox" :value="item.v">{{item.t}}</label></fieldset><div class="actions"><button class="button primary">开始测试</button></div></form><div v-if="probeResults"><article v-for="item in probeResults.results" :key="item.endpoint" class="panel"><strong>{{item.endpoint}} · HTTP {{item.http_status}}</strong><pre>{{JSON.stringify(item.response,null,2)}}</pre></article></div></AppDialog></section></template>

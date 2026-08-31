@@ -641,19 +641,18 @@ func (s *Store) StudentUsage(ctx context.Context, userID uuid.UUID, month time.T
 		} else {
 			item.Overage = "0.000"
 		}
-		mr, err := s.db.QueryContext(ctx, `SELECT model_id,model_name,charged_milli,charged_count FROM monthly_usage_cube WHERE api_key_id=$1 AND month=$2 ORDER BY charged_milli DESC,model_name`, id, month)
+		mr, err := s.db.QueryContext(ctx, `SELECT c.model_id,m.model_id,c.model_name,c.charged_milli,c.charged_count+c.zero_cost_count FROM monthly_usage_cube c JOIN models m ON m.id=c.model_id WHERE c.api_key_id=$1 AND c.month=$2 ORDER BY c.charged_milli DESC,c.model_name`, id, month)
 		if err != nil {
 			return result, err
 		}
 		for mr.Next() {
-			var mid uuid.UUID
 			var sl UsageSlice
 			var credits int64
-			if err := mr.Scan(&mid, &sl.Name, &credits, &sl.Calls); err != nil {
+			var internalID uuid.UUID
+			if err := mr.Scan(&internalID, &sl.ID, &sl.Name, &credits, &sl.Calls); err != nil {
 				mr.Close()
 				return result, err
 			}
-			sl.ID = mid.String()
 			sl.Credits = domain.FormatCredits(credits)
 			item.Models = append(item.Models, sl)
 		}
@@ -754,20 +753,20 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 			} else {
 				ki.Allocation = ki.Quota
 			}
-			modelRows, err := s.db.QueryContext(ctx, `SELECT m.id,m.display_name FROM api_key_models km JOIN models m ON m.id=km.model_id WHERE km.api_key_id=$1 ORDER BY m.display_name,m.id`, kid)
+			modelRows, err := s.db.QueryContext(ctx, `SELECT m.model_id,m.display_name FROM api_key_models km JOIN models m ON m.id=km.model_id WHERE km.api_key_id=$1 ORDER BY m.display_name,m.id`, kid)
 			if err != nil {
 				kr.Close()
 				return v, err
 			}
 			for modelRows.Next() {
-				var modelID uuid.UUID
+				var modelID string
 				var modelName string
 				if err := modelRows.Scan(&modelID, &modelName); err != nil {
 					modelRows.Close()
 					kr.Close()
 					return v, err
 				}
-				ki.Models = append(ki.Models, UsageSlice{ID: modelID.String(), Name: modelName, Credits: "0.000"})
+				ki.Models = append(ki.Models, UsageSlice{ID: modelID, Name: modelName, Credits: "0.000"})
 			}
 			if err := modelRows.Err(); err != nil {
 				modelRows.Close()
@@ -788,19 +787,20 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 	if err := rows.Close(); err != nil {
 		return v, err
 	}
-	fr, err := s.db.QueryContext(ctx, `SELECT user_id,model_id,model_name,sum(zero_cost_count) FROM monthly_usage_cube WHERE project_id=$1 AND month=$2 AND zero_cost_count>0 GROUP BY user_id,model_id,model_name HAVING sum(zero_cost_count)>0 ORDER BY user_id,sum(zero_cost_count) DESC,model_name`, projectID, month)
+	fr, err := s.db.QueryContext(ctx, `SELECT c.user_id,m.model_id,c.model_name,sum(c.zero_cost_count) FROM monthly_usage_cube c JOIN models m ON m.id=c.model_id WHERE c.project_id=$1 AND c.month=$2 AND c.zero_cost_count>0 GROUP BY c.user_id,m.model_id,c.model_name HAVING sum(c.zero_cost_count)>0 ORDER BY c.user_id,sum(c.zero_cost_count) DESC,c.model_name`, projectID, month)
 	if err != nil {
 		return v, err
 	}
 	for fr.Next() {
-		var userID, modelID uuid.UUID
+		var userID uuid.UUID
+		var modelID string
 		var name string
 		var calls int64
 		if err := fr.Scan(&userID, &modelID, &name, &calls); err != nil {
 			fr.Close()
 			return v, err
 		}
-		item := UsageSlice{ID: modelID.String(), Name: name, Credits: "0.000", Calls: calls}
+		item := UsageSlice{ID: modelID, Name: name, Credits: "0.000", Calls: calls}
 		if index, ok := memberIndexes[userID]; ok {
 			v.Members[index].FreeModels = append(v.Members[index].FreeModels, item)
 		}
@@ -813,19 +813,19 @@ func (s *Store) ProjectUsage(ctx context.Context, projectID uuid.UUID, month tim
 		return v, err
 	}
 	v.FreeModels = summarizeMemberFreeModels(v.Members)
-	mr, err := s.db.QueryContext(ctx, `SELECT model_id,model_name,sum(charged_milli),sum(charged_count) FROM monthly_usage_cube WHERE project_id=$1 AND month=$2 GROUP BY model_id,model_name ORDER BY sum(charged_milli) DESC,model_name`, projectID, month)
+	mr, err := s.db.QueryContext(ctx, `SELECT m.model_id,c.model_name,sum(c.charged_milli),sum(c.charged_count) FROM monthly_usage_cube c JOIN models m ON m.id=c.model_id WHERE c.project_id=$1 AND c.month=$2 GROUP BY m.model_id,c.model_name ORDER BY sum(c.charged_milli) DESC,c.model_name`, projectID, month)
 	if err != nil {
 		return v, err
 	}
 	defer mr.Close()
 	for mr.Next() {
-		var id uuid.UUID
+		var id string
 		var name string
 		var credits, calls int64
 		if err := mr.Scan(&id, &name, &credits, &calls); err != nil {
 			return v, err
 		}
-		item := UsageSlice{ID: id.String(), Name: name, Credits: domain.FormatCredits(credits), Calls: calls}
+		item := UsageSlice{ID: id, Name: name, Credits: domain.FormatCredits(credits), Calls: calls}
 		if credits > 0 {
 			v.Models = append(v.Models, item)
 		}
@@ -880,11 +880,12 @@ func DecodeCursor(raw string) (*Cursor, error) {
 }
 
 type LogFilter struct {
-	ProjectID, UserID, APIKeyID, ModelID *uuid.UUID
-	Status                               string
-	Start, End                           *time.Time
-	Cursor                               *Cursor
-	Limit                                int
+	ProjectID, UserID, APIKeyID *uuid.UUID
+	ModelID                     *string
+	Status                      string
+	Start, End                  *time.Time
+	Cursor                      *Cursor
+	Limit                       int
 }
 type CallLog struct {
 	ID            string       `json:"id"`
@@ -942,7 +943,7 @@ func (s *Store) MentorCallLogs(ctx context.Context, mentorID uuid.UUID, f LogFil
 		add("c.api_key_id=$%d", *f.APIKeyID)
 	}
 	if f.ModelID != nil {
-		add("c.model_id=$%d", *f.ModelID)
+		add("EXISTS(SELECT 1 FROM models filter_model WHERE filter_model.id=c.model_id AND filter_model.model_id=$%d)", *f.ModelID)
 	}
 	if f.Status != "" {
 		add("c.outcome=$%d", f.Status)
@@ -958,7 +959,7 @@ func (s *Store) MentorCallLogs(ctx context.Context, mentorID uuid.UUID, f LogFil
 		where = append(where, fmt.Sprintf("(c.created_at,c.id)<($%d,$%d)", len(args)-1, len(args)))
 	}
 	args = append(args, f.Limit+1)
-	query := `SELECT c.id,c.request_id,c.project_id,c.project_name,c.user_id,c.user_name,c.api_key_id,c.api_key_name,c.model_id,c.model_name,COALESCE(c.provider_name,''),c.protocol,c.request_path,c.multiplier_milli,c.credit_milli,c.billing_state,c.outcome,COALESCE(c.error_category,''),COALESCE(c.error_message,''),c.created_at FROM gateway_calls c WHERE ` + strings.Join(where, " AND ") + fmt.Sprintf(" ORDER BY c.created_at DESC,c.id DESC LIMIT $%d", len(args))
+	query := `SELECT c.id,c.request_id,c.project_id,c.project_name,c.user_id,c.user_name,c.api_key_id,c.api_key_name,m.model_id,c.model_name,COALESCE(c.provider_name,''),c.protocol,c.request_path,c.multiplier_milli,c.credit_milli,c.billing_state,c.outcome,COALESCE(c.error_category,''),COALESCE(c.error_message,''),c.created_at FROM gateway_calls c JOIN models m ON m.id=c.model_id WHERE ` + strings.Join(where, " AND ") + fmt.Sprintf(" ORDER BY c.created_at DESC,c.id DESC LIMIT $%d", len(args))
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return Page[CallLog]{}, err
@@ -994,7 +995,7 @@ func (s *Store) MentorCallLog(ctx context.Context, mentorID, callID uuid.UUID) (
 	var ids [4]uuid.UUID
 	var multiplier, credits int64
 	var item CallLog
-	err := s.db.QueryRowContext(ctx, `SELECT c.id,c.request_id,c.project_id,c.project_name,c.user_id,c.user_name,c.api_key_id,c.api_key_name,c.model_id,c.model_name,COALESCE(c.provider_name,''),c.protocol,c.request_path,c.multiplier_milli,c.credit_milli,c.billing_state,c.outcome,COALESCE(c.error_category,''),COALESCE(c.error_message,''),c.created_at FROM gateway_calls c WHERE c.id=$1 AND EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=c.project_id AND pm.user_id=$2)`, callID, mentorID).Scan(&ids[0], &item.RequestID, &ids[1], &item.ProjectName, &ids[2], &item.UserName, &ids[3], &item.APIKeyName, &item.ModelID, &item.ModelName, &item.ProviderName, &item.Protocol, &item.Path, &multiplier, &credits, &item.BillingState, &item.Outcome, &item.ErrorCategory, &item.ErrorMessage, &item.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT c.id,c.request_id,c.project_id,c.project_name,c.user_id,c.user_name,c.api_key_id,c.api_key_name,m.model_id,c.model_name,COALESCE(c.provider_name,''),c.protocol,c.request_path,c.multiplier_milli,c.credit_milli,c.billing_state,c.outcome,COALESCE(c.error_category,''),COALESCE(c.error_message,''),c.created_at FROM gateway_calls c JOIN models m ON m.id=c.model_id WHERE c.id=$1 AND EXISTS(SELECT 1 FROM project_members pm WHERE pm.project_id=c.project_id AND pm.user_id=$2)`, callID, mentorID).Scan(&ids[0], &item.RequestID, &ids[1], &item.ProjectName, &ids[2], &item.UserName, &ids[3], &item.APIKeyName, &item.ModelID, &item.ModelName, &item.ProviderName, &item.Protocol, &item.Path, &multiplier, &credits, &item.BillingState, &item.Outcome, &item.ErrorCategory, &item.ErrorMessage, &item.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CallLog{}, domain.NewError(domain.CodeNotFound, "call log not found")
 	}
@@ -1063,7 +1064,7 @@ func (s *Store) MentorInputs(ctx context.Context, mentorID uuid.UUID, f InputFil
 		add("c.api_key_id=$%d", *f.APIKeyID)
 	}
 	if f.ModelID != nil {
-		add("c.model_id=$%d", *f.ModelID)
+		add("EXISTS(SELECT 1 FROM models filter_model WHERE filter_model.id=c.model_id AND filter_model.model_id=$%d)", *f.ModelID)
 	}
 	if f.Status != "" {
 		add("c.outcome=$%d", f.Status)

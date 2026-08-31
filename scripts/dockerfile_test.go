@@ -59,6 +59,9 @@ func TestProductionDeploymentUsesDirectTunnelAndCompatibleSeccomp(t *testing.T) 
 	if !strings.Contains(deployScript, "Starting maintenance worker") {
 		t.Fatal("production deployment must start the maintenance worker")
 	}
+	if !strings.Contains(deployScript, "Starting Matrix model catalog worker") {
+		t.Fatal("production deployment must start the Matrix model catalog worker")
+	}
 	if !strings.Contains(ciDeployScript, `rm -rf -- '$remote_root'`) {
 		t.Fatal("source synchronization must replace the deployment source directory")
 	}

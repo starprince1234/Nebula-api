@@ -36,7 +36,6 @@ type ProjectView struct {
 }
 
 type ModelView struct {
-	ID               string   `json:"id"`
 	ModelID          string   `json:"model_id"`
 	DisplayName      string   `json:"display_name"`
 	Description      *string  `json:"description"`
@@ -45,6 +44,7 @@ type ModelView struct {
 	InputModalities  []string `json:"input_modalities"`
 	OutputModalities []string `json:"output_modalities"`
 	ContextWindow    *int     `json:"context_window"`
+	MaxInputTokens   *int     `json:"max_input_tokens"`
 	MaxOutputTokens  *int     `json:"max_output_tokens"`
 	IsCommon         bool     `json:"is_common"`
 	Status           string   `json:"status"`
@@ -156,10 +156,10 @@ func projectView(project *ent.Project, hasMentor bool) ProjectView {
 
 func modelView(model *ent.Model) ModelView {
 	view := ModelView{
-		ID: model.ID.String(), ModelID: model.ModelID, DisplayName: model.DisplayName,
+		ModelID: model.ModelID, DisplayName: model.DisplayName,
 		Description: model.Description, Category: string(model.Category),
 		Capabilities: model.Capabilities, InputModalities: model.InputModalities,
-		OutputModalities: model.OutputModalities, ContextWindow: model.ContextWindow,
+		OutputModalities: model.OutputModalities, ContextWindow: model.ContextWindow, MaxInputTokens: model.MaxInputTokens,
 		MaxOutputTokens: model.MaxOutputTokens, IsCommon: model.IsCommon,
 		Status: string(model.Status),
 	}

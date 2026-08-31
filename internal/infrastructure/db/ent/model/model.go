@@ -36,6 +36,8 @@ const (
 	FieldOutputModalities = "output_modalities"
 	// FieldContextWindow holds the string denoting the context_window field in the database.
 	FieldContextWindow = "context_window"
+	// FieldMaxInputTokens holds the string denoting the max_input_tokens field in the database.
+	FieldMaxInputTokens = "max_input_tokens"
 	// FieldMaxOutputTokens holds the string denoting the max_output_tokens field in the database.
 	FieldMaxOutputTokens = "max_output_tokens"
 	// FieldIsCommon holds the string denoting the is_common field in the database.
@@ -79,6 +81,7 @@ var Columns = []string{
 	FieldInputModalities,
 	FieldOutputModalities,
 	FieldContextWindow,
+	FieldMaxInputTokens,
 	FieldMaxOutputTokens,
 	FieldIsCommon,
 	FieldStatus,
@@ -116,6 +119,8 @@ var (
 	DefaultOutputModalities []string
 	// ContextWindowValidator is a validator for the "context_window" field. It is called by the builders before save.
 	ContextWindowValidator func(int) error
+	// MaxInputTokensValidator is a validator for the "max_input_tokens" field. It is called by the builders before save.
+	MaxInputTokensValidator func(int) error
 	// MaxOutputTokensValidator is a validator for the "max_output_tokens" field. It is called by the builders before save.
 	MaxOutputTokensValidator func(int) error
 	// DefaultIsCommon holds the default value on creation for the "is_common" field.
@@ -225,6 +230,11 @@ func ByCategory(opts ...sql.OrderTermOption) OrderOption {
 // ByContextWindow orders the results by the context_window field.
 func ByContextWindow(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldContextWindow, opts...).ToFunc()
+}
+
+// ByMaxInputTokens orders the results by the max_input_tokens field.
+func ByMaxInputTokens(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxInputTokens, opts...).ToFunc()
 }
 
 // ByMaxOutputTokens orders the results by the max_output_tokens field.

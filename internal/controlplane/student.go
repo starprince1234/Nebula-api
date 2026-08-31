@@ -21,21 +21,13 @@ type SubmitAPIKeyInput struct {
 	Name                    string
 	OrganizationID          uuid.UUID
 	ProjectID               uuid.UUID
-	ModelIDs                []string
-	RequestedModels         []RequestedModelInput
+	Models                  []RequestedModelInput
 	RequestedMonthlyCredits int64
 }
 
 type RequestedModelInput struct {
-	ModelID          string
-	DisplayName      string
-	Description      *string
-	Category         string
-	Capabilities     []string
-	InputModalities  []string
-	OutputModalities []string
-	ContextWindow    *int
-	MaxOutputTokens  *int
+	ModelID     string
+	DisplayName string
 }
 
 type ClaimView struct {
@@ -134,7 +126,7 @@ func (s *Service) SubmitAPIKey(ctx context.Context, studentID uuid.UUID, input S
 	if err != nil {
 		return APIKeyView{}, err
 	}
-	modelIDs, requestedModels, err := normalizeRequestedModels(input.ModelIDs, input.RequestedModels)
+	requestedModels, err := normalizeRequestedModels(input.Models)
 	if err != nil {
 		return APIKeyView{}, err
 	}
@@ -182,31 +174,16 @@ func (s *Service) SubmitAPIKey(ctx context.Context, studentID uuid.UUID, input S
 		return APIKeyView{}, domain.NewError(domain.CodeValidation, "requested monthly credits exceed project quota")
 	}
 
-	modelRows := make([]*ent.Model, 0, len(modelIDs))
-	for _, modelID := range modelIDs {
+	modelRows := make([]*ent.Model, 0, len(requestedModels))
+	for _, requested := range requestedModels {
+		modelID := requested.ModelID
 		row, queryErr := tx.Model.Query().Where(entmodel.ModelIDEQ(modelID)).Only(ctx)
 		if ent.IsNotFound(queryErr) {
-			requested, supplied := requestedModels[strings.ToLower(modelID)]
-			if !supplied {
-				return APIKeyView{}, domain.NewError(domain.CodeValidation, "new models require complete requested_models metadata")
-			}
 			builder := tx.Model.Create().
 				SetModelID(requested.ModelID).
 				SetDisplayName(requested.DisplayName).
-				SetCategory(entmodel.Category(requested.Category)).
-				SetCapabilities(requested.Capabilities).
-				SetInputModalities(requested.InputModalities).
-				SetOutputModalities(requested.OutputModalities).
+				SetCategory(entmodel.CategoryText).
 				SetStatus(entmodel.StatusPendingConfiguration)
-			if requested.Description != nil {
-				builder.SetDescription(*requested.Description)
-			}
-			if requested.ContextWindow != nil {
-				builder.SetContextWindow(*requested.ContextWindow)
-			}
-			if requested.MaxOutputTokens != nil {
-				builder.SetMaxOutputTokens(*requested.MaxOutputTokens)
-			}
 			row, queryErr = builder.Save(ctx)
 			if ent.IsConstraintError(queryErr) {
 				row, queryErr = tx.Model.Query().Where(entmodel.ModelIDEQ(modelID)).Only(ctx)
@@ -251,65 +228,36 @@ func (s *Service) SubmitAPIKey(ctx context.Context, studentID uuid.UUID, input S
 	return view, err
 }
 
-func normalizeRequestedModels(modelIDs []string, requested []RequestedModelInput) ([]string, map[string]RequestedModelInput, error) {
-	allIDs := append([]string(nil), modelIDs...)
-	requestedByID := make(map[string]RequestedModelInput, len(requested))
+func normalizeRequestedModels(requested []RequestedModelInput) ([]RequestedModelInput, error) {
+	if len(requested) < 1 || len(requested) > 100 {
+		return nil, domain.NewError(domain.CodeValidation, "models must contain 1 to 100 items")
+	}
+	result := make([]RequestedModelInput, 0, len(requested))
+	seen := map[string]struct{}{}
 	for _, item := range requested {
 		modelID, err := normalizeSingleModelID(item.ModelID)
 		if err != nil {
-			return nil, nil, err
-		}
-		displayName, err := ValidateName(item.DisplayName, 256)
-		if err != nil {
-			return nil, nil, err
-		}
-		category, err := modelCategory(item.Category)
-		if err != nil {
-			return nil, nil, err
-		}
-		description := item.Description
-		if description != nil {
-			trimmed := strings.TrimSpace(*description)
-			if len([]rune(trimmed)) > 2048 {
-				return nil, nil, domain.NewError(domain.CodeValidation, "model description is too long")
-			}
-			if trimmed == "" {
-				description = nil
-			} else {
-				description = &trimmed
-			}
-		}
-		capabilities := cleanStringList(item.Capabilities)
-		inputs := cleanStringList(item.InputModalities)
-		outputs := cleanStringList(item.OutputModalities)
-		if len(capabilities) == 0 || len(inputs) == 0 || len(outputs) == 0 {
-			return nil, nil, domain.NewError(domain.CodeValidation, "requested model capabilities and modalities are required")
-		}
-		if item.ContextWindow != nil && *item.ContextWindow <= 0 {
-			return nil, nil, domain.NewError(domain.CodeValidation, "context_window must be positive")
-		}
-		if item.MaxOutputTokens != nil && *item.MaxOutputTokens <= 0 {
-			return nil, nil, domain.NewError(domain.CodeValidation, "max_output_tokens must be positive")
+			return nil, err
 		}
 		key := strings.ToLower(modelID)
-		if _, exists := requestedByID[key]; exists {
+		if _, exists := seen[key]; exists {
 			continue
+		}
+		seen[key] = struct{}{}
+		displayName := strings.TrimSpace(item.DisplayName)
+		if displayName == "" {
+			displayName = modelID
+		} else {
+			displayName, err = ValidateName(displayName, 256)
+			if err != nil {
+				return nil, err
+			}
 		}
 		item.ModelID = modelID
 		item.DisplayName = displayName
-		item.Description = description
-		item.Category = string(category)
-		item.Capabilities = capabilities
-		item.InputModalities = inputs
-		item.OutputModalities = outputs
-		requestedByID[key] = item
-		allIDs = append(allIDs, modelID)
+		result = append(result, item)
 	}
-	normalizedIDs, err := normalizeModelIDs(allIDs)
-	if err != nil {
-		return nil, nil, err
-	}
-	return normalizedIDs, requestedByID, nil
+	return result, nil
 }
 
 func (s *Service) StudentAPIKeys(ctx context.Context, studentID uuid.UUID) ([]APIKeyView, error) {
@@ -379,28 +327,4 @@ func (s *Service) ClaimAPIKey(ctx context.Context, studentID, keyID uuid.UUID) (
 	}
 	s.publishKeyStatus(ctx, studentID, keyID, domain.KeyActive, claimedAt)
 	return ClaimView{APIKey: secret, KeyPrefix: prefix, ClaimedAt: claimedAt}, nil
-}
-
-func normalizeModelIDs(values []string) ([]string, error) {
-	if len(values) == 0 || len(values) > 100 {
-		return nil, domain.NewError(domain.CodeValidation, "model_ids must contain 1 to 100 items")
-	}
-	result := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" || len(value) > 256 {
-			return nil, domain.NewError(domain.CodeValidation, "invalid model ID")
-		}
-		key := strings.ToLower(value)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, value)
-	}
-	if len(result) == 0 {
-		return nil, domain.NewError(domain.CodeValidation, "at least one model ID is required")
-	}
-	return result, nil
 }

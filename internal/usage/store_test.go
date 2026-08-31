@@ -57,6 +57,29 @@ func TestSummarizeMemberFreeModelsEqualsMemberSums(t *testing.T) {
 	}
 }
 
+func TestStudentUsageIncludesZeroCostCalls(t *testing.T) {
+	database, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	store := NewStore(database)
+	userID, keyID, modelID := uuid.New(), uuid.New(), uuid.New()
+	month := Month(time.Now()).AddDate(0, -1, 0)
+	mock.ExpectQuery(`SELECT k.id,k.name,k.status`).WithArgs(userID, month).WillReturnRows(sqlmock.NewRows([]string{"id", "name", "status", "quota_milli", "charged_milli", "pending_milli"}).AddRow(keyID, "key", "active", 2000, 0, 0))
+	mock.ExpectQuery(`SELECT c.model_id,m.model_id,c.model_name,c.charged_milli,c.charged_count\+c.zero_cost_count`).WithArgs(keyID, month).WillReturnRows(sqlmock.NewRows([]string{"internal_id", "model_id", "model_name", "charged_milli", "calls"}).AddRow(modelID, "free-model", "Free Model", 0, 4))
+	usage, err := store.StudentUsage(context.Background(), userID, month)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(usage.Keys) != 1 || len(usage.Keys[0].Models) != 1 || usage.Keys[0].Models[0].ID != "free-model" || usage.Keys[0].Models[0].Calls != 4 {
+		t.Fatalf("unexpected usage: %#v", usage)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestApproveKeyBindsProjectBucketMonth(t *testing.T) {
 	database, mock, err := sqlmock.New()
 	if err != nil {

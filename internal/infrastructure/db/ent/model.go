@@ -39,6 +39,8 @@ type Model struct {
 	OutputModalities []string `json:"output_modalities,omitempty"`
 	// ContextWindow holds the value of the "context_window" field.
 	ContextWindow *int `json:"context_window,omitempty"`
+	// MaxInputTokens holds the value of the "max_input_tokens" field.
+	MaxInputTokens *int `json:"max_input_tokens,omitempty"`
 	// MaxOutputTokens holds the value of the "max_output_tokens" field.
 	MaxOutputTokens *int `json:"max_output_tokens,omitempty"`
 	// IsCommon holds the value of the "is_common" field.
@@ -91,7 +93,7 @@ func (*Model) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case model.FieldIsCommon:
 			values[i] = new(sql.NullBool)
-		case model.FieldContextWindow, model.FieldMaxOutputTokens, model.FieldCreditMultiplierMilli:
+		case model.FieldContextWindow, model.FieldMaxInputTokens, model.FieldMaxOutputTokens, model.FieldCreditMultiplierMilli:
 			values[i] = new(sql.NullInt64)
 		case model.FieldModelID, model.FieldDisplayName, model.FieldDescription, model.FieldCategory, model.FieldStatus:
 			values[i] = new(sql.NullString)
@@ -187,6 +189,13 @@ func (_m *Model) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ContextWindow = new(int)
 				*_m.ContextWindow = int(value.Int64)
+			}
+		case model.FieldMaxInputTokens:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_input_tokens", values[i])
+			} else if value.Valid {
+				_m.MaxInputTokens = new(int)
+				*_m.MaxInputTokens = int(value.Int64)
 			}
 		case model.FieldMaxOutputTokens:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -291,6 +300,11 @@ func (_m *Model) String() string {
 	builder.WriteString(", ")
 	if v := _m.ContextWindow; v != nil {
 		builder.WriteString("context_window=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.MaxInputTokens; v != nil {
+		builder.WriteString("max_input_tokens=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
