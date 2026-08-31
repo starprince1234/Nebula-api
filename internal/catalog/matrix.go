@@ -133,12 +133,12 @@ func joined(values []string) string {
 }
 
 var (
-	contextWanPattern      = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*万\s*(?:令牌|代币|token|上下文|字符|词元)`)
-	contextMillionPattern  = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*m\b[^。，；]{0,30}(?:token|令牌|代币|上下文|context|窗口)`)
-	contextKBeforePattern  = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*k\b[^。，；]{0,40}(?:上下文|context|窗口)`)
-	contextKAfterPattern   = regexp.MustCompile(`(?i)(?:上下文|context|窗口|长上下文)[^。，；0-9]{0,30}(\d+(?:\.\d+)?)\s*k\b`)
-	outputKBeforePattern   = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*k\b[^。，；]{0,30}(?:最大输出|max[_\s-]?output|输出令牌|输出token|输出长度)`)
-	outputKAfterPattern    = regexp.MustCompile(`(?i)(?:最大输出|max[_\s-]?output|输出令牌|输出token|输出长度)[^。，；0-9]{0,20}(\d+(?:\.\d+)?)\s*k\b`)
+	contextWanPattern     = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*万\s*(?:令牌|代币|token|上下文|字符|词元)`)
+	contextMillionPattern = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*m\b[^。，；]{0,30}(?:token|令牌|代币|上下文|context|窗口)`)
+	contextKBeforePattern = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*k\b[^。，；]{0,40}(?:上下文|context|窗口)`)
+	contextKAfterPattern  = regexp.MustCompile(`(?i)(?:上下文|context|窗口|长上下文)[^。，；0-9]{0,30}(\d+(?:\.\d+)?)\s*k\b`)
+	outputKBeforePattern  = regexp.MustCompile(`(?i)(\d+(?:\.\d+)?)\s*k\b[^。，；]{0,30}(?:最大输出|max[_\s-]?output|输出令牌|输出token|输出长度)`)
+	outputKAfterPattern   = regexp.MustCompile(`(?i)(?:最大输出|max[_\s-]?output|输出令牌|输出token|输出长度)[^。，；0-9]{0,20}(\d+(?:\.\d+)?)\s*k\b`)
 	reasoningModelPattern = regexp.MustCompile(`(?:^|[-_.])(o[134]|r1)(?:[-_.]|$)`)
 )
 
@@ -176,7 +176,7 @@ func descriptionCapacities(description string) (contextWindow, maxOutput int) {
 }
 
 type capacityRule struct {
-	pattern                   *regexp.Regexp
+	pattern                  *regexp.Regexp
 	contextWindow, maxOutput int
 }
 
@@ -267,29 +267,73 @@ func SuggestConfiguration(item Item) Suggestion {
 	if textIO || (!imageInput && !audioInput && !videoInput) {
 		s.InputModalities = add(s.InputModalities, "text")
 	}
-	if imageInput { s.InputModalities = add(s.InputModalities, "image") }
-	if audioInput { s.InputModalities = add(s.InputModalities, "audio") }
-	if videoInput { s.InputModalities = add(s.InputModalities, "video") }
-	if textIO || (!imageGeneration && !videoGeneration && s.Category != "audio") { s.OutputModalities = add(s.OutputModalities, "text") }
-	if imageGeneration { s.OutputModalities = add(s.OutputModalities, "image") }
-	if hasAny(tags, "音乐", "音频") || hasAny(endpoints, "文本转语音", "语音合成", "tts", "音乐", "suno", "音效") { s.OutputModalities = add(s.OutputModalities, "audio") }
-	if videoGeneration { s.OutputModalities = add(s.OutputModalities, "video") }
-	if len(s.OutputModalities) == 0 { s.OutputModalities = []string{"text"} }
-	if imageInput && s.Category == "text" { s.Category = "multimodal" }
+	if imageInput {
+		s.InputModalities = add(s.InputModalities, "image")
+	}
+	if audioInput {
+		s.InputModalities = add(s.InputModalities, "audio")
+	}
+	if videoInput {
+		s.InputModalities = add(s.InputModalities, "video")
+	}
+	if textIO || (!imageGeneration && !videoGeneration && s.Category != "audio") {
+		s.OutputModalities = add(s.OutputModalities, "text")
+	}
+	if imageGeneration {
+		s.OutputModalities = add(s.OutputModalities, "image")
+	}
+	if hasAny(tags, "音乐", "音频") || hasAny(endpoints, "文本转语音", "语音合成", "tts", "音乐", "suno", "音效") {
+		s.OutputModalities = add(s.OutputModalities, "audio")
+	}
+	if videoGeneration {
+		s.OutputModalities = add(s.OutputModalities, "video")
+	}
+	if len(s.OutputModalities) == 0 {
+		s.OutputModalities = []string{"text"}
+	}
+	if imageInput && s.Category == "text" {
+		s.Category = "multimodal"
+	}
 
-	if hasAny(tags, "思考") || hasAny(all, "推理", "thinking", "reasoning", "深度思考") || reasoningModelPattern.MatchString(modelID) { s.Capabilities = add(s.Capabilities, "reasoning") }
-	if imageInput { s.Capabilities = add(s.Capabilities, "vision") }
-	if hasAny(tags, "工具") || hasAny(description, "工具调用", "function call", "function_call", "tool call", "tool_call", "agent") || hasAny(endpoints, "openai-response") { s.Capabilities = add(s.Capabilities, "tool_calling") }
-	if hasAny(description, "结构化输出", "json mode", "json_mode", "structured output", "structured_output", "response_format") { s.Capabilities = add(s.Capabilities, "structured_output") }
-	if hasAny(description, "联网", "搜索", "search", "browse", "web_search") || hasAny(tags, "联网搜索") { s.Capabilities = add(s.Capabilities, "web_search") }
-	if hasAny(modelID+" "+description, "代码", "编程", "coding", "code", "codex", "coder") { s.Capabilities = add(s.Capabilities, "coding") }
-	if s.Category == "embedding" { s.Capabilities = add(s.Capabilities, "embeddings") }
-	if s.Category == "rerank" { s.Capabilities = add(s.Capabilities, "rerank") }
-	if hasAny(endpoints, "realtime") || hasAny(tags, "实时语音") { s.Capabilities = add(s.Capabilities, "realtime") }
-	if imageGeneration { s.Capabilities = add(s.Capabilities, "image_generation") }
-	if videoGeneration { s.Capabilities = add(s.Capabilities, "video_generation") }
-	if hasAny(endpoints, "语音转文字", "语音识别", "asr", "whisper") || hasAny(description, "语音识别", "speech to text", "speech_to_text", "asr") { s.Capabilities = add(s.Capabilities, "speech_to_text") }
-	if hasAny(endpoints, "文本转语音", "语音合成", "tts") || hasAny(tags, "音频", "音乐") { s.Capabilities = add(s.Capabilities, "text_to_speech") }
+	if hasAny(tags, "思考") || hasAny(all, "推理", "thinking", "reasoning", "深度思考") || reasoningModelPattern.MatchString(modelID) {
+		s.Capabilities = add(s.Capabilities, "reasoning")
+	}
+	if imageInput {
+		s.Capabilities = add(s.Capabilities, "vision")
+	}
+	if hasAny(tags, "工具") || hasAny(description, "工具调用", "function call", "function_call", "tool call", "tool_call", "agent") || hasAny(endpoints, "openai-response") {
+		s.Capabilities = add(s.Capabilities, "tool_calling")
+	}
+	if hasAny(description, "结构化输出", "json mode", "json_mode", "structured output", "structured_output", "response_format") {
+		s.Capabilities = add(s.Capabilities, "structured_output")
+	}
+	if hasAny(description, "联网", "搜索", "search", "browse", "web_search") || hasAny(tags, "联网搜索") {
+		s.Capabilities = add(s.Capabilities, "web_search")
+	}
+	if hasAny(modelID+" "+description, "代码", "编程", "coding", "code", "codex", "coder") {
+		s.Capabilities = add(s.Capabilities, "coding")
+	}
+	if s.Category == "embedding" {
+		s.Capabilities = add(s.Capabilities, "embeddings")
+	}
+	if s.Category == "rerank" {
+		s.Capabilities = add(s.Capabilities, "rerank")
+	}
+	if hasAny(endpoints, "realtime") || hasAny(tags, "实时语音") {
+		s.Capabilities = add(s.Capabilities, "realtime")
+	}
+	if imageGeneration {
+		s.Capabilities = add(s.Capabilities, "image_generation")
+	}
+	if videoGeneration {
+		s.Capabilities = add(s.Capabilities, "video_generation")
+	}
+	if hasAny(endpoints, "语音转文字", "语音识别", "asr", "whisper") || hasAny(description, "语音识别", "speech to text", "speech_to_text", "asr") {
+		s.Capabilities = add(s.Capabilities, "speech_to_text")
+	}
+	if hasAny(endpoints, "文本转语音", "语音合成", "tts") || hasAny(tags, "音频", "音乐") {
+		s.Capabilities = add(s.Capabilities, "text_to_speech")
+	}
 
 	s.ContextWindow, s.MaxInputTokens, s.MaxOutputTokens = inferredCapacities(modelID, description)
 	return s
