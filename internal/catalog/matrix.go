@@ -46,6 +46,10 @@ func plainText(value string) string {
 	return strings.Join(strings.Fields(html.UnescapeString(htmlTag.ReplaceAllString(value, " "))), " ")
 }
 
+func PlainTextDescription(value string) string {
+	return plainText(value)
+}
+
 func MergeEntries(entries []MatrixEntry) []Item {
 	byID := map[string]*Item{}
 	for _, entry := range entries {

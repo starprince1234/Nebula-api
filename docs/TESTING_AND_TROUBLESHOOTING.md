@@ -34,6 +34,7 @@ npm run build
 
 - 学生 `/student/usage`、导师项目用量、老师项目花费必须通过真实 HTTP JSON envelope 验证 snake_case 字段，禁止只构造前端对象。Go usage DTO 缺少 `json` tag 时，接口会返回 `ID/Quota/Models`，前端按 `id/quota/models` 读取后表现为空白或 `undefined.map`。
 - 模型广场必须展示 `credit_multiplier`；老师模型配置在倍率变化时必须要求 `multiplier_change_reason`。Key 申请、导师初审、老师终审分别验证三阶段额度字段。
+- 老师模型向导进入第二步必须立即显示一次“一键填充”询问；选择否后保留描述、类别、文本模态、128K/128K/8K 容量和 1.00x 倍率默认值。选择是时模型 ID 与上游模型名默认来自第一步；Probe 必须自动请求 `/v1/models`，成功后关闭子弹窗、把标准化配置写回第二步且不渲染响应 body。
 - 老师终审成功路径必须验证项目月 bucket 更新同时绑定 `project_id` 与当前上海月份；SQL 占位符与实参数量不一致时，pgx 会在事务内拒绝执行并完整回滚。前端遇到终审依赖错误时必须关闭确认弹窗，明确说明额度和申请状态未变更，并展示响应 `request_id` 供管理员排查。
 - 调用日志无数据时先区分真实空集和渲染失败：检查 `/mentor/call-logs` 的 `items`，再通过 fake upstream 发一笔测试调用，确认 `gateway_calls`、`monthly_usage_cube` 和适用协议的 `monitored_inputs` 同时更新。
 - 生产 Playwright E2E 仅使用专用测试身份与测试 Key；凭据不得写入源码、报告或截图。额度/倍率写操作只针对专用测试资源，并保留永久审计。
@@ -173,6 +174,8 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
 | 老师新增模型搜不到 Matrix 候选 | `model-catalog` 未启动、`MATRIX_APIKEY` 缺失或最近同步失败 | 检查生产 worker 状态和日志；失败保留上次快照，不清表、不把目录暴露给学生 | `docker compose -p nebula-api -f compose.production.yaml ps model-catalog`；日志不得包含 API Key |
 | 一键配置拒绝测试地址 | 手写 Base URL 解析到 localhost、私网、链路本地或云元数据地址 | 使用公网 HTTP/HTTPS 上游，或先注册经审核的供应商 | 不得关闭连接阶段 DNS/IP 校验或允许重定向绕过 |
+| 一键配置弹窗出现在右下角、测试后仍显示大段响应 | 子表单使用页面内 fixed panel，且把 Probe 原始响应保存为渲染状态 | 一键配置和首次询问统一使用 Portal Dialog；后端只返回标准化配置与状态摘要，成功后关闭弹窗并写回第二步 | `cd frontend; npm run test -- src/views/teacher/TeacherModels.test.ts`；页面同时打开主向导和子弹窗时，两者都应在视口中央 |
+| 一键配置未带出简介、标签或能力 | Probe 只请求生成端点，没有请求供应商模型目录，或 `/v1/models` 中没有完整匹配的上游模型 ID | Probe 固定先请求 `/v1/models`，精确匹配 `upstream_model_name`；确认供应商目录条目包含 description/model type/tags/endpoint types | `go test ./internal/controlplane -run 'Test(ModelCatalogProbe|ExtractProbeConfiguration)'`；不要记录目录原始响应或供应商 Key |
 | 学生 `0x` 模型显示 0 次而老师有记录 | 学生查询遗漏 `zero_cost_count` | 学生调用数使用 `charged_count + zero_cost_count`，0 credits 行仍返回 | `go test ./internal/usage`；对照学生个人用量与老师/导师免费模型汇总 |
 | 学生“选择模型广场模型”点击右上角关闭后立即重开 | 搜索框用 `focus` 自动开窗，Dialog 关闭后恢复焦点触发同一事件 | 仅在用户点击搜索框时打开；焦点恢复不得改变 Dialog 状态 | `npm run test -- src/views/student/StudentKeys.test.ts`；Playwright 点击叉号并等待 300ms，页面应无 Dialog |
 | 导师看不到待审 Key | 导师不是目标项目的 ACTIVE 负责成员，或已被其他导师处理 | 完成项目申请，或刷新状态 | 查项目成员关系和 Key 当前状态；首个有效初审胜出 |

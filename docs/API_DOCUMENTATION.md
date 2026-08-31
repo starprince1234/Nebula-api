@@ -338,7 +338,7 @@ data: {"revision":"01K2..."}
 | 模型 | PATCH | `/api/v1/teacher/models/configuration` | 请求体携带 `model_id`，配置模型元数据、常用标记和状态 |
 | Binding | POST | `/api/v1/teacher/model-bindings` | 请求体携带 `model_id`，添加供应商 binding |
 | Matrix 目录 | GET | `/api/v1/teacher/model-catalog-candidates?q=&page=&page_size=` | 老师新增模型向导分页搜索 |
-| 模型测试 | POST | `/api/v1/teacher/model-probes` | 真实测试文本/检索端点并提取明确容量字段 |
+| 模型测试 | POST | `/api/v1/teacher/model-probes` | 自动读取供应商 `/v1/models` 并测试文本/检索端点，返回可应用的标准化配置 |
 | Binding | PATCH | `/api/v1/teacher/model-bindings/{binding_id}` | 修改上游名、adapter、priority 或状态 |
 | Key 终审 | GET | `/api/v1/teacher/api-key-reviews` | 只列出 `pending_teacher` 摘要 |
 | Key 终审 | GET | `/api/v1/teacher/api-key-reviews/{api_key_id}` | 待终审摘要详情 |
@@ -471,7 +471,28 @@ data: {"revision":"01K2..."}
 
 网关按模型倍率执行月度 credit 额度检查与调用记录；目录查询、视频状态查询和内容下载不计费。
 
-老师模型 Probe 支持 `chat_completions`、`responses`、`messages`、`embeddings`、`rerank`。已注册供应商只提交 `provider_id`，凭据不返回浏览器；手写 Key 不持久化。手写 Base URL 只允许公网 HTTP/HTTPS，不跟随重定向，并在连接阶段再次拒绝私网、localhost、链路本地和云元数据地址。响应最多返回 64 KiB；只识别明确命名的 context/max input/max output 容量字段，不把 usage、价格、Content-Length 或 `max_bytes` 当成容量。
+老师模型 Probe 支持 `chat_completions`、`responses`、`messages`、`embeddings`、`rerank`。每次请求固定先调用同一供应商的 `GET /v1/models`，按大小写不敏感的完整上游模型 ID 精确匹配目录条目，将简介、model type、tags、supported endpoint types 映射为标准类别、模态和固定能力；之后按请求顺序执行所选真实端点。目录或端点中的明确 `context_window`、`max_input_tokens`、`max_output_tokens` 字段合并到 `configuration`。浏览器响应不包含上游响应 body，只返回各请求的 endpoint、path、HTTP 状态、耗时、截断标志、通用错误和标准化配置。已注册供应商只提交 `provider_id`，凭据不返回浏览器；手写 Key 不持久化。手写 Base URL 只允许公网 HTTP/HTTPS，不跟随重定向，并在连接阶段再次拒绝私网、localhost、链路本地和云元数据地址。单项上游响应最多读取 64 KiB；只识别明确命名的容量字段，不把 usage、价格、Content-Length 或 `max_bytes` 当成容量。
+
+```json
+{
+  "results": [
+    {"endpoint":"models","path":"/v1/models","http_status":200,"duration_ms":31,"truncated":false,"limits":{"context_window":128000}},
+    {"endpoint":"responses","path":"/v1/responses","http_status":200,"duration_ms":804,"truncated":false,"limits":{}}
+  ],
+  "configuration": {
+    "description":"Model description",
+    "category":"text",
+    "capabilities":["reasoning","tool_calling"],
+    "input_modalities":["text"],
+    "output_modalities":["text"],
+    "context_window":128000,
+    "max_input_tokens":128000,
+    "max_output_tokens":8192
+  }
+}
+```
+
+控制台进入第二节点时先写入默认配置：描述使用显示名称与 model ID，类别为 `text`，输入/输出模态为 `text`，能力为空，上下文和最大输入为 `128K`，最大输出为 `8K`，常用模型为否，倍率为 `1.00x`。随后只用 Probe 明确返回的字段覆盖默认值；测试完成自动关闭一键配置弹窗并回到第二节点，不展示上游响应正文。
 
 ### 8.3 代理与故障切换
 

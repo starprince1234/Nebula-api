@@ -1,6 +1,6 @@
 # Nebula
 
-Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。学生申请 Key 时只需提交模型 ID 和可选名称，老师通过四节点向导补全模型信息、Binding 与启用状态。
+Nebula 是使用 Go 重构的 AI API 中转站。首期围绕学生、导师、老师三类用户，提供组织与项目管理、API Key 双级审批、模型与供应商配置、一次性 Key 领取、状态事件以及 OpenAI、Anthropic、Cohere Rerank 与 Google Gemini 原生协议代理。学生申请 Key 时只需提交模型 ID 和可选名称，老师通过四节点向导补全模型信息、Binding 与启用状态；进入基础配置时已有完整默认值，并可用居中的一键配置弹窗从供应商 `/v1/models` 和所选真实端点自动覆盖明确获取到的信息。
 
 只读参考项目位于 `D:\VScodeProjects\NebulaCloud\nebula-ai`。本仓库重新实现业务，不兼容参考项目旧表、旧路由或历史数据。
 

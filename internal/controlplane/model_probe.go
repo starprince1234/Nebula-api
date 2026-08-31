@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/starprince1234/Nebula-api/internal/catalog"
 	"github.com/starprince1234/Nebula-api/internal/domain"
 	"github.com/starprince1234/Nebula-api/internal/infrastructure/db/ent/provider"
 )
@@ -29,20 +30,28 @@ type ProbeLimits struct {
 	MaxOutputTokens *int `json:"max_output_tokens,omitempty"`
 }
 type ProbeResult struct {
-	Endpoint   string          `json:"endpoint"`
-	Path       string          `json:"path"`
-	HTTPStatus int             `json:"http_status"`
-	DurationMS int64           `json:"duration_ms"`
-	Response   json.RawMessage `json:"response"`
-	Truncated  bool            `json:"truncated"`
-	Error      string          `json:"error,omitempty"`
-	Limits     ProbeLimits     `json:"limits"`
+	Endpoint   string      `json:"endpoint"`
+	Path       string      `json:"path"`
+	HTTPStatus int         `json:"http_status"`
+	DurationMS int64       `json:"duration_ms"`
+	Truncated  bool        `json:"truncated"`
+	Error      string      `json:"error,omitempty"`
+	Limits     ProbeLimits `json:"limits"`
+}
+type ProbeConfiguration struct {
+	Description      string   `json:"description,omitempty"`
+	Category         string   `json:"category,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty"`
+	InputModalities  []string `json:"input_modalities,omitempty"`
+	OutputModalities []string `json:"output_modalities,omitempty"`
+	ProbeLimits
 }
 type ProbeResponse struct {
-	Results []ProbeResult `json:"results"`
-	Limits  ProbeLimits   `json:"limits"`
+	Results       []ProbeResult      `json:"results"`
+	Configuration ProbeConfiguration `json:"configuration"`
 }
 type probeRequest struct {
+	Method    string
 	Path      string
 	Body      []byte
 	Anthropic bool
@@ -71,7 +80,11 @@ func buildProbeRequest(endpoint, model string) (probeRequest, error) {
 		return probeRequest{}, domain.NewError(domain.CodeValidation, "invalid probe endpoint")
 	}
 	body, _ := json.Marshal(payload)
-	return probeRequest{Path: path, Body: body, Anthropic: endpoint == "messages"}, nil
+	return probeRequest{Method: http.MethodPost, Path: path, Body: body, Anthropic: endpoint == "messages"}, nil
+}
+
+func modelCatalogProbeRequest() probeRequest {
+	return probeRequest{Method: http.MethodGet, Path: "/v1/models"}
 }
 
 func extractProbeLimits(body []byte) ProbeLimits {
@@ -124,6 +137,92 @@ func mergeLimits(target *ProbeLimits, source ProbeLimits) {
 	if target.MaxOutputTokens == nil {
 		target.MaxOutputTokens = source.MaxOutputTokens
 	}
+}
+
+func stringsFromProbeValue(value any) []string {
+	result := []string{}
+	appendValue := func(value string) {
+		for _, item := range strings.Split(value, ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			seen := false
+			for _, current := range result {
+				if strings.EqualFold(current, item) {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				result = append(result, item)
+			}
+		}
+	}
+	switch typed := value.(type) {
+	case string:
+		appendValue(typed)
+	case []any:
+		for _, item := range typed {
+			if text, ok := item.(string); ok {
+				appendValue(text)
+			}
+		}
+	}
+	return result
+}
+
+func modelRecords(value any) []any {
+	switch typed := value.(type) {
+	case []any:
+		return typed
+	case map[string]any:
+		for _, key := range []string{"data", "models"} {
+			if records, ok := typed[key].([]any); ok {
+				return records
+			}
+		}
+	}
+	return nil
+}
+
+func extractProbeConfiguration(body []byte, modelID string) ProbeConfiguration {
+	var payload any
+	if json.Unmarshal(body, &payload) != nil {
+		return ProbeConfiguration{}
+	}
+	for _, value := range modelRecords(payload) {
+		record, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := record["id"].(string)
+		if id == "" {
+			id, _ = record["model"].(string)
+		}
+		if !strings.EqualFold(strings.TrimSpace(id), strings.TrimSpace(modelID)) {
+			continue
+		}
+		description, _ := record["description"].(string)
+		description = catalog.PlainTextDescription(description)
+		item := catalog.Item{ModelID: id, Description: description}
+		item.ModelTypes = stringsFromProbeValue(record["model_types"])
+		if len(item.ModelTypes) == 0 {
+			item.ModelTypes = stringsFromProbeValue(record["model_type"])
+		}
+		item.Tags = stringsFromProbeValue(record["tags"])
+		item.SupportedEndpointTypes = stringsFromProbeValue(record["supported_endpoint_types"])
+		suggestion := catalog.SuggestConfiguration(item)
+		raw, _ := json.Marshal(record)
+		limits := extractProbeLimits(raw)
+		return ProbeConfiguration{
+			Description: description,
+			Category:    suggestion.Category, Capabilities: suggestion.Capabilities,
+			InputModalities: suggestion.InputModalities, OutputModalities: suggestion.OutputModalities,
+			ProbeLimits: limits,
+		}
+	}
+	return ProbeConfiguration{}
 }
 
 func isPublicIP(value string) bool {
@@ -210,16 +309,27 @@ func (s *Service) ProbeModel(ctx context.Context, input ProbeInput) (ProbeRespon
 		return ProbeResponse{}, domain.NewError(domain.CodeValidation, "probe endpoints must contain 1 to 5 items")
 	}
 	response := ProbeResponse{Results: []ProbeResult{}}
+	definitions := []struct {
+		endpoint   string
+		definition probeRequest
+	}{{endpoint: "models", definition: modelCatalogProbeRequest()}}
 	for _, endpoint := range input.Endpoints {
 		definition, err := buildProbeRequest(endpoint, model)
 		if err != nil {
 			return ProbeResponse{}, err
 		}
+		definitions = append(definitions, struct {
+			endpoint   string
+			definition probeRequest
+		}{endpoint: endpoint, definition: definition})
+	}
+	for _, probe := range definitions {
+		endpoint, definition := probe.endpoint, probe.definition
 		target, err := probeTarget(baseURL, definition.Path)
 		if err != nil {
 			return ProbeResponse{}, domain.NewError(domain.CodeValidation, "invalid probe target")
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(definition.Body))
+		req, err := http.NewRequestWithContext(ctx, definition.Method, target, bytes.NewReader(definition.Body))
 		if err != nil {
 			return ProbeResponse{}, err
 		}
@@ -246,15 +356,14 @@ func (s *Service) ProbeModel(ctx context.Context, input ProbeInput) (ProbeRespon
 			raw = raw[:65536]
 			item.Truncated = true
 		}
-		if json.Valid(raw) {
-			item.Response = raw
-		} else {
-			encoded, _ := json.Marshal(string(raw))
-			item.Response = encoded
-		}
 		if upstream.StatusCode >= 200 && upstream.StatusCode < 300 {
-			item.Limits = extractProbeLimits(raw)
-			mergeLimits(&response.Limits, item.Limits)
+			if endpoint == "models" {
+				response.Configuration = extractProbeConfiguration(raw, model)
+				item.Limits = response.Configuration.ProbeLimits
+			} else {
+				item.Limits = extractProbeLimits(raw)
+				mergeLimits(&response.Configuration.ProbeLimits, item.Limits)
+			}
 		} else {
 			item.Error = fmt.Sprintf("upstream returned HTTP %d", upstream.StatusCode)
 		}
