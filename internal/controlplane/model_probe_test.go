@@ -26,8 +26,8 @@ func TestModelCatalogProbeUsesModelsEndpoint(t *testing.T) {
 }
 
 func TestExtractProbeConfigurationMatchesModelAndSuggestsMetadata(t *testing.T) {
-	configuration := extractProbeConfiguration([]byte(`{"data":[{"id":"other"},{"id":"GLM-5.1","description":"  GLM reasoning model  ","model_type":"文本","tags":"思考,工具","supported_endpoint_types":["openai-response"],"context_window":128000,"max_output_tokens":8192}]}`), "glm-5.1")
-	if configuration.Description != "GLM reasoning model" || configuration.Category != "text" || configuration.ContextWindow == nil || *configuration.ContextWindow != 128000 || configuration.MaxOutputTokens == nil || *configuration.MaxOutputTokens != 8192 {
+	configuration := extractProbeConfiguration([]byte(`{"data":[{"id":"other"},{"id":"GLM-5.1","description":"<p>GLM reasoning model</p>","model_type":"文本","tags":"思考,工具","supported_endpoint_types":["openai-response"],"context_window":128000,"max_output_tokens":8192}]}`), "glm-5.1")
+	if configuration.Description != "GLM reasoning model" || configuration.Category != "text" || configuration.ContextWindow == nil || *configuration.ContextWindow != 128000 || configuration.MaxInputTokens == nil || *configuration.MaxInputTokens != 128000 || configuration.MaxOutputTokens == nil || *configuration.MaxOutputTokens != 8192 {
 		t.Fatalf("unexpected configuration: %#v", configuration)
 	}
 	if len(configuration.InputModalities) != 1 || configuration.InputModalities[0] != "text" || len(configuration.OutputModalities) != 1 || configuration.OutputModalities[0] != "text" {

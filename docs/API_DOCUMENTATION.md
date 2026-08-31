@@ -471,7 +471,7 @@ data: {"revision":"01K2..."}
 
 网关按模型倍率执行月度 credit 额度检查与调用记录；目录查询、视频状态查询和内容下载不计费。
 
-老师模型 Probe 支持 `chat_completions`、`responses`、`messages`、`embeddings`、`rerank`。每次请求固定先调用同一供应商的 `GET /v1/models`，按大小写不敏感的完整上游模型 ID 精确匹配目录条目，将简介、model type、tags、supported endpoint types 映射为标准类别、模态和固定能力；之后按请求顺序执行所选真实端点。目录或端点中的明确 `context_window`、`max_input_tokens`、`max_output_tokens` 字段合并到 `configuration`。浏览器响应不包含上游响应 body，只返回各请求的 endpoint、path、HTTP 状态、耗时、截断标志、通用错误和标准化配置。已注册供应商只提交 `provider_id`，凭据不返回浏览器；手写 Key 不持久化。手写 Base URL 只允许公网 HTTP/HTTPS，不跟随重定向，并在连接阶段再次拒绝私网、localhost、链路本地和云元数据地址。单项上游响应最多读取 64 KiB；只识别明确命名的容量字段，不把 usage、价格、Content-Length 或 `max_bytes` 当成容量。
+老师模型 Probe 支持 `chat_completions`、`responses`、`messages`、`embeddings`、`rerank`。每次请求固定先调用同一供应商的 `GET /v1/models`，按大小写不敏感的完整上游模型 ID 精确匹配目录条目。匹配条目的纯文本 `description` 直接写入建议配置的描述；`model_type`、`tags`、`supported_endpoint_types` 与 description 共同映射类别、输入/输出模态和固定能力。容量采用固定优先级：响应中明确命名的结构化字段最高，其次从 description 的“100 万令牌”“1M context”“128K 上下文”“最大输出 16K”等格式提取，再按具体模型族推断，最后使用 128K 上下文、128K 最大输入和 4K 最大输出。更具体的模型族规则先于通用规则，例如 `claude-sonnet-4-5` 不会误匹配 Claude 5，`glm-5` 使用 1000K/16K。之后按请求顺序执行所选真实端点。浏览器响应不包含上游响应 body，只返回各请求的 endpoint、path、HTTP 状态、耗时、截断标志、通用错误和标准化配置。已注册供应商只提交 `provider_id`，凭据不返回浏览器；手写 Key 不持久化。手写 Base URL 只允许公网 HTTP/HTTPS，不跟随重定向，并在连接阶段再次拒绝私网、localhost、链路本地和云元数据地址。单项上游响应最多读取 64 KiB；不把 usage、价格、Content-Length 或 `max_bytes` 当成容量。
 
 ```json
 {
@@ -492,7 +492,7 @@ data: {"revision":"01K2..."}
 }
 ```
 
-控制台进入第二节点时先写入默认配置：描述使用显示名称与 model ID，类别为 `text`，输入/输出模态为 `text`，能力为空，上下文和最大输入为 `128K`，最大输出为 `8K`，常用模型为否，倍率为 `1.00x`。随后只用 Probe 明确返回的字段覆盖默认值；测试完成自动关闭一键配置弹窗并回到第二节点，不展示上游响应正文。
+控制台顶部四节点是唯一的步骤导航，第一节点不提供“下一步”按钮；模型 ID 和名称完整后“基础配置”节点解锁。进入第二节点时先写入默认配置：描述使用显示名称与 model ID，类别为 `text`，输入/输出模态为 `text`，能力为空，上下文和最大输入为 `128K`，最大输出为 `4K`，常用模型为否，倍率为 `1.00x`。随后用 `/v1/models` 的真实 description、确定性元数据映射和 Probe 明确返回的字段覆盖默认值；测试完成自动关闭一键配置弹窗并回到第二节点，不展示上游响应正文。Binding 新增和编辑均使用 Portal 居中弹窗，不使用页面内固定定位面板。
 
 ### 8.3 代理与故障切换
 

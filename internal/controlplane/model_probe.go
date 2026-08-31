@@ -205,6 +205,9 @@ func extractProbeConfiguration(body []byte, modelID string) ProbeConfiguration {
 		}
 		description, _ := record["description"].(string)
 		description = catalog.PlainTextDescription(description)
+		if runes := []rune(description); len(runes) > 2048 {
+			description = string(runes[:2048])
+		}
 		item := catalog.Item{ModelID: id, Description: description}
 		item.ModelTypes = stringsFromProbeValue(record["model_types"])
 		if len(item.ModelTypes) == 0 {
@@ -214,7 +217,20 @@ func extractProbeConfiguration(body []byte, modelID string) ProbeConfiguration {
 		item.SupportedEndpointTypes = stringsFromProbeValue(record["supported_endpoint_types"])
 		suggestion := catalog.SuggestConfiguration(item)
 		raw, _ := json.Marshal(record)
-		limits := extractProbeLimits(raw)
+		limits := ProbeLimits{ContextWindow: &suggestion.ContextWindow, MaxInputTokens: &suggestion.MaxInputTokens, MaxOutputTokens: &suggestion.MaxOutputTokens}
+		explicitLimits := extractProbeLimits(raw)
+		if explicitLimits.ContextWindow != nil {
+			limits.ContextWindow = explicitLimits.ContextWindow
+			if explicitLimits.MaxInputTokens == nil {
+				limits.MaxInputTokens = explicitLimits.ContextWindow
+			}
+		}
+		if explicitLimits.MaxInputTokens != nil {
+			limits.MaxInputTokens = explicitLimits.MaxInputTokens
+		}
+		if explicitLimits.MaxOutputTokens != nil {
+			limits.MaxOutputTokens = explicitLimits.MaxOutputTokens
+		}
 		return ProbeConfiguration{
 			Description: description,
 			Category:    suggestion.Category, Capabilities: suggestion.Capabilities,

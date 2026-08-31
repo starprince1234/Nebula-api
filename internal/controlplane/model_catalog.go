@@ -59,8 +59,15 @@ func (s *Service) ModelCatalogCandidates(ctx context.Context, query string, page
 		_ = json.Unmarshal(types, &item.ModelTypes)
 		_ = json.Unmarshal(endpoints, &item.SupportedEndpointTypes)
 		_ = json.Unmarshal(tags, &item.Tags)
-		item.Suggestion = catalog.SuggestConfiguration(catalog.Item{ModelTypes: item.ModelTypes, SupportedEndpointTypes: item.SupportedEndpointTypes, Tags: item.Tags})
+		item.Suggestion = catalog.SuggestConfiguration(catalog.Item{ModelID: item.ModelID, Description: valueOrEmpty(description), ModelTypes: item.ModelTypes, SupportedEndpointTypes: item.SupportedEndpointTypes, Tags: item.Tags})
 		result.Items = append(result.Items, item)
 	}
 	return result, rows.Err()
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

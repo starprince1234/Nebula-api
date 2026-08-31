@@ -11,7 +11,9 @@ const mountView = () => mount(TeacherModels, { global: { stubs: { LoadingRegion:
 
 describe('TeacherModels', () => {
   beforeEach(() => {
-    vi.mocked(teacherAPI.models).mockResolvedValue([{ model_id: 'm1', display_name: 'M1', description: null, category: 'text', capabilities: [], input_modalities: [], output_modalities: [], context_window: null, max_input_tokens: null, max_output_tokens: null, is_common: true, status: 'active', route_ready: true, credit_multiplier: '1.000' }])
+    const model = { model_id: 'm1', display_name: 'M1', description: null, category: 'text' as const, capabilities: [], input_modalities: [], output_modalities: [], context_window: null, max_input_tokens: null, max_output_tokens: null, is_common: true, status: 'active' as const, route_ready: true, credit_multiplier: '1.000' }
+    vi.mocked(teacherAPI.models).mockResolvedValue([model])
+    vi.mocked(teacherAPI.model).mockResolvedValue({ model, bindings: [] })
     vi.mocked(teacherAPI.providers).mockResolvedValue([{ id: 'provider-1', name: 'Matrix', base_url: 'https://example.com', status: 'active', credential_configured: true, created_at: '2026-08-31T00:00:00Z', updated_at: '2026-08-31T00:00:00Z' }])
     vi.mocked(teacherAPI.catalogCandidates).mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0 })
     vi.mocked(teacherAPI.probeModel).mockReset()
@@ -25,14 +27,17 @@ describe('TeacherModels', () => {
     const textInputs = wrapper.findAll('input').filter(input => input.attributes('type') !== 'checkbox')
     await textInputs[1].setValue('new-model')
     await textInputs[2].setValue('New Model')
-    await wrapper.findAll('button').find(button => button.text() === '下一步')!.trigger('click')
+    expect(wrapper.findAll('button').some(button => button.text() === '下一步')).toBe(false)
+    const baseStep = wrapper.findAll('button').find(button => button.text().includes('基础配置'))!
+    expect(baseStep.attributes('disabled')).toBeUndefined()
+    await baseStep.trigger('click')
     expect(wrapper.findAll('[role="dialog"]')).toHaveLength(2)
     expect(wrapper.text()).toContain('好消息：')
     expect(wrapper.text()).toContain('选否则会采用默认值进入下一步')
     await wrapper.findAll('button').find(button => button.text() === '否，采用默认值')!.trigger('click')
     expect(wrapper.findAll('[role="dialog"]')).toHaveLength(1)
     expect(wrapper.find('textarea').element.value).toBe('New Model（new-model）')
-    expect(wrapper.findAll('input').map(input => input.element.value)).toEqual(expect.arrayContaining(['128', '8', '1.000']))
+    expect(wrapper.findAll('input').map(input => input.element.value)).toEqual(expect.arrayContaining(['128', '4', '1.000']))
   })
 
   it('prefills model id, applies probe configuration, closes the probe dialog and never renders response bodies', async () => {
@@ -43,7 +48,7 @@ describe('TeacherModels', () => {
     const textInputs = wrapper.findAll('input').filter(input => input.attributes('type') !== 'checkbox')
     await textInputs[1].setValue('glm-5.1')
     await textInputs[2].setValue('GLM 5.1')
-    await wrapper.findAll('button').find(button => button.text() === '下一步')!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('基础配置'))!.trigger('click')
     await wrapper.findAll('button').find(button => button.text() === '是，开始一键填充')!.trigger('click')
     const probeDialog = wrapper.findAll('[role="dialog"]').find(dialog => dialog.attributes('aria-label') === '一键配置')!
     expect((probeDialog.find('input[readonly]').element as HTMLInputElement).value).toBe('glm-5.1')
@@ -56,5 +61,17 @@ describe('TeacherModels', () => {
     expect(wrapper.find('textarea').element.value).toBe('Provider description')
     expect(wrapper.text()).not.toContain('HTTP 200')
     expect(wrapper.findAll('input').map(input => input.element.value)).toEqual(expect.arrayContaining(['256', '240', '16']))
+  })
+
+  it('opens binding creation as a dialog from the plus button', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '配置')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('Binding'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text() === '＋')!.trigger('click')
+    const dialogs = wrapper.findAll('[role="dialog"]')
+    expect(dialogs).toHaveLength(2)
+    expect(dialogs.some(dialog => dialog.attributes('aria-label') === '新增 Binding')).toBe(true)
   })
 })
