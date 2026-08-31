@@ -49,6 +49,28 @@ func TestValidBindingAdapters(t *testing.T) {
 	}
 }
 
+func TestMultiplierChangeReasonOnlyRequiredForExistingChangedMultiplier(t *testing.T) {
+	old := int64(1000)
+	same := int64(1000)
+	changed := int64(1250)
+	tests := []struct {
+		name           string
+		current, next  *int64
+		requiresReason bool
+	}{
+		{name: "first configuration", current: nil, next: &same, requiresReason: false},
+		{name: "unchanged", current: &old, next: &same, requiresReason: false},
+		{name: "changed", current: &old, next: &changed, requiresReason: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := multiplierChangeRequiresReason(tt.current, tt.next); got != tt.requiresReason {
+				t.Fatalf("requires reason = %v, want %v", got, tt.requiresReason)
+			}
+		})
+	}
+}
+
 func TestMentorCandidateCursorRejectsInvalidInput(t *testing.T) {
 	if _, err := DecodeMentorCandidateCursor("not-a-cursor"); err == nil {
 		t.Fatal("expected invalid cursor error")

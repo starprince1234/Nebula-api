@@ -33,7 +33,7 @@ npm run build
 ### 限额、调用日志与输入监控
 
 - 学生 `/student/usage`、导师项目用量、老师项目花费必须通过真实 HTTP JSON envelope 验证 snake_case 字段，禁止只构造前端对象。Go usage DTO 缺少 `json` tag 时，接口会返回 `ID/Quota/Models`，前端按 `id/quota/models` 读取后表现为空白或 `undefined.map`。
-- 模型广场必须展示 `credit_multiplier`；老师模型配置在倍率变化时必须要求 `multiplier_change_reason`。Key 申请、导师初审、老师终审分别验证三阶段额度字段。
+- 模型广场必须展示 `credit_multiplier`；老师模型配置在已有倍率被改为不同值时必须要求 `multiplier_change_reason`，首次从 NULL 设置默认倍率不要求原因且不写倍率变更审计。Key 申请、导师初审、老师终审分别验证三阶段额度字段。
 - 老师模型向导只通过顶部节点导航：填写模型 ID 和名称后第二节点解锁，第一步不显示“下一步”。进入第二步必须立即显示一次“一键填充”询问；选择否后保留描述、类别、文本模态、128K/128K/4K 容量和 1.00x 倍率默认值。选择是时模型 ID 与上游模型名默认来自第一步；Probe 必须自动请求 `/v1/models`，将真实 description、tags、model type、endpoint types 和按优先级推断的容量写回第二步，成功后关闭子弹窗且不渲染响应 body。Binding 加号和编辑按钮必须打开 Portal 居中弹窗。
 - 老师终审成功路径必须验证项目月 bucket 更新同时绑定 `project_id` 与当前上海月份；SQL 占位符与实参数量不一致时，pgx 会在事务内拒绝执行并完整回滚。前端遇到终审依赖错误时必须关闭确认弹窗，明确说明额度和申请状态未变更，并展示响应 `request_id` 供管理员排查。
 - 调用日志无数据时先区分真实空集和渲染失败：检查 `/mentor/call-logs` 的 `items`，再通过 fake upstream 发一笔测试调用，确认 `gateway_calls`、`monthly_usage_cube` 和适用协议的 `monitored_inputs` 同时更新。
@@ -172,6 +172,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 学生看得到项目但提交失败 | 项目没有 ACTIVE 负责导师 | 导师申请该项目并由老师批准 | 查看项目 `has_mentor` 与 ACTIVE project member |
 | 申请提示 Key 名称冲突 | 同一学生已有同名进行中/生效 Key，citext 不区分大小写 | 更换名称，或等待原申请进入 rejected/revoked | 查询自己的 Key 列表，核对状态和大小写 |
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
+| 首次保存模型默认倍率返回 `multiplier change reason is required` | 后端把 NULL -> 默认倍率误判为倍率变更 | 首次设置倍率不要求原因；只有已有倍率改为不同值时填写变更原因 | 用默认基础配置直接保存，应返回 200 并进入 Binding 节点 |
 | 老师新增模型搜不到 Matrix 候选 | `model-catalog` 未启动、`MATRIX_APIKEY` 缺失或最近同步失败 | 检查生产 worker 状态和日志；失败保留上次快照，不清表、不把目录暴露给学生 | `docker compose -p nebula-api -f compose.production.yaml ps model-catalog`；日志不得包含 API Key |
 | 一键配置拒绝测试地址 | 手写 Base URL 解析到 localhost、私网、链路本地或云元数据地址 | 使用公网 HTTP/HTTPS 上游，或先注册经审核的供应商 | 不得关闭连接阶段 DNS/IP 校验或允许重定向绕过 |
 | 一键配置弹窗出现在右下角、测试后仍显示大段响应 | 子表单使用页面内 fixed panel，且把 Probe 原始响应保存为渲染状态 | 一键配置和首次询问统一使用 Portal Dialog；后端只返回标准化配置与状态摘要，成功后关闭弹窗并写回第二步 | `cd frontend; npm run test -- src/views/teacher/TeacherModels.test.ts`；页面同时打开主向导和子弹窗时，两者都应在视口中央 |

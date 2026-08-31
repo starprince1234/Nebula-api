@@ -714,6 +714,10 @@ func (s *Service) TeacherModel(ctx context.Context, publicModelID string) (Model
 	return view, result, nil
 }
 
+func multiplierChangeRequiresReason(current, next *int64) bool {
+	return current != nil && next != nil && *current != *next
+}
+
 func (s *Service) UpdateModel(ctx context.Context, actorID uuid.UUID, publicModelID string, input ModelInput) (ModelView, error) {
 	modelID, normalizeErr := normalizeSingleModelID(publicModelID)
 	if normalizeErr != nil {
@@ -732,11 +736,14 @@ func (s *Service) UpdateModel(ctx context.Context, actorID uuid.UUID, publicMode
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "query model", err)
 	}
 	builder := current.Update()
+	multiplierChanged := input.CreditMultiplierMilli != nil && (current.CreditMultiplierMilli == nil || *current.CreditMultiplierMilli != *input.CreditMultiplierMilli)
 	if input.CreditMultiplierMilli != nil {
-		if strings.TrimSpace(input.MultiplierChangeReason) == "" {
+		if multiplierChangeRequiresReason(current.CreditMultiplierMilli, input.CreditMultiplierMilli) && strings.TrimSpace(input.MultiplierChangeReason) == "" {
 			return ModelView{}, domain.NewError(domain.CodeValidation, "multiplier change reason is required")
 		}
-		builder.SetCreditMultiplierMilli(*input.CreditMultiplierMilli)
+		if multiplierChanged {
+			builder.SetCreditMultiplierMilli(*input.CreditMultiplierMilli)
+		}
 	}
 	if input.DisplayName != "" {
 		name, err := ValidateName(input.DisplayName, 256)
@@ -830,11 +837,9 @@ func (s *Service) UpdateModel(ctx context.Context, actorID uuid.UUID, publicMode
 	if err != nil {
 		return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "update model", err)
 	}
-	if input.CreditMultiplierMilli != nil {
+	if multiplierChanged && current.CreditMultiplierMilli != nil {
 		audit := tx.ModelMultiplierAudit.Create().SetModelID(current.ID).SetActorUserID(actorID).SetNewMultiplierMilli(*input.CreditMultiplierMilli).SetReason(input.MultiplierChangeReason)
-		if current.CreditMultiplierMilli != nil {
-			audit.SetOldMultiplierMilli(*current.CreditMultiplierMilli)
-		}
+		audit.SetOldMultiplierMilli(*current.CreditMultiplierMilli)
 		if _, err := audit.Save(ctx); err != nil {
 			return ModelView{}, domain.WrapError(domain.CodeDependencyUnavailable, "create model multiplier audit", err)
 		}

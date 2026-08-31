@@ -369,7 +369,7 @@ data: {"revision":"01K2..."}
 
 `credential` 只作为写入字段；服务端加密后保存，所有读取响应只返回 `credential_configured: true/false`。
 
-模型创建/修改使用核心模型字段。将模型改为 `active` 前必须至少存在一个 ACTIVE binding，且对应 provider 为 ACTIVE。Binding 请求形状：
+模型创建/修改使用核心模型字段。将模型改为 `active` 前必须至少存在一个 ACTIVE binding，且对应 provider 为 ACTIVE。更新请求中的 `credit_multiplier` 只有在已有倍率且值确实改变时才要求 `multiplier_change_reason` 并写倍率审计；原值为 NULL 的首次设置默认倍率不要求原因。Binding 请求形状：
 
 `context_window`、`max_input_tokens` 和 `max_output_tokens` 在 PATCH 中支持三态：省略保持不变、`null` 清空、正整数更新；它们只表示模型容量，不参与计费。`model_id` 创建后只读。能力只允许 `reasoning`、`vision`、`tool_calling`、`structured_output`、`web_search`、`coding`、`embeddings`、`rerank`、`realtime`、`image_generation`、`video_generation`、`speech_to_text`、`text_to_speech`。激活模型、停用 provider 或停用 binding 会在事务内锁定相关路由记录；若操作会令 ACTIVE 模型失去最后可用路由，返回 `409 MODEL_ROUTING_REQUIRED`，并在 `details.model_ids` 给出受影响模型。
 
