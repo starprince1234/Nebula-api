@@ -111,16 +111,16 @@ push 到 `main` 后，在 GitHub Actions 的 `Deploy production` workflow 中确
 cd /opt/nebula-api
 docker compose --project-name nebula-api --file compose.production.yaml ps
 curl --fail http://127.0.0.1:8080/health/ready
-curl --fail https://api.lyn91r.cn/health/ready
+curl --fail https://api.lwm78.top/health/ready
 ```
 
-期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`maintenance`、`cloudflared` 正在运行，`migrate` 成功退出，内部和公网 readiness 均返回 200。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lyn91r.cn`，production 登录和 API Key 传输必须经过 HTTPS。
+期望 `/opt/nebula-api` 保存当前部署源码，`postgres`、`redis`、`backend`、`maintenance`、`cloudflared` 正在运行，`migrate` 成功退出，内部和公网 readiness 均返回 200。GitHub 日志不得出现 SSH 密码、Doppler token、DSN 或应用 secret。公网访问通过 Cloudflare Tunnel 的 `https://api.lwm78.top`，production 登录和 API Key 传输必须经过 HTTPS。
 
 Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成后，直接请求 history 路由应返回控制台 HTML，而不是 Vercel 404：
 
 ```powershell
-(Invoke-WebRequest -UseBasicParsing https://www.lyn91r.cn/login).StatusCode
-(Invoke-WebRequest -UseBasicParsing https://www.lyn91r.cn/teacher/key-reviews).StatusCode
+(Invoke-WebRequest -UseBasicParsing https://www.lwm78.top/login).StatusCode
+(Invoke-WebRequest -UseBasicParsing https://www.lwm78.top/teacher/key-reviews).StatusCode
 ```
 
 两项均应返回 `200`，随后由 Vue Router 和认证守卫决定页面内容及登录跳转。
@@ -220,7 +220,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | `maintenance` 反复记录 `last_success_at` 类型错误，或一直处于 `health: starting` | heartbeat SQL 未显式约束 text/timestamptz 参数类型，或 maintenance 继承了只适用于 backend 的 HTTP healthcheck | heartbeat 参数显式使用 `::text`/`::timestamptz`；maintenance service 禁用继承的 HTTP healthcheck并由 Docker running 状态监控 | 运行 `go test ./internal/usage -run TestRunMaintenanceUsesTypedHeartbeatParameters`；查看 maintenance 日志确认不再出现 `SQLSTATE 42804` |
 | backend 报测试账号配置或角色冲突 | 某组 `TEST_*_{NAME,EMAIL,PASSWORD}` 未成套填写、格式不合法，或该邮箱已属于另一角色 | 补齐 Doppler 三元组或使用角色正确且唯一的测试邮箱；禁止修改既有用户角色 | 根据错误中的变量前缀或通用角色冲突定位，不打印 Secret；生产必须配置三组学生和三组导师 |
 | `/health/live` 成功但 `/health/ready` 503 | 进程存活但 PostgreSQL 或 Redis ping 失败 | 修复显示为 unavailable 的依赖 | 响应只给依赖类别；进一步查看对应容器日志 |
-| 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的长连接不可达；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 恢复服务器到 Cloudflare edge 的直连网络；服务器等待 edge 注册，GitHub Runner 从公网验证 readiness | 检查 `docker compose -p nebula-api -f compose.production.yaml logs --tail 100 cloudflared` 和 `https://api.lyn91r.cn/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running |
+| 公网 API 返回 Cloudflare `530`，Tunnel 控制台显示 `Active replicas: 0 / Down`，浏览器同时报告 CORS 缺少 `Access-Control-Allow-Origin` | backend 正常但 cloudflared 到 Cloudflare edge 的长连接不可达；CORS 报错只是 530 页面没有业务 CORS Header 的二次表现 | 恢复服务器到 Cloudflare edge 的直连网络；服务器等待 edge 注册，GitHub Runner 从公网验证 readiness | 检查 `docker compose -p nebula-api -f compose.production.yaml logs --tail 100 cloudflared` 和 `https://api.lwm78.top/health/live`；Tunnel 日志应出现 `Registered tunnel connection`，不得只检查容器 running |
 | 8080 端口被占用 | 本机其他程序已监听 `127.0.0.1:8080` | 停止冲突程序；端口契约变更需同步 Compose 和文档 | `Get-NetTCPConnection -LocalPort 8080 -State Listen` |
 | 修改代码后仍运行旧行为 | 未重建镜像或 `VERSION`/image tag 与预期不一致 | 执行 `.\scripts\compose.ps1 up -d --build`，发布时按 SemVer 更新 `VERSION` | `.\scripts\compose.ps1 images` 与 `docker image inspect nebula-api-backend:<version>` |
 | 2C2G 服务器部署时 CPU、内存或磁盘 I/O 突增 | 首次冷构建、Go 版本或依赖变化导致缓存失效，Go 编译仍需计算资源，或 Compose 同时 pull/start 多个 service | 生产 Dockerfile 固定单核 Go 构建；BuildKit 使用稳定命名的 module/build cache 复用未变化 package；部署脚本以 `COMPOSE_PARALLEL_LIMIT=1` 逐个 pull，并按 postgres -> redis -> migrate -> backend -> maintenance -> cloudflared 串行启动，每阶段间隔十秒 | 运行 `go test ./scripts` 检查缓存契约；Actions 日志应显示 `persistent BuildKit caches` 且同一时间只有一个 pull/build/start 操作；服务器可用 `docker stats --no-stream`、`uptime` 和 `iostat -xz 1 3` 观察，不要并发重跑 workflow |
