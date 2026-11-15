@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="将 Codex 供应商配置通过 CC Switch 官方 ccswitch:// 深链一键导入">
+  <title>Codex · CC Switch 一键导入</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0c12;
+      --panel: #131722;
+      --panel-strong: #1a1f2d;
+      --line: #2b3344;
+      --text: #f4f6fb;
+      --muted: #98a2b7;
+      --blue: #5aa7ff;
+      --blue-strong: #2578e8;
+      --green: #45d19b;
+      --warning: #f3c969;
+      --danger: #ff8e91;
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+    }
+    button, input, select, textarea { font: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 38px 0 60px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 38px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 750; letter-spacing: .01em; }
+    .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; color: #07101f; background: linear-gradient(135deg, #7bc3ff, #3b82f6); font-weight: 900; }
+    .brand small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .source-link { color: var(--muted); font-size: 13px; text-decoration: none; }
+    .source-link:hover { color: var(--blue); }
+    .hero { max-width: 780px; margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 10px; color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0 0 12px; font-size: clamp(30px, 5vw, 54px); line-height: 1.06; }
+    .hero p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.75; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: 18px; align-items: start; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: 0 18px 55px #0005; }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 18px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font-size: 18px; }
+    .panel-head p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid #315783; border-radius: 999px; color: #a8d4ff; background: #102541; font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px #45d19b22; }
+    form { padding: 24px; }
+    .section-label { display: flex; align-items: center; gap: 9px; margin: 3px 0 14px; color: #dce4f4; font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .section-label::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-bottom: 24px; }
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: 7px; color: #c7cfdf; font-size: 13px; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 11px; font-weight: 500; }
+    input, select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; outline: 0; color: var(--text); background: #0d111b; transition: border-color .18s, box-shadow .18s; }
+    input, select { height: 42px; padding: 0 12px; }
+    textarea { min-height: 82px; padding: 11px 12px; resize: vertical; line-height: 1.55; }
+    input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #5aa7ff22; }
+    input[readonly] { color: #a8b5ca; background: #171d2a; }
+    .check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .check { display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: #c7cfdf; background: #0d111b; font-size: 12px; font-weight: 600; }
+    .check input { width: 16px; height: 16px; accent-color: var(--blue-strong); }
+    .config-box { margin-top: -4px; padding: 14px; border: 1px solid #33405a; border-radius: 10px; background: #0d1320; }
+    .config-box-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .config-box-head strong { font-size: 12px; }
+    .config-box-head span { color: var(--muted); font-size: 11px; }
+    pre { overflow: auto; margin: 0; color: #b8d8ff; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 2px; }
+    .btn { min-height: 43px; padding: 0 17px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: #202738; font-size: 13px; font-weight: 750; transition: transform .18s, background .18s, border-color .18s; }
+    .btn:hover { transform: translateY(-1px); border-color: #5c6d8c; background: #283247; }
+    .btn.primary { border-color: #438be9; color: #fff; background: linear-gradient(135deg, #3184ee, #1d5dc5); box-shadow: 0 9px 24px #1d5dc544; }
+    .btn.primary:hover { background: linear-gradient(135deg, #4695ff, #286ddd); }
+    .side { position: sticky; top: 22px; }
+    .steps { display: grid; gap: 13px; padding: 23px 24px; }
+    .step { display: grid; grid-template-columns: 29px 1fr; gap: 12px; align-items: start; }
+    .step-num { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid #3e6ea2; border-radius: 50%; color: #9bcaff; background: #10233d; font-size: 12px; font-weight: 800; }
+    .step strong { display: block; margin: 3px 0 3px; font-size: 13px; }
+    .step span { color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .note { margin: 0 24px 23px; padding: 13px 14px; border-left: 3px solid var(--warning); border-radius: 7px; color: #ead9a5; background: #2b2514; font-size: 12px; line-height: 1.6; }
+    .payload { padding: 22px 24px 24px; border-top: 1px solid var(--line); }
+    .payload h3 { margin: 0 0 9px; font-size: 14px; }
+    .payload p { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .url-preview { overflow: auto; max-height: 145px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; color: #b8d8ff; background: #0b0f17; font: 11px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
+    .url-preview.empty { color: #657189; }
+    .footer { margin-top: 23px; color: #657189; font-size: 11px; line-height: 1.6; }
+    .footer a { color: #8ebfff; }
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; max-width: min(420px, calc(100% - 44px)); padding: 13px 15px; border: 1px solid #2d765f; border-radius: 9px; color: #c8f7e7; background: #10251f; box-shadow: 0 14px 40px #0007; font-size: 12px; transform: translateY(18px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .modal-backdrop { display: none; position: fixed; inset: 0; z-index: 10; place-items: center; padding: 20px; background: #060810bb; backdrop-filter: blur(8px); }
+    .modal-backdrop.open { display: grid; }
+    .modal { width: min(620px, 100%); max-height: min(780px, calc(100vh - 40px)); overflow: auto; border: 1px solid #3b465b; border-radius: 8px; background: #171c27; box-shadow: 0 30px 90px #000b; }
+    .modal-head { display: flex; justify-content: space-between; gap: 18px; padding: 22px 23px 17px; border-bottom: 1px solid var(--line); }
+    .modal-head h2 { margin: 0; font-size: 20px; }
+    .modal-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .close { width: 31px; height: 31px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 21px; }
+    .close:hover { color: var(--text); background: #2a3242; }
+    .summary { display: grid; grid-template-columns: 145px 1fr; gap: 0; margin: 0; padding: 8px 23px; }
+    .summary dt, .summary dd { padding: 10px 0; border-bottom: 1px solid #283041; font-size: 13px; }
+    .summary dt { color: var(--muted); }
+    .summary dd { overflow-wrap: anywhere; margin: 0; color: #f1f4fa; font-weight: 650; }
+    .summary dd code { color: #afd2ff; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .modal-warning { margin: 10px 23px 0; padding: 11px 12px; border-radius: 8px; color: #f4d98a; background: #302716; font-size: 11px; line-height: 1.6; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 19px 23px 22px; }
+    @media (max-width: 850px) { .layout { grid-template-columns: 1fr; } .side { position: static; } }
+    @media (max-width: 560px) { .shell { width: min(100% - 24px, 1180px); padding-top: 22px; } .topbar { margin-bottom: 28px; } .source-link { display: none; } .grid, .check-grid { grid-template-columns: 1fr; } .field.full { grid-column: auto; } .panel-head, form, .steps, .payload { padding-left: 17px; padding-right: 17px; } .note { margin-left: 17px; margin-right: 17px; } .summary { grid-template-columns: 112px 1fr; padding-left: 17px; padding-right: 17px; } .modal-actions { padding-left: 17px; padding-right: 17px; } .modal-warning { margin-left: 17px; margin-right: 17px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">N</span><span>Nebula<small>Provider handoff</small></span></div>
+      <a class="source-link" href="https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/5-faq/5.3-deeplink.md" target="_blank" rel="noopener noreferrer">查看 CC Switch 官方深链文档 ↗</a>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">Codex / CC Switch</p>
+      <h1>把 Codex 供应商交给 CC Switch。</h1>
+      <p>填写一次供应商信息，生成官方 <code>ccswitch://v1/import</code> 深链。点击确认后，系统会唤醒已安装的 CC Switch，并在它的导入确认窗口中预填本页配置。</p>
+    </section>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Codex 供应商配置</h2><p>示例值均为虚构值，请替换为真实且可信的供应商信息。</p></div><span class="badge">Codex</span></div>
+        <form id="configForm">
+          <div class="section-label">01 · 供应商与连接</div>
+          <div class="grid">
+            <div class="field"><label for="app">应用类型</label><input id="app" value="Codex" readonly></div>
+            <div class="field"><label for="providerName">供应商名称</label><input id="providerName" value="Nebula Codex Demo" required></div>
+            <div class="field"><label for="homepage">官网地址 <span class="hint">可选</span></label><input id="homepage" type="url" value="https://nebula.example.com"></div>
+            <div class="field"><label for="endpoint">API Endpoint</label><input id="endpoint" type="url" value="https://api.nebula.example.com/v1" required></div>
+            <div class="field"><label for="apiKey">API Key</label><input id="apiKey" type="password" value="neb_demo_7f2a9d1c6e4b" required autocomplete="off"></div>
+            <div class="field"><label for="modelProvider">Model Provider</label><input id="modelProvider" value="custom" required></div>
+            <div class="field"><label for="model">Model</label><input id="model" value="gpt-5.2-codex" required></div>
+            <div class="field"><label for="icon">图标 <span class="hint">可选 URL 或 emoji</span></label><input id="icon" value="✦"></div>
+          </div>
+
+          <div class="section-label">02 · Codex 配置</div>
+          <div class="grid">
+            <div class="field"><label for="reasoning">Model Reasoning Effort</label><select id="reasoning"><option>minimal</option><option>low</option><option>medium</option><option selected>high</option><option>xhigh</option></select></div>
+            <div class="field"><label for="wireApi">Wire API</label><select id="wireApi"><option selected>responses</option><option>chat_completions</option></select></div>
+            <div class="field full"><label>开关</label><div class="check-grid"><label class="check"><input id="disableStorage" type="checkbox" checked> Disable response storage</label><label class="check"><input id="requiresAuth" type="checkbox" checked> Requires OpenAI auth</label><label class="check"><input id="enabled" type="checkbox" checked> 导入后启用</label></div></div>
+            <div class="field full"><label for="notes">备注 <span class="hint">可选</span></label><textarea id="notes">由 Nebula 平台一键导入 · Codex Responses endpoint</textarea></div>
+          </div>
+
+          <div class="section-label">03 · 将写入的文件</div>
+          <div class="config-box"><div class="config-box-head"><strong>auth.json + config.toml</strong><span>深链内会进行 UTF-8 Base64 编码</span></div><pre id="configPreview"></pre></div>
+          <div class="actions"><button class="btn" type="button" id="copyButton">复制深链</button><button class="btn primary" type="button" id="openButton">一键配置 CC Switch ↗</button></div>
+        </form>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <div class="panel-head"><div><h2>导入流程</h2><p>由 CC Switch 负责最终确认和写入。</p></div></div>
+          <div class="steps">
+            <div class="step"><span class="step-num">1</span><div><strong>生成官方深链</strong><span>使用 V1 provider import 协议，参数经过 URL 编码。</span></div></div>
+            <div class="step"><span class="step-num">2</span><div><strong>唤醒 CC Switch</strong><span>操作系统可能先询问是否允许打开 <code>ccswitch://</code>。</span></div></div>
+            <div class="step"><span class="step-num">3</span><div><strong>在 CC Switch 中确认</strong><span>CC Switch 会展示导入预览，点击“导入”后才会写入本机配置。</span></div></div>
+          </div>
+          <p class="note">深链可能包含 API Key。示例页仅用于演示，请勿把真实深链粘贴到公开聊天、工单或日志中。</p>
+          <div class="payload"><h3>当前深链预览</h3><p>修改表单后会实时更新。预览中的 Key 已脱敏，复制/打开时使用完整值。</p><div class="url-preview empty" id="urlPreview">正在生成…</div></div>
+        </section>
+        <p class="footer">协议依据：<a href="https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/5-faq/5.3-deeplink.md" target="_blank" rel="noopener noreferrer">CC Switch Deep Link Protocol</a> · Codex 配置字段依据：<a href="https://developers.openai.com/codex/config-reference" target="_blank" rel="noopener noreferrer">OpenAI Codex config reference</a></p>
+      </aside>
+    </div>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="presentation">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head"><div><h2 id="modalTitle">确认导入 Codex 供应商</h2><p>以下信息将交给 CC Switch 的原生导入窗口。</p></div><button class="close" id="closeButton" type="button" aria-label="关闭">×</button></div>
+      <dl class="summary"><dt>应用类型</dt><dd>Codex</dd><dt>供应商名称</dt><dd id="summaryName"></dd><dt>官网地址</dt><dd id="summaryHomepage"></dd><dt>API 端点</dt><dd id="summaryEndpoint"></dd><dt>API 密钥</dt><dd><code id="summaryKey"></code></dd><dt>模型 / Provider</dt><dd id="summaryModel"></dd><dt>Reasoning effort</dt><dd id="summaryReasoning"></dd><dt>Wire API</dt><dd id="summaryWire"></dd><dt>配置格式</dt><dd>JSON（内含 Codex TOML）</dd></dl>
+      <p class="modal-warning">请只导入来自可信来源的配置。CC Switch 会在本机再次展示配置并要求确认。</p>
+      <div class="modal-actions"><button class="btn" type="button" id="cancelButton">取消</button><a class="btn primary" id="confirmLink" href="#">打开 CC Switch ↗</a></div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fields = ['providerName', 'homepage', 'endpoint', 'apiKey', 'modelProvider', 'model', 'icon', 'reasoning', 'wireApi', 'notes', 'disableStorage', 'requiresAuth', 'enabled'];
+    const encoder = new TextEncoder();
+
+    function utf8ToBase64(value) {
+      const bytes = encoder.encode(value);
+      let binary = '';
+      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      return btoa(binary);
+    }
+
+    function readValue(id) {
+      const node = $(id);
+      return node.type === 'checkbox' ? node.checked : node.value.trim();
+    }
+
+    function buildPayload() {
+      const endpoint = readValue('endpoint');
+      const apiKey = readValue('apiKey');
+      const name = readValue('providerName');
+      const model = readValue('model');
+      const provider = readValue('modelProvider');
+      const toml = [
+        `model_provider = "${provider}"`,
+        `model = "${model}"`,
+        `model_reasoning_effort = "${readValue('reasoning')}"`,
+        `disable_response_storage = ${readValue('disableStorage')}`,
+        '',
+        `[model_providers.${provider}]`,
+        `name = "${provider}"`,
+        `base_url = "${endpoint}"`,
+        `wire_api = "${readValue('wireApi')}"`,
+        `requires_openai_auth = ${readValue('requiresAuth')}`
+      ].join('\n');
+      const config = JSON.stringify({ auth: { OPENAI_API_KEY: apiKey }, config: toml });
+      const params = new URLSearchParams({ resource: 'provider', app: 'codex', name, endpoint, apiKey, config: utf8ToBase64(config), configFormat: 'json' });
+      const homepage = readValue('homepage');
+      const icon = readValue('icon');
+      const notes = readValue('notes');
+      if (homepage) params.set('homepage', homepage);
+      if (icon) params.set('icon', icon);
+      if (notes) params.set('notes', notes);
+      if (model) params.set('model', model);
+      if (readValue('enabled')) params.set('enabled', 'true');
+      return { deepLink: `ccswitch://v1/import?${params.toString()}`, toml, config };
+    }
+
+    function maskKey(value) {
+      if (!value) return '未填写';
+      return `${value.slice(0, 7)}${'•'.repeat(Math.max(4, value.length - 7))}`;
+    }
+
+    function refresh() {
+      const payload = buildPayload();
+      $('configPreview').textContent = `auth.json\n${JSON.stringify({ OPENAI_API_KEY: maskKey(readValue('apiKey')) }, null, 2)}\n\nconfig.toml\n${payload.toml}`;
+      $('urlPreview').textContent = payload.deepLink.replace(encodeURIComponent(readValue('apiKey')), encodeURIComponent(maskKey(readValue('apiKey'))));
+      $('urlPreview').classList.remove('empty');
+      return payload;
+    }
+
+    function showToast(message) {
+      $('toast').textContent = message;
+      $('toast').classList.add('show');
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => $('toast').classList.remove('show'), 4200);
+    }
+
+    function openPreview() {
+      const form = $('configForm');
+      if (!form.reportValidity()) return;
+      const payload = refresh();
+      $('summaryName').textContent = readValue('providerName');
+      $('summaryHomepage').textContent = readValue('homepage') || '未填写';
+      $('summaryEndpoint').textContent = readValue('endpoint');
+      $('summaryKey').textContent = maskKey(readValue('apiKey'));
+      $('summaryModel').textContent = `${readValue('model')} · ${readValue('modelProvider')}`;
+      $('summaryReasoning').textContent = readValue('reasoning');
+      $('summaryWire').textContent = readValue('wireApi');
+      $('confirmLink').href = payload.deepLink;
+      $('modalBackdrop').classList.add('open');
+      $('closeButton').focus();
+    }
+
+    fields.forEach((id) => $(id).addEventListener('input', refresh));
+    fields.forEach((id) => $(id).addEventListener('change', refresh));
+    $('openButton').addEventListener('click', openPreview);
+    $('closeButton').addEventListener('click', () => $('modalBackdrop').classList.remove('open'));
+    $('cancelButton').addEventListener('click', () => $('modalBackdrop').classList.remove('open'));
+    $('modalBackdrop').addEventListener('click', (event) => { if (event.target === $('modalBackdrop')) $('modalBackdrop').classList.remove('open'); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') $('modalBackdrop').classList.remove('open'); });
+    $('confirmLink').addEventListener('click', () => { $('modalBackdrop').classList.remove('open'); showToast('正在打开 CC Switch。若浏览器询问，请允许打开 ccswitch 链接。'); });
+    $('copyButton').addEventListener('click', async () => {
+      const form = $('configForm');
+      if (!form.reportValidity()) return;
+      const payload = refresh();
+      try { await navigator.clipboard.writeText(payload.deepLink); showToast('深链已复制。请勿把包含真实 API Key 的链接公开分享。'); }
+      catch { showToast('浏览器阻止了剪贴板访问，请打开预览后手动复制链接。'); }
+    });
+    refresh();
+  </script>
+</body>
+</html>

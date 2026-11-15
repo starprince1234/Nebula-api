@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/starprince1234/Nebula-api/internal/dataplane"
 )
 
@@ -96,5 +99,42 @@ func TestRegistersControlPlaneAndGatewayRoutes(t *testing.T) {
 		if _, exists := routes[route]; !exists {
 			t.Fatalf("expected route %s is not registered", route)
 		}
+	}
+}
+
+func TestServerNormalizesExtraLeadingSlashAndTrailingOriginSlash(t *testing.T) {
+	t.Parallel()
+	server := NewServer(nil, nil, nil, (*dataplane.Gateway)(nil), HealthDependencies{}, Config{
+		AllowedOrigin: "https://www.lwm78.top/",
+	})
+
+	preflight := httptest.NewRequest(http.MethodOptions, "//api/v1/auth/login", nil)
+	preflight.Header.Set("Origin", "https://www.lwm78.top")
+	preflightRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(preflightRecorder, preflight)
+	if preflightRecorder.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 for OPTIONS //api/v1/auth/login, got %d", preflightRecorder.Code)
+	}
+	if got := preflightRecorder.Header().Get("Access-Control-Allow-Origin"); got != "https://www.lwm78.top" {
+		t.Fatalf("expected normalized Access-Control-Allow-Origin, got %q", got)
+	}
+
+	liveReq := httptest.NewRequest(http.MethodGet, "//health/live", nil)
+	liveRecorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(liveRecorder, liveReq)
+	if liveRecorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 for GET //health/live, got %d", liveRecorder.Code)
+	}
+
+	normalCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	normalCtx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	if got := refreshCookiePath(normalCtx); got != "/api/v1/auth" {
+		t.Fatalf("expected /api/v1/auth cookie path, got %q", got)
+	}
+
+	doubleSlashCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	doubleSlashCtx.Request = httptest.NewRequest(http.MethodPost, "//api/v1/auth/login", nil)
+	if got := refreshCookiePath(doubleSlashCtx); got != "/" {
+		t.Fatalf("expected / cookie path for // prefix, got %q", got)
 	}
 }

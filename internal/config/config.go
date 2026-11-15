@@ -68,7 +68,7 @@ func Load() (Config, error) {
 	var cfg Config
 	cfg.AppEnv = value("APP_ENV", "development")
 	cfg.HTTPAddress = value("HTTP_ADDRESS", ":8080")
-	cfg.PublicAppURL = value("PUBLIC_APP_URL", "http://localhost:5173")
+	cfg.PublicAppURL = strings.TrimRight(value("PUBLIC_APP_URL", "http://localhost:5173"), "/")
 
 	var err error
 	if cfg.DatabaseURL, err = required("DATABASE_URL"); err != nil {

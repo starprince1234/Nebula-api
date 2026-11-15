@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -139,13 +140,20 @@ func (s *Server) me(c *gin.Context) {
 	respond(c, http.StatusOK, user)
 }
 
+func refreshCookiePath(c *gin.Context) string {
+	if c != nil && c.Request != nil && c.Request.URL != nil && strings.HasPrefix(c.Request.URL.Path, "//") {
+		return "/"
+	}
+	return "/api/v1/auth"
+}
+
 func (s *Server) setRefreshCookie(c *gin.Context, token string) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(
 		refreshCookieName,
 		token,
 		int(s.config.RefreshTTL.Seconds()),
-		"/api/v1/auth",
+		refreshCookiePath(c),
 		"",
 		s.config.CookieSecure,
 		true,
@@ -154,6 +162,6 @@ func (s *Server) setRefreshCookie(c *gin.Context, token string) {
 
 func (s *Server) clearRefreshCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(refreshCookieName, "", -1, "/api/v1/auth", "", s.config.CookieSecure, true)
+	c.SetCookie(refreshCookieName, "", -1, refreshCookiePath(c), "", s.config.CookieSecure, true)
 	c.Header("Expires", time.Unix(1, 0).UTC().Format(http.TimeFormat))
 }

@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { APIError, apiErrorMessage, networkActivity, request, token } from './client'
+import { APIError, apiErrorMessage, networkActivity, normalizeApiBaseUrl, request, token } from './client'
 import { authAPI } from './auth'
 
 describe('API client', () => {
   afterEach(() => { vi.unstubAllGlobals(); token.set(null); networkActivity.reads = 0; networkActivity.writes = 0 })
+
+  it('normalizes trailing slashes on VITE_API_BASE_URL', () => {
+    expect(normalizeApiBaseUrl('https://api.lwm78.top/')).toBe('https://api.lwm78.top')
+    expect(normalizeApiBaseUrl(' https://api.lwm78.top/// ')).toBe('https://api.lwm78.top')
+    expect(normalizeApiBaseUrl('')).toBe('')
+  })
 
   it('parses structured errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'MODEL_NOT_READY', message: '模型尚未就绪', details: { model_ids: ['m1'] } } }), { status: 409, headers: { 'Content-Type': 'application/json' } })))

@@ -110,6 +110,12 @@ Nebula 是从零重构的现代 AI API 中转站。首期只实现三类用户�
 
 禁止连接或修改生产数据库，禁止使用真实供应商密钥进行测试。
 
+### 阶段四：推送部署与线上验收
+
+- 所有修改在本地验证通过后，必须提交并推送到 `main` 触发生产部署，完成线上真实验收后才可交付用户审查。
+- 推送后必须持续监控对应的 GitHub Actions 部署任务（`.github/workflows/deploy.yml`）直至顺利通过（`completed` 且 `conclusion=success`）；若 Action 失败，必须定位根因、修复并重新推送直至通过。
+- Action 通过后，必须针对线上真实环境（`https://www.lwm78.top` 与 `https://api.lwm78.top`）完成端到端验收，确认改动在线上实际生效且无报错后，再向用户汇报审查。
+
 ## 8. 测试要求
 
 - 状态机、认证、安全边界、事务、协议转换、流式代理和持久化契约必须有测试。
@@ -122,7 +128,7 @@ Nebula 是从零重构的现代 AI API 中转站。首期只实现三类用户�
 
 - 不修改 `D:\VScodeProjects\NebulaCloud\nebula-ai`。
 - 不覆盖、回滚或删除用户已有修改。
-- 未经要求不创建分支、不提交、不 amend、不 push、不创建 PR。
+- 所有修改都应该进行线上验收：本地验证通过后必须 `git commit` 并 `git push` 到 `main`，监控 GitHub Actions 顺利通过且线上验收无误后，才可交给用户审查；未经要求不创建额外分支、不 force push、不创建 PR。
 - 禁止 `git reset --hard`、强制 checkout 和强制清理。
 - 不提交 `.env`、凭据、令牌、数据库内容或测试生成的 secret。
 
@@ -141,4 +147,6 @@ npm run build
 .\scripts\compose.ps1 config --quiet
 .\scripts\compose.ps1 up -d --build
 .\scripts\compose.ps1 ps
+gh run list --workflow=deploy.yml --limit 5
+gh run watch <run-id> --exit-status
 ```

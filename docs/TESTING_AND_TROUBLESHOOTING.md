@@ -63,8 +63,9 @@ npm run build
 - Realtime client secret 的 `session.model`、WebRTC calls multipart `session.model` 改写和 SDP 保真；
 - Video resource 创建后的 Redis binding 关联，以及查询、content、remix 返回同一上游；
 - 控制面结构化错误码到 HTTP 状态码映射；
-- 安全配置长度、加密主密钥、开发 Cookie 行为，以及固定测试账号 Secret 的成套解析和角色校验。
+- 安全配置长度、加密主密钥、开发 Cookie 行为，以及固定测试账号 Secret 的成套解析和角色校验；`VITE_API_BASE_URL`/`PUBLIC_APP_URL` 尾斜杠剥离，以及控制面（含 refresh Cookie Path）与模型网关的多余前导斜杠归一化。
 - 前端类型检查、生产构建、关键 API client 行为，以及初次加载/刷新状态分离、并发请求计数、相同操作去重和可访问骨架渲染。
+- `frontend/public/cc-switch-codex-import.html` 的 Codex 深链导入示例：必填字段校验、UTF-8 Base64 payload、`resource=provider&app=codex` 参数、遮罩预览、复制深链和 `ccswitch://` 唤醒按钮。
 - 生产 Dockerfile 的 BuildKit 契约：部署显式启用 BuildKit，`go mod download` 使用持久化 module cache，三个 Go 二进制的串行编译同时使用 module cache 和 build cache。
 - 导师候选游标编解码、学生新模型元数据校验与并发复用规则、nullable 模型字段三态解析、老师驳回进度映射、模型 ID 去重和 1–100 数量校验。
 
@@ -174,6 +175,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 自定义模型提交后无法终审 | 新模型处于 `pending_configuration` | 老师补全模型、至少一个 ACTIVE binding 和 ACTIVE provider | 终审返回的 `model_ids` 是未就绪集合 |
 | 首次保存模型默认倍率返回 `multiplier change reason is required` | 后端把 NULL -> 默认倍率误判为倍率变更 | 首次设置倍率不要求原因；只有已有倍率改为不同值时填写变更原因 | 用默认基础配置直接保存，应返回 200 并进入 Binding 节点 |
 | 老师新增模型搜不到 Matrix 候选 | `model-catalog` 未启动、`MATRIX_APIKEY` 缺失或最近同步失败 | 检查生产 worker 状态和日志；失败保留上次快照，不清表、不把目录暴露给学生 | `docker compose -p nebula-api -f compose.production.yaml ps model-catalog`；日志不得包含 API Key |
+| Codex 示例页点击后没有唤醒 CC Switch | CC Switch 未安装/未注册 `ccswitch://` 协议，或浏览器拦截了自定义协议 | 安装官方 CC Switch 并重新注册协议；允许浏览器打开链接，也可在预览中复制完整深链手动打开 | 检查按钮 href 是否以 `ccswitch://v1/import?resource=provider&app=codex` 开头；不要把含真实 API Key 的链接贴入日志 |
 | 一键配置拒绝测试地址 | 手写 Base URL 解析到 localhost、私网、链路本地或云元数据地址 | 使用公网 HTTP/HTTPS 上游，或先注册经审核的供应商 | 不得关闭连接阶段 DNS/IP 校验或允许重定向绕过 |
 | 一键配置弹窗出现在右下角、测试后仍显示大段响应 | 子表单使用页面内 fixed panel，且把 Probe 原始响应保存为渲染状态 | 一键配置和首次询问统一使用 Portal Dialog；后端只返回标准化配置与状态摘要，成功后关闭弹窗并写回第二步 | `cd frontend; npm run test -- src/views/teacher/TeacherModels.test.ts`；页面同时打开主向导和子弹窗时，两者都应在视口中央 |
 | 一键配置未带出简介、标签、能力或容量始终是默认值 | Probe 未请求供应商模型目录、未精确匹配上游模型 ID，或只解析结构化容量字段 | Probe 固定先请求 `/v1/models`，将真实 description 写入表单，并统一执行 tags/model type/endpoint types/description 映射与 description 正则、模型族、全局默认容量规则 | `go test ./internal/catalog ./internal/controlplane`；不要记录目录原始响应或供应商 Key |
@@ -243,7 +245,7 @@ Vercel 项目必须将 Root Directory 设置为 `frontend`。前端部署完成�
 | 页面刷新后回到登录页 | refresh Cookie 不存在、Path/Secure/SameSite 不匹配，或 Redis session 已失效 | 修正 Cookie 与同源部署配置后重新登录 | 检查 `/api/v1/auth/refresh` 状态和 Set-Cookie 属性；前端不会从 JS 读取 refresh token |
 | 登录后刷新页面被重定向到登录页，且 refresh Cookie 原本有效 | 路由守卫与 `App.vue` 同时调用 bootstrap，单次轮换 refresh token 被并发使用，后端将第二次请求识别为重用并撤销 session family | 由 auth store 提供 single-flight bootstrap，并让路由守卫复用同一个 Promise；不要在多个启动入口重复调用 refresh | 运行 `cd frontend; npm run test -- src/store/auth.test.ts`，浏览器 Network 中刷新页面应只有一个 `/api/v1/auth/refresh` 请求 |
 | 多个请求同时 401 导致反复刷新 | API client 未共享 refresh 请求，或 refresh token 被并发轮换重用 | 使用前端内置 single-flight client，禁止页面直接调用 fetch | Network 中应只有一个并发 refresh；若 session family 被撤销则重新登录 |
-| 前端提示接口 404 | 未通过 Vite/Nginx 代理访问、路径写成旧路由或 backend 未启动 | 使用相对 `/api/v1` 路径并恢复 backend | 检查浏览器请求 URL、`frontend/nginx.conf` 和 Compose 网络，不增加旧路由别名 |
+| 前端提示接口 404 | 未通过 Vite/Nginx 代理访问、路径写成旧路由、backend 未启动，或生产环境变量 `VITE_API_BASE_URL` 带有尾斜杠 `/` 导致拼接出 `https://api.lwm78.top//api/v1/...` 双斜杠路径 | 使用相对 `/api/v1` 路径或去掉 `VITE_API_BASE_URL` 末尾 `/` 后重建部署；前后端现已分别自动剥离 `VITE_API_BASE_URL`/`PUBLIC_APP_URL` 尾斜杠并对控制面/网关多余前导斜杠做归一化兼容 | 检查浏览器 Network 实际请求 URL 是否出现 `//api/v1`、`frontend/nginx.conf` 与 Compose 网络；运行 `cd frontend; npm run test -- src/api/client.test.ts` 与 `go test ./internal/api/http ./internal/dataplane ./internal/config` 验证斜杠归一化，不增加旧路由别名 |
 | 注册成功收到验证码但提交返回 `VALIDATION_ERROR` 且提示未知字段 | 注册页面把 `role`、密码确认字段等 UI 状态一并发送；后端注册 DTO 只接受 `name`、`email`、`password`、`verification_code` 并严格拒绝未知 JSON 字段 | API client 现在显式构造四个允许字段；更新前端构建后重新注册 | 浏览器 Network 查看请求 JSON 的字段名，不要提交 `role`、`confirm` 或其他表单状态；错误提示会指出具体字段 |
 | 前端错误提示出现 `body: 包含不支持字段` 或英文原始错误 | 客户端直接展示 Gin/JSON 解析器原文，未按错误码和字段原因翻译 | 使用统一 API error 文案映射；校验错误显示具体字段和可执行处理方式 | 检查响应 `error.code`、`error.details` 和 `request_id`；不要把完整请求头或 token 粘贴到工单 |
 | 前端 SSE 无状态更新 | 使用 EventSource 无法带 Bearer，或 fetch stream 中断 | 使用内置 fetch streaming，重连后重新拉取列表 | 检查 `/api/v1/events` Authorization 与响应 Content-Type；不要把 token 放 query |

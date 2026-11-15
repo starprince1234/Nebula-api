@@ -1,7 +1,11 @@
 import type { ApiError, ApiErrorDetails, Envelope, PageMeta } from './types'
 import { reactive } from 'vue'
 
-const base = import.meta.env.VITE_API_BASE_URL ?? ''
+export function normalizeApiBaseUrl(value = import.meta.env.VITE_API_BASE_URL ?? ''): string {
+  return value.trim().replace(/\/+$/, '')
+}
+
+const base = normalizeApiBaseUrl()
 let accessToken: string | null = null
 let refreshFlight: Promise<boolean> | null = null
 

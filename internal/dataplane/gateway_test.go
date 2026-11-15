@@ -272,11 +272,16 @@ func TestCohereUpstreamRequestUsesBearerCredential(t *testing.T) {
 
 func TestGeminiRejectsQueryAPIKeyBeforeAuthentication(t *testing.T) {
 	t.Parallel()
-	request := httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini:generateContent?key=client-secret", strings.NewReader(`{"contents":[]}`))
-	recorder := httptest.NewRecorder()
-	(&Gateway{}).ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "API keys are not accepted in query parameters") {
-		t.Fatalf("unexpected response %d: %s", recorder.Code, recorder.Body.String())
+	for _, target := range []string{
+		"/v1beta/models/gemini:generateContent?key=client-secret",
+		"//v1beta/models/gemini:generateContent?key=client-secret",
+	} {
+		request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(`{"contents":[]}`))
+		recorder := httptest.NewRecorder()
+		(&Gateway{}).ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "API keys are not accepted in query parameters") {
+			t.Fatalf("unexpected response for %s: %d: %s", target, recorder.Code, recorder.Body.String())
+		}
 	}
 }
 

@@ -38,6 +38,7 @@ func NewServer(
 	gin.SetMode(gin.ReleaseMode)
 	gin.EnableJsonDecoderDisallowUnknownFields()
 	engine := gin.New()
+	engine.RemoveExtraSlash = true
 	server := &Server{
 		engine: engine, service: service, security: securityManager,
 		cache: cacheStore, health: health, config: cfg,

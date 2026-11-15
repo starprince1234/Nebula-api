@@ -83,6 +83,11 @@ func NewGateway(db *ent.Client, usageStore *usage.Store, cacheStore *cache.Store
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL != nil && strings.HasPrefix(r.URL.Path, "//") {
+		cloned := r.Clone(r.Context())
+		cloned.URL.Path = "/" + strings.TrimLeft(r.URL.Path, "/")
+		r = cloned
+	}
 	if isWebSocketUpgrade(r) && (r.URL.Path == "/v1/realtime" || r.URL.Path == "/v1/responses") {
 		g.serveWebSocket(w, r)
 		return
@@ -598,8 +603,13 @@ func (g *Gateway) serveResponsesWebSocket(w http.ResponseWriter, r *http.Request
 }
 
 func (g *Gateway) validWebSocketOrigin(request *http.Request) bool {
-	origin := request.Header.Get("Origin")
-	if origin == "" || origin == g.config.AllowedOrigin {
+	rawOrigin := strings.TrimSpace(request.Header.Get("Origin"))
+	if rawOrigin == "" {
+		return true
+	}
+	origin := strings.TrimRight(rawOrigin, "/")
+	allowedOrigin := strings.TrimRight(strings.TrimSpace(g.config.AllowedOrigin), "/")
+	if allowedOrigin != "" && origin == allowedOrigin {
 		return true
 	}
 	parsed, err := url.Parse(origin)

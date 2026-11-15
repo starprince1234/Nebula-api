@@ -77,6 +77,19 @@ func TestLoadRejectsDuplicateBootstrapTestAccountEmail(t *testing.T) {
 	}
 }
 
+func TestLoadTrimsPublicAppURLTrailingSlash(t *testing.T) {
+	setValidEnvironment(t)
+	t.Setenv("PUBLIC_APP_URL", "https://www.lwm78.top/")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PublicAppURL != "https://www.lwm78.top" {
+		t.Fatalf("expected normalized PublicAppURL, got %q", cfg.PublicAppURL)
+	}
+}
+
 func setValidEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("APP_ENV", "development")

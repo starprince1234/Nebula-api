@@ -62,10 +62,11 @@ func securityHeaders() gin.HandlerFunc {
 }
 
 func cors(allowedOrigin string) gin.HandlerFunc {
+	normalizedAllowed := strings.TrimRight(strings.TrimSpace(allowedOrigin), "/")
 	return func(c *gin.Context) {
-		origin := strings.TrimSpace(c.GetHeader("Origin"))
-		if origin != "" && origin == allowedOrigin {
-			c.Header("Access-Control-Allow-Origin", allowedOrigin)
+		origin := strings.TrimRight(strings.TrimSpace(c.GetHeader("Origin")), "/")
+		if normalizedAllowed != "" && origin == normalizedAllowed {
+			c.Header("Access-Control-Allow-Origin", normalizedAllowed)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Last-Event-ID")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
@@ -73,7 +74,7 @@ func cors(allowedOrigin string) gin.HandlerFunc {
 			c.Header("Vary", "Origin")
 		}
 		if c.Request.Method == http.MethodOptions {
-			if origin == allowedOrigin && origin != "" {
+			if normalizedAllowed != "" && origin == normalizedAllowed {
 				c.Status(http.StatusNoContent)
 			} else {
 				c.Status(http.StatusForbidden)
